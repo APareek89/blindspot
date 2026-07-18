@@ -24,7 +24,9 @@ flowchart TD
   E["Decrypt user provider key&lt;br/&gt;FUNCTION · AES-256-GCM&lt;br/&gt;in: provider_keys.encrypted_key · out: in-memory key"]:::fn
   F["Live LLM call through user key&lt;br/&gt;LIBRARY · Vercel AI SDK adapter&lt;br/&gt;in: prompt + model_ref · out: completion"]:::data
   G["Write trace&lt;br/&gt;DATA · traces · cost, latency, output"]:::data
-  H["Dispatch an explicitly approved eval&lt;br/&gt;FUNCTION · inline local override or BullMQ on Redis&lt;br/&gt;in: authorized run · out: eval job"]:::data
+  EST["Free cost + sample estimate&lt;br/&gt;FUNCTION · immutable eval_plan draft&lt;br/&gt;no provider calls"]:::fn
+  CONF{"Confirm disclosed cases + maximum spend?&lt;br/&gt;USER"}:::ask
+  H["Lock single-use plan and run inline locally&lt;br/&gt;FUNCTION · Phase 8 queues this authorization"]:::data
   I["Judge scores golden set&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;in: outputs vs golden_examples · out: per-criterion scores"]:::agent
   J["Aggregate avg_score, cost, latency&lt;br/&gt;FUNCTION · writes DATA · eval_runs"]:::fn
   K{"Drift? new score below route band&lt;br/&gt;FUNCTION · new below old minus margin"}:::dec
@@ -34,13 +36,15 @@ flowchart TD
   O{"User decision&lt;br/&gt;USER · approve or reject"}:::ask
   P["Apply: update routes.live_model&lt;br/&gt;FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs&lt;br/&gt;FUNCTION · DATA · recommendations status = rejected"]:::fn
-  R["CI Gate endpoint&lt;br/&gt;FUNCTION · blocks a regressing change&lt;br/&gt;in: candidate eval vs bar · out: pass or fail"]:::fn
+  R["Legacy paid drift + CI endpoints closed&lt;br/&gt;FUNCTION · plan-aware queue handoff in Phase 8"]:::term
 
   A --&gt; B --&gt; C
   C -- "no" --&gt; D --&gt; E
   C -- "yes" --&gt; E
   E --&gt; F --&gt; G
-  F --&gt; H --&gt; I --&gt; J
+  F --&gt; EST --&gt; CONF
+  CONF -- "confirm" --&gt; H --&gt; I --&gt; J
+  CONF -- "revise" --&gt; EST
   J --&gt; K
   J --&gt; L
   K -- "yes, quality dropped" --&gt; M
@@ -92,13 +96,13 @@ flowchart TD
   P4["Phase 4 · Recommendations + approvals — DONE"]:::done
   P4a["Policy = cheapest candidate with latest score &gt;= bar AND cheaper than live; emits a&lt;br/&gt;Recommendation with evidence (scores + cost/latency deltas)&lt;br/&gt;WHY: PRD §3 — evidence-backed proposal, dedup pending recs per target"]:::why
   P4b["Approve → routes.live_model switches; Reject → status + reason stored; auto_approve (default OFF)&lt;br/&gt;applies within-band+cheaper swaps automatically, still logged&lt;br/&gt;WHY: §3 non-negotiable — no silent swap; reason tunes future recs"]:::why
-  P4c["KNOWN GAP: evidence.samples + perCriterion are empty (need per-example output storage)&lt;br/&gt;WHY: deferred to Phase 4.5 — scores + deltas carry the rec for now"]:::todo
+  P4c["Phase 7C closed the evidence gap: every evaluated example stores candidate output,&lt;br/&gt;score, criteria, reasoning, issues, latency and candidate/judge cost&lt;br/&gt;WHY: Recommendations and route debugging must show the proof, not only an average"]:::done
 
   P3fix["🐞 FIX (found via live smoke test): eval scores were ~0.15 because the Golden Set Agent&lt;br/&gt;emitted BARE passages; runEval sent them with no instruction so candidates never did the task&lt;br/&gt;WHY the fix: golden inputs must be SELF-CONTAINED prompts (instruction embedded) — matches a&lt;br/&gt;real app call / promoted trace. After fix: 8B 0.16 → 0.89, and an approved swap flipped the live model"]:::why
 
   P5["Phase 5 · Drift + CI gate — DONE"]:::done
   P5a["checkDrift: re-eval (or simulated version-bump score) vs prior; if below margin or bar →&lt;br/&gt;drift_event + recovery recommendation (mode=drift picks best passing, cost secondary)&lt;br/&gt;WHY: PRD §5 — quality regressions surface as approval-gated recs, never silent reverts"]:::why
-  P5b["CI gate: POST /gate re-evals a model → 200 if score &gt;= bar, 422 if it regresses (CI fails)&lt;br/&gt;WHY: a regressing model/prompt change can't reach prod (PRD §5)"]:::why
+  P5b["Legacy paid drift + CI endpoints return 409 until Phase 8 can consume an approved queued plan&lt;br/&gt;WHY: a second endpoint must never bypass Phase 7C spend authorization"]:::why
 
   DONE["✅ Backend loop VERIFIED LIVE end-to-end (Groq + live Postgres):&lt;br/&gt;connect → route → trace → golden(agent) → eval(judge) → recommend → approve → live swap;&lt;br/&gt;drift detected; gate blocked a sub-bar model with 422"]:::done
   P7["Phase 7 · Dashboard (Next.js §10) — DONE"]:::done
@@ -110,6 +114,10 @@ flowchart TD
   P7Ba["Read-only provider catalog sync stores project-scoped account availability + normalized&lt;br/&gt;capabilities; listing consumes zero inference tokens&lt;br/&gt;WHY: expose only models the user's own account can actually access"]:::why
   P7Bb["Observed node requirements deterministically gate Sonnet/Haiku; excluded models carry reasons&lt;br/&gt;WHY: technical fit permits an experiment, while quality and spend remain separate later gates"]:::why
   P7Bc["Adding a compatible candidate does not run an eval or change live_model&lt;br/&gt;WHY: Phase 7C must estimate cost and obtain explicit spend approval before paid work"]:::why
+  P7C["Phase 7C · Quality + Experiment — DONE LOCALLY"]:::done
+  P7Ca["Immutable 30-minute eval plan: full estimate or disclosed SHA-seeded stratified sample;&lt;br/&gt;selected + omitted cases, calls, cost, safety and confidence shown before confirm&lt;br/&gt;WHY: the user owns eval spend and must know exactly what a smaller budget changes"]:::why
+  P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;&lt;br/&gt;per-example evidence is persisted immediately and incomplete runs cannot recommend&lt;br/&gt;WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
+  P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,&lt;br/&gt;rate limits, observability and plan-aware CI/drift jobs&lt;br/&gt;WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
 
   P0 --&gt; P0c --&gt; P0d --&gt; P05
   P05 --&gt; P05c --&gt; P05d --&gt; P05e --&gt; P1
@@ -117,7 +125,7 @@ flowchart TD
   P2 --&gt; P2a --&gt; P2b --&gt; P2c --&gt; P3
   P3 --&gt; P3a --&gt; P3b --&gt; P3fix --&gt; P4
   P4 --&gt; P4a --&gt; P4b --&gt; P4c --&gt; P5
-  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc
+  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc --&gt; P7C --&gt; P7Ca --&gt; P7Cb --&gt; P7Cc
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;
@@ -131,7 +139,8 @@ flowchart TD
   S{"Seed path?&lt;br/&gt;USER chooses"}:::dec
   U["Parse upload CSV or JSONL&lt;br/&gt;FUNCTION · csv-parse&lt;br/&gt;in: file text · out: rows"]:::fn
   UV["Validate rows&lt;br/&gt;FUNCTION · Zod GoldenExampleInput&lt;br/&gt;out: examples or row-level error"]:::fn
-  A["Golden Set Agent&lt;br/&gt;AGENT · GOLDEN_MODEL or JUDGE_MODEL&lt;br/&gt;in: task description plus sample inputs · out: input + referenceOutput + rubric xN"]:::agent
+  CTX["Optional context&lt;br/&gt;USER · product brief, system prompt, architecture&lt;br/&gt;live traces require an explicit checkbox"]:::ask
+  A["Golden Set Agent&lt;br/&gt;AGENT · GOLDEN_MODEL or JUDGE_MODEL&lt;br/&gt;in: task + bounded context/sample inputs · out: input + referenceOutput + rubric xN"]:::agent
   AV["Schema-validate via generateObject&lt;br/&gt;FUNCTION · Zod GeneratedGolden"]:::fn
   NV["nextVersion(routeId)&lt;br/&gt;FUNCTION · max(version) + 1"]:::fn
   C["createGoldenSet + insert examples&lt;br/&gt;DATA · golden_sets (origin) and golden_examples"]:::data
@@ -140,7 +149,7 @@ flowchart TD
   G["planned: Grow from production&lt;br/&gt;AGENT · propose judge-uncertain / drift / diverse candidates&lt;br/&gt;into a suggested-additions queue, USER accepts"]:::todo
 
   S -- "upload" --&gt; U --&gt; UV --&gt; NV
-  S -- "no upload" --&gt; A --&gt; AV --&gt; NV
+  S -- "no upload" --&gt; CTX --&gt; A --&gt; AV --&gt; NV
   NV --&gt; C --&gt; CUR
   C --&gt; PT --&gt; CUR
   C -.-&gt; G -.-&gt; CUR
@@ -151,31 +160,38 @@ flowchart TD
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
   classDef todo fill:#e5e7eb,stroke:#6b7280,color:#111827;
 </pre>
-<h2>Blindspot — eval + recommend (PRD §3, §6): back-test a candidate then propose a swap</h2>
-<pre class="mermaid">%% Blindspot — eval + recommend (PRD §3, §6): back-test a candidate then propose a swap
-%% files: apps/gateway/src/manage/eval.ts, packages/core/src/eval/queue.ts, packages/core/src/eval/runner.ts, packages/core/src/policy.ts
+<h2>Blindspot — eval + recommend (PRD §3, §6, §7a): authorize spend, back-test, then propose</h2>
+<pre class="mermaid">%% Blindspot — eval + recommend (PRD §3, §6, §7a): authorize spend, back-test, then propose
+%% files: apps/gateway/src/manage/eval.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
 %% granularity: full
 flowchart TD
-  T["Trigger&lt;br/&gt;FUNCTION · explicit paid-run approval OR (Phase 5) version bump"]:::fn
-  Q{"BLINDSPOT_EVAL_MODE=inline&lt;br/&gt;OR REDIS_URL absent?&lt;br/&gt;FUNCTION"}:::dec
-  EN["Enqueue eval job&lt;br/&gt;DATA · BullMQ bs:evals"]:::data
-  IN["Run inline (dev)&lt;br/&gt;FUNCTION"]:::fn
-  RUN["runEval: for each active golden example&lt;br/&gt;FUNCTION · loop"]:::fn
-  CAND["Candidate output&lt;br/&gt;AGENT · candidate model via user key&lt;br/&gt;in: example.input · out: text + tokens + latency"]:::agent
-  JUDGE["Judge score&lt;br/&gt;AGENT · JUDGE_MODEL via generateObject&lt;br/&gt;in: output vs reference + rubric · out: score 0..1"]:::agent
-  AGG["Aggregate avg_score, latency, cost&lt;br/&gt;FUNCTION · write DATA · eval_runs"]:::data
-  POL{"Policy: cheapest passing candidate cheaper than live?&lt;br/&gt;FUNCTION · score &gt;= route.policy.minScore"}:::dec
+  T["Select eligible candidate models + USD cap&lt;br/&gt;USER"]:::ask
+  EST["Conservative full estimate&lt;br/&gt;FUNCTION · candidate + judge token ceilings&lt;br/&gt;zero provider calls"]:::fn
+  FIT{"Cap covers full active golden set?&lt;br/&gt;FUNCTION"}:::dec
+  SAMPLE["Deterministic stratified sample&lt;br/&gt;FUNCTION · must-pass, known-failure, edge, representative"]:::fn
+  PLAN["Persist immutable 30-minute plan&lt;br/&gt;DATA · exact selected/omitted cases, strata, seed, calls, costs"]:::data
+  OK{"Confirm disclosed plan?&lt;br/&gt;USER · explicit confirm = true"}:::ask
+  LOCK["Lock + consume draft once&lt;br/&gt;FUNCTION · re-check ownership, eligibility and example hash"]:::fn
+  RUN["runEval for each selected model/example&lt;br/&gt;FUNCTION · enforce authorized per-model cost before every call"]:::fn
+  CAND["Candidate output&lt;br/&gt;AGENT · candidate model via user key&lt;br/&gt;in: example.input · out: text + usage + latency"]:::agent
+  JUDGE["Judge score&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;in: output vs reference + rubric · out: score, criteria, reasoning"]:::agent
+  ROW["Persist per-example output + issue evidence&lt;br/&gt;DATA · eval_example_results&lt;br/&gt;candidate/judge costs and errors"]:::data
+  AGG["Aggregate score, latency, reported cost and failures&lt;br/&gt;DATA · eval_runs + eval_plans"]:::data
+  POL{"Complete evidence and cheaper passing candidate?&lt;br/&gt;FUNCTION · score at or above route quality bar"}:::dec
   DUP{"Pending rec already exists for this target?&lt;br/&gt;FUNCTION"}:::dec
-  REC["Create Recommendation + evidence&lt;br/&gt;DATA · recommendations status = pending&lt;br/&gt;fromScore/toScore + cost &amp; latency delta"]:::data
-  AUTO{"route.auto_approve ON?&lt;br/&gt;FUNCTION · default OFF"}:::dec
-  APPLY["Apply swap: update routes.live_model&lt;br/&gt;FUNCTION · logged"]:::fn
+  REC["Create Recommendation + evidence&lt;br/&gt;DATA · recommendations status = pending&lt;br/&gt;criteria + cost/latency delta + samples"]:::data
+  AUTO{"route.auto_approve ON and cost decreases?&lt;br/&gt;FUNCTION · default OFF"}:::dec
+  APPLY["Transactional Recommendation + routes.live_model update&lt;br/&gt;FUNCTION · logged"]:::fn
   INBOX["Approvals inbox — USER approve or reject&lt;br/&gt;USER · approve applies swap, reject stores reason"]:::ask
-  STOP["No recommendation&lt;br/&gt;FUNCTION · none warranted"]:::term
+  STOP["No recommendation&lt;br/&gt;FUNCTION · live model unchanged"]:::term
 
-  T --&gt; Q
-  Q -- "no" --&gt; EN --&gt; RUN
-  Q -- "yes" --&gt; IN --&gt; RUN
-  RUN --&gt; CAND --&gt; JUDGE --&gt; AGG --&gt; POL
+  T --&gt; EST --&gt; FIT
+  FIT -- "yes" --&gt; PLAN
+  FIT -- "no" --&gt; SAMPLE --&gt; PLAN
+  PLAN --&gt; OK
+  OK -- "revise" --&gt; T
+  OK -- "confirm" --&gt; LOCK --&gt; RUN
+  RUN --&gt; CAND --&gt; JUDGE --&gt; ROW --&gt; AGG --&gt; POL
   POL -- "no" --&gt; STOP
   POL -- "yes" --&gt; DUP
   DUP -- "yes" --&gt; STOP
@@ -195,9 +211,9 @@ flowchart TD
 <pre class="mermaid">%% Blindspot — drift detection + CI gate (PRD §5)
 flowchart TD
   TR["Trigger&lt;br/&gt;FUNCTION · schedule OR provider version bump OR manual drift-check"]:::fn
-  RE{"Real re-eval or simulated bump?&lt;br/&gt;FUNCTION"}:::dec
-  EV["runEval on LIVE model&lt;br/&gt;AGENT+FUNCTION · candidate + judge over golden set · out: newScore"]:::agent
-  SIM["Inject simulated newScore&lt;br/&gt;FUNCTION · writes a synthetic eval_runs row"]:::fn
+  RE{"Explicit simulated bump supplied?&lt;br/&gt;FUNCTION"}:::dec
+  BLOCK["409: real paid drift eval requires an approved plan&lt;br/&gt;FUNCTION · Phase 8 queue handoff pending"]:::term
+  SIM["Inject validated simulated newScore 0..1&lt;br/&gt;FUNCTION · writes a synthetic eval_runs row"]:::fn
   CMP{"Drift? newScore below (oldScore - margin) OR below policy bar&lt;br/&gt;FUNCTION · margin default 0.05"}:::dec
   OK["No drift — done&lt;br/&gt;FUNCTION"]:::term
   DE["Record drift_event&lt;br/&gt;DATA · drift_events (old/new score, action=recommended)"]:::data
@@ -206,22 +222,15 @@ flowchart TD
   INBOX["Approval-gated recommendation → inbox&lt;br/&gt;USER · approve applies swap"]:::ask
   NONE["drift_event only (no passing alternative yet)&lt;br/&gt;FUNCTION"]:::term
 
-  G["CI Gate · POST /routes/:name/gate&lt;br/&gt;FUNCTION · runEval(modelRef or live)"]:::fn
-  GC{"avgScore &gt;= policy bar?&lt;br/&gt;FUNCTION"}:::dec
-  PASS["200 pass:true — change may ship"]:::term
-  FAIL["422 pass:false — CI blocks the regressing change"]:::term
+  G["CI Gate · POST /routes/:name/gate&lt;br/&gt;FUNCTION · 409 until it can consume an approved queued plan"]:::term
 
   TR --&gt; RE
-  RE -- "real" --&gt; EV --&gt; CMP
-  RE -- "simulated" --&gt; SIM --&gt; CMP
+  RE -- "no" --&gt; BLOCK
+  RE -- "yes" --&gt; SIM --&gt; CMP
   CMP -- "no" --&gt; OK
   CMP -- "yes" --&gt; DE --&gt; REC --&gt; HASC
   HASC -- "yes" --&gt; INBOX
   HASC -- "no" --&gt; NONE
-
-  G --&gt; GC
-  GC -- "yes" --&gt; PASS
-  GC -- "no" --&gt; FAIL
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
@@ -248,6 +257,8 @@ flowchart TD
     DR["drift: GET /drift-events&lt;br/&gt;FUNCTION · timeline linked to recs"]:::fn
     KG["keys: POST/GET /keys&lt;br/&gt;FUNCTION · mint bs_live_ (shown once) + list prefixes"]:::fn
     KP["provider-keys: GET/PUT/DELETE&lt;br/&gt;FUNCTION · AES-256-GCM · value NEVER returned"]:::fn
+    EV["eval-plans: estimate / inspect / confirm&lt;br/&gt;FUNCTION · paid legacy endpoint closed"]:::fn
+    EE["eval-evidence&lt;br/&gt;FUNCTION · per-example outputs, criteria, issues and reported cost"]:::fn
   end
 
   CORE["@blindspot/core services&lt;br/&gt;FUNCTION · every query scoped by project_id (tenant guard)"]:::fn
@@ -265,6 +276,8 @@ flowchart TD
   MW --&gt; DR
   MW --&gt; KG
   MW --&gt; KP
+  MW --&gt; EV
+  MW --&gt; EE
   MW --&gt; REUSE
   ME --&gt; CORE
   RT --&gt; CORE
@@ -272,6 +285,8 @@ flowchart TD
   DR --&gt; CORE
   KG --&gt; CORE
   KP --&gt; CORE
+  EV --&gt; CORE
+  EE --&gt; CORE
   REUSE --&gt; CORE
   CORE --&gt; DB
   U -.-&gt; DEC
@@ -340,8 +355,8 @@ flowchart TD
   ADD["Add experiment candidate&lt;br/&gt;USER"]:::ask
   GUARD["Re-run server-side compatibility gate&lt;br/&gt;FUNCTION · arbitrary raw refs rejected"]:::fn
   POOL["Candidate stored; back-test not started&lt;br/&gt;DATA · candidates&lt;br/&gt;zero eval spend · live_model unchanged"]:::data
-  QUALITY["Phase 7C: estimate + user-approved eval&lt;br/&gt;then golden-set quality gate"]:::term
-  APPROVAL["Phase 7D: evidence-backed Recommendation&lt;br/&gt;USER approves before any live swap"]:::term
+  QUALITY["Phase 7C BUILT: estimate + exact disclosed sample + confirmation&lt;br/&gt;then per-example golden-set quality evidence"]:::term
+  APPROVAL["Evidence-backed Recommendation&lt;br/&gt;USER approves before any live swap&lt;br/&gt;Phase 7D adds continuous monitoring"]:::term
   OBSERVE["Remain observe-only&lt;br/&gt;DATA · no experiment or route change"]:::term
   FAIL["Return sanitized sync error&lt;br/&gt;FUNCTION · no secret/provider body exposed"]:::term
 
@@ -358,6 +373,52 @@ flowchart TD
   MATCH -- "no or unknown" --&gt; EXCLUDED
   MATCH -- "yes" --&gt; ELIGIBLE --&gt; ADD --&gt; GUARD --&gt; POOL --&gt; QUALITY --&gt; APPROVAL
 
+  classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
+  classDef dec fill:#f3e8ff,stroke:#9333ea,color:#2a0a4a;
+  classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
+  classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
+  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
+</pre>
+<h2>Blindspot — immutable eval spend authorization (Phase 7C)</h2>
+<pre class="mermaid">%% Blindspot — immutable eval spend authorization (Phase 7C)
+%% files: packages/core/src/eval/cost.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
+%% granularity: full
+flowchart TD
+  PICK["Choose technically eligible models + maximum USD spend&lt;br/&gt;USER"]:::ask
+  ELIG["Re-check selected workflow, account registry and candidate pool&lt;br/&gt;FUNCTION"]:::fn
+  LOAD["Load latest versioned golden set&lt;br/&gt;DATA · active golden_examples"]:::data
+  PRICE["Estimate candidate + judge calls&lt;br/&gt;FUNCTION · UTF-8 byte input bound, fixed 384-token outputs, 15% safety"]:::fn
+  FULL{"Budget covers every case?&lt;br/&gt;FUNCTION"}:::dec
+  SAMPLE["Choose reproducible strata&lt;br/&gt;FUNCTION · must-pass → known-failure → edge → representative&lt;br/&gt;stable SHA seed"]:::fn
+  DRAFT["Store immutable plan for 30 minutes&lt;br/&gt;DATA · eval_plans status=draft&lt;br/&gt;examples, hash, selected/omitted, calls, costs, confidence"]:::data
+  REVIEW{"Confirm this exact plan?&lt;br/&gt;USER"}:::ask
+  FRESH{"Examples, model eligibility and key-bound access still valid?&lt;br/&gt;FUNCTION"}:::dec
+  LOCK["SELECT FOR UPDATE + single-use state transition&lt;br/&gt;FUNCTION · draft → running"]:::fn
+  REFRESH["409: calculate a fresh estimate&lt;br/&gt;FUNCTION · no provider spend"]:::term
+  LOOP["For each authorized model and selected example&lt;br/&gt;FUNCTION · pre-check per-model cap"]:::fn
+  CAND["Generate candidate output&lt;br/&gt;AGENT · selected model through encrypted BYO key"]:::agent
+  JUDGE["Score output&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;overall + per-criterion + reasoning"]:::agent
+  EVID["Persist evidence immediately&lt;br/&gt;DATA · eval_example_results&lt;br/&gt;input/reference/output, issues, latency, reported costs/errors"]:::data
+  DONE{"Every selected case scored without failure?&lt;br/&gt;FUNCTION"}:::dec
+  REC["Create evidence-backed Recommendation&lt;br/&gt;DATA · pending by default&lt;br/&gt;live_model unchanged"]:::data
+  WARN["Keep visible evidence/issues; no Recommendation&lt;br/&gt;DATA"]:::term
+  APPROVE{"Approve or reject Recommendation&lt;br/&gt;USER"}:::ask
+  APPLY["Transactional live_model update&lt;br/&gt;FUNCTION · approval or explicit per-route auto-approve only"]:::fn
+
+  PICK --&gt; ELIG --&gt; LOAD --&gt; PRICE --&gt; FULL
+  FULL -- "yes" --&gt; DRAFT
+  FULL -- "no" --&gt; SAMPLE --&gt; DRAFT
+  DRAFT --&gt; REVIEW
+  REVIEW -- "revise" --&gt; PICK
+  REVIEW -- "confirm=true" --&gt; FRESH
+  FRESH -- "no" --&gt; REFRESH
+  FRESH -- "yes" --&gt; LOCK --&gt; LOOP --&gt; CAND --&gt; JUDGE --&gt; EVID --&gt; DONE
+  DONE -- "yes" --&gt; REC --&gt; APPROVE
+  DONE -- "no" --&gt; WARN
+  APPROVE -- "approve" --&gt; APPLY
+  APPROVE -- "reject" --&gt; WARN
+
+  classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef dec fill:#f3e8ff,stroke:#9333ea,color:#2a0a4a;
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;

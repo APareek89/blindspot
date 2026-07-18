@@ -8,6 +8,7 @@ import {
   goldenSetProjectId,
   listExamples,
   listGoldenSets,
+  listTraces,
   parseGoldenUpload,
   promoteTrace,
   traceProjectId,
@@ -16,6 +17,7 @@ import {
 import { normalizeModelRef, parseModelRef } from "@blindspot/providers";
 import {
   DEFAULT_JUDGE_MODEL,
+  GoldenGenerateInputSchema,
   GoldenExampleInputSchema,
   GoldenExamplePatchSchema,
 } from "@blindspot/shared";
@@ -57,12 +59,13 @@ golden.post("/routes/:name/golden-sets/generate", async (c) => {
   const route = await getRouteByName(projectId, c.req.param("name"));
   if (!route) return c.json({ error: { message: "route not found" } }, 404);
 
-  const body = (await c.req.json().catch(() => ({}))) as {
-    taskDescription?: string;
-    count?: number;
-  };
-  const taskDescription = body.taskDescription ?? `Requests routed through "${route.name}"`;
-  const count = Math.min(Math.max(body.count ?? 20, 1), 50);
+  const parsed = GoldenGenerateInputSchema.safeParse(await c.req.json().catch(() => ({})));
+  if (!parsed.success) {
+    return c.json({ error: { message: parsed.error.issues[0]?.message ?? "invalid context" } }, 400);
+  }
+  const body = parsed.data;
+  const taskDescription = body.taskDescription || `Requests routed through "${route.name}"`;
+  const count = body.count;
 
   const modelRef = normalizeModelRef(
     process.env.GOLDEN_MODEL ?? process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL,
@@ -78,9 +81,34 @@ golden.post("/routes/:name/golden-sets/generate", async (c) => {
 
   let generated;
   try {
-    generated = await generateGoldenExamples({ modelRef, apiKey, taskDescription, count });
+    const liveTraces = body.useLiveTraces
+      ? (await listTraces(projectId, { routeName: route.name, limit: 20 })).traces
+      : [];
+    const sampleInputs = liveTraces
+      .map((trace) => {
+        if (typeof trace.input === "string") return trace.input;
+        try {
+          return JSON.stringify(trace.input);
+        } catch {
+          return "";
+        }
+      })
+      .filter((value) => value && !value.includes('"unavailable":true'));
+    generated = await generateGoldenExamples({
+      modelRef,
+      apiKey,
+      taskDescription,
+      productBrief: body.productBrief,
+      systemPrompt: body.systemPrompt,
+      architecture: body.architecture,
+      count,
+      sampleInputs,
+    });
   } catch (e) {
-    return c.json({ error: { message: (e as Error).message } }, 502);
+    return c.json(
+      { error: { message: "Golden-set generation failed; verify the provider key and context" } },
+      502,
+    );
   }
 
   const gs = await createGoldenSet({

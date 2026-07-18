@@ -14,9 +14,10 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ na
 
   const client = await requireApi();
   try {
-    const [detail, compatibility] = await Promise.all([
+    const [detail, compatibility, evidence] = await Promise.all([
       client.getRoute(name),
       client.getRouteCompatibility(name),
+      client.evalEvidence(name),
     ]);
     const q = detail.route.liveModel ? detail.scoreSeries.at(-1)?.score ?? null : null;
     const status: RouteStatus =
@@ -51,7 +52,11 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ na
           </Link>
         </div>
 
-        <RouteDetailView detail={detail} compatibility={compatibility} />
+        <RouteDetailView
+          detail={detail}
+          compatibility={compatibility}
+          evidence={evidence.runs}
+        />
       </>
     );
   } catch (e) {

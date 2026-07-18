@@ -4,6 +4,8 @@
 
 import type {
   DriftEvent,
+  EvalPlan,
+  EvalRunEvidence,
   GatewayKey,
   GoldenExample,
   GoldenSet,
@@ -151,9 +153,23 @@ export function api(key: string) {
         reason,
       }),
 
-    // eval
-    runEval: (name: string, modelRef?: string) =>
-      send<unknown>("POST", `/v1/routes/${encodeURIComponent(name)}/eval`, { modelRef }),
+    // budget-authorized evals
+    createEvalPlan: (name: string, body: { modelRefs: string[]; budgetUsd: number }) =>
+      send<{ plan: EvalPlan }>(
+        "POST",
+        `/v1/routes/${encodeURIComponent(name)}/eval-plans`,
+        body,
+      ),
+    runEvalPlan: (planId: string) =>
+      send<{ result: { plan: EvalPlan; runs: unknown[]; recommendation: Recommendation | null } }>(
+        "POST",
+        `/v1/eval-plans/${planId}/run`,
+        { confirm: true },
+      ),
+    evalEvidence: (name: string) =>
+      get<{ runs: EvalRunEvidence[] }>(
+        `/v1/routes/${encodeURIComponent(name)}/eval-evidence`,
+      ),
 
     // drift + gate
     driftEvents: (p: Page = {}) =>
@@ -174,7 +190,17 @@ export function api(key: string) {
         `/v1/routes/${encodeURIComponent(name)}/golden-sets/upload`,
         body,
       ),
-    generateGolden: (name: string, body: { taskDescription?: string; count?: number }) =>
+    generateGolden: (
+      name: string,
+      body: {
+        taskDescription?: string;
+        productBrief?: string;
+        systemPrompt?: string;
+        architecture?: string;
+        useLiveTraces?: boolean;
+        count?: number;
+      },
+    ) =>
       send<{ golden_set: GoldenSet; count: number }>(
         "POST",
         `/v1/routes/${encodeURIComponent(name)}/golden-sets/generate`,

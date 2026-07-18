@@ -5,11 +5,20 @@ import { useState, useTransition } from "react";
 import { ScoreChart } from "@/components/charts";
 import { costPer1k, modelName, ms, qualityPct } from "@/lib/format";
 import type {
+  EvalPlan,
+  EvalRunEvidence,
   ModelCompatibility,
   RouteDetail,
   RouteModelCompatibility,
 } from "@/lib/types";
-import { addCandidateA, recommendA, removeCandidateA, savePolicy } from "../actions";
+import {
+  addCandidateA,
+  estimateEvalA,
+  recommendA,
+  removeCandidateA,
+  runEvalPlanA,
+  savePolicy,
+} from "../actions";
 
 function capabilityLabels(model: ModelCompatibility): string[] {
   return [
@@ -30,20 +39,32 @@ function priceLabel(model: ModelCompatibility): string {
   return `$${model.inputUsdPerMillion}/$${model.outputUsdPerMillion} per MTok in/out`;
 }
 
+function usdFromCents(cents: number | null): string {
+  return cents == null ? "—" : `$${(cents / 100).toFixed(4)}`;
+}
+
 export function RouteDetailView({
   detail,
   compatibility,
+  evidence,
 }: {
   detail: RouteDetail;
   compatibility: RouteModelCompatibility;
+  evidence: EvalRunEvidence[];
 }) {
   const route = detail.route.name;
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [budgetUsd, setBudgetUsd] = useState(0.05);
+  const [plan, setPlan] = useState<EvalPlan | null>(null);
 
   const [minScore, setMinScore] = useState(detail.route.policy.minScore);
   const pooledModels = new Set(detail.candidates.map((candidate) => candidate.modelRef));
+  const technicallyEligible = new Set(
+    compatibility.eligible.map((candidate) => candidate.modelRef),
+  );
 
   const run = (fn: () => Promise<{ ok: boolean; error?: string }>, ok?: string) => {
     setError(null);
@@ -52,6 +73,41 @@ export function RouteDetailView({
       const r = await fn();
       if (!r.ok) setError(r.error ?? "failed");
       else if (ok) setMsg(ok);
+    });
+  };
+
+  const toggleModel = (modelRef: string) => {
+    setPlan(null);
+    setSelectedModels((current) =>
+      current.includes(modelRef)
+        ? current.filter((item) => item !== modelRef)
+        : [...current, modelRef],
+    );
+  };
+
+  const estimate = () => {
+    setError(null);
+    setMsg(null);
+    setPlan(null);
+    start(async () => {
+      const result = await estimateEvalA(route, selectedModels, budgetUsd);
+      if (!result.ok) setError(result.error);
+      else setPlan(result.plan);
+    });
+  };
+
+  const confirmPlan = () => {
+    if (!plan) return;
+    setError(null);
+    setMsg(null);
+    start(async () => {
+      const result = await runEvalPlanA(route, plan.id);
+      if (!result.ok) {
+        setError(result.error ?? "eval failed");
+        return;
+      }
+      setPlan(null);
+      setMsg("Experiment completed. Evidence and any Recommendation are now available.");
     });
   };
 
@@ -127,9 +183,9 @@ export function RouteDetailView({
             <button
               className="btn"
               disabled
-              title="Phase 7C adds the cost estimate and explicit spend approval"
+              title="Choose models and approve a budget in the Experiment panel"
             >
-              Re-evaluate · budget setup next
+              Re-evaluate through Experiment ↓
             </button>
             <button
               className="btn"
@@ -172,7 +228,7 @@ export function RouteDetailView({
               <th className="num">Score</th>
               <th className="num">Cost/1k</th>
               <th className="num">Latency</th>
-              <th />
+              <th className="num">Experiment</th>
             </tr>
           </thead>
           <tbody>
@@ -192,13 +248,19 @@ export function RouteDetailView({
                 <td className="num mono">{ms(c.latencyMs)}</td>
                 <td className="num">
                   <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
-                    <button
-                      className="btn sm"
-                      disabled
-                      title="Phase 7C adds the cost estimate and explicit spend approval"
-                    >
-                      Eval · budget first
-                    </button>
+                    {technicallyEligible.has(c.modelRef) ? (
+                      <label className="row small" style={{ gap: 6, cursor: "pointer" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedModels.includes(c.modelRef)}
+                          disabled={pending}
+                          onChange={() => toggleModel(c.modelRef)}
+                        />
+                        select
+                      </label>
+                    ) : (
+                      <span className="muted small">not eligible</span>
+                    )}
                     {!c.isLive && (
                       <button
                         className="btn sm danger-ghost"
@@ -214,6 +276,143 @@ export function RouteDetailView({
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="card" style={{ marginBottom: 14 }}>
+        <div className="row between wrap" style={{ marginBottom: 4 }}>
+          <span className="card-title">Experiment budget</span>
+          <span className="badge cyan">Estimate → confirm → run</span>
+        </div>
+        <div className="card-sub" style={{ marginBottom: 12 }}>
+          Select technically eligible models in the candidate pool. Calculating an estimate is
+          free; provider calls begin only after you confirm the disclosed plan.
+        </div>
+        <div className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}>
+          <div>
+            <label className="label">Maximum spend (USD)</label>
+            <input
+              className="input mono"
+              type="number"
+              min={0.001}
+              max={100}
+              step={0.01}
+              value={budgetUsd}
+              style={{ width: 130 }}
+              onChange={(event) => {
+                setBudgetUsd(Number(event.target.value));
+                setPlan(null);
+              }}
+            />
+          </div>
+          <button
+            className="btn primary"
+            disabled={pending || selectedModels.length === 0 || budgetUsd <= 0}
+            onClick={estimate}
+          >
+            {pending ? "Calculating…" : `Calculate for ${selectedModels.length || 0} model${selectedModels.length === 1 ? "" : "s"}`}
+          </button>
+          <span className="muted small">
+            Selected: {selectedModels.map(modelName).join(", ") || "none"}
+          </span>
+        </div>
+
+        {plan && (
+          <div className="card" style={{ marginTop: 14 }}>
+            <div className="row between wrap" style={{ marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>
+                  {plan.disclosure.mode === "full" ? "Full golden-set run" : "Stratified sample"}
+                </div>
+                <div className="muted small mono">seed {plan.disclosure.seed}</div>
+              </div>
+              <span className={`badge ${plan.disclosure.mode === "full" ? "pass" : "warn"}`}>
+                {plan.disclosure.selectedExampleIds.length}/{plan.disclosure.fullExampleCount} examples
+              </span>
+            </div>
+            <div className="grid cols-3" style={{ marginBottom: 10 }}>
+              <div>
+                <div className="kpi-label">Estimated run</div>
+                <div className="mono">{usdFromCents(plan.disclosure.selectedEstimatedCostCents)}</div>
+              </div>
+              <div>
+                <div className="kpi-label">Full estimate</div>
+                <div className="mono">{usdFromCents(plan.disclosure.fullEstimatedCostCents)}</div>
+              </div>
+              <div>
+                <div className="kpi-label">Your cap</div>
+                <div className="mono">{usdFromCents(plan.disclosure.budgetCents)}</div>
+              </div>
+            </div>
+            <div className="row wrap" style={{ gap: 5, marginBottom: 9 }}>
+              {Object.entries(plan.disclosure.strataSelected).map(([stratum, count]) => (
+                <span className="badge neutral" key={stratum}>
+                  {stratum.replaceAll("_", " ")}: {count}/
+                  {plan.disclosure.strataAvailable[stratum as keyof typeof plan.disclosure.strataAvailable]}
+                </span>
+              ))}
+              {plan.disclosure.omittedExampleCount > 0 && (
+                <span className="badge warn">omitted: {plan.disclosure.omittedExampleCount}</span>
+              )}
+            </div>
+            <div className="muted small" style={{ marginBottom: 8 }}>
+              {plan.disclosure.confidenceNote}
+            </div>
+            <div className="stack" style={{ gap: 6, marginBottom: 10 }}>
+              {plan.disclosure.modelEstimates.map((estimate) => (
+                <div className="row between small" key={estimate.modelRef}>
+                  <span className="mono">{modelName(estimate.modelRef)}</span>
+                  <span className="mono muted">
+                    {estimate.calls} calls · {usdFromCents(estimate.estimatedCostCents)}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <details style={{ marginBottom: 10 }}>
+              <summary style={{ cursor: "pointer", fontWeight: 550 }}>
+                Review exact selected and omitted cases
+              </summary>
+              <div className="grid cols-2" style={{ marginTop: 8 }}>
+                <div>
+                  <div className="kpi-label">Selected</div>
+                  <div className="stack" style={{ gap: 5 }}>
+                    {plan.disclosure.selectedExamples.map((example) => (
+                      <div className="hint small" key={example.id}>
+                        <span className="badge neutral">{example.label}</span>{" "}
+                        {example.input.slice(0, 180)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div className="kpi-label">Omitted</div>
+                  {plan.disclosure.omittedExamples.length === 0 ? (
+                    <div className="hint small">None — this is the full set.</div>
+                  ) : (
+                    <div className="stack" style={{ gap: 5 }}>
+                      {plan.disclosure.omittedExamples.map((example) => (
+                        <div className="hint small" key={example.id}>
+                          <span className="badge neutral">{example.label}</span>{" "}
+                          {example.input.slice(0, 180)}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </details>
+            <div className="hint" style={{ marginBottom: 10 }}>
+              Safety: {plan.disclosure.safetyMethod}. Plan expires in 30 minutes and freezes the
+              selected examples; it cannot be run twice.
+            </div>
+            <button
+              className="btn primary"
+              disabled={pending || plan.status !== "draft"}
+              onClick={confirmPlan}
+            >
+              {pending ? "Running…" : `Confirm & run · max ${usdFromCents(plan.budgetCents)}`}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* technically compatible catalog */}
@@ -310,6 +509,79 @@ export function RouteDetailView({
           Adding a compatible model only creates an experiment candidate. Blindspot will show the
           full eval estimate and sampling plan before any paid run.
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="row between wrap" style={{ marginBottom: 4 }}>
+          <span className="card-title">Eval evidence &amp; issues</span>
+          <span className="muted small">latest {evidence.length} runs</span>
+        </div>
+        {evidence.length === 0 ? (
+          <div className="hint">No authorized experiment has completed yet.</div>
+        ) : (
+          <div className="stack" style={{ gap: 10 }}>
+            {evidence.slice(0, 6).map((runEvidence) => (
+              <details className="card" key={runEvidence.id}>
+                <summary style={{ cursor: "pointer" }}>
+                  <span style={{ fontWeight: 600 }}>{modelName(runEvidence.modelRef)}</span>{" "}
+                  <span className={`badge ${runEvidence.status === "completed" ? "pass" : "warn"}`}>
+                    {runEvidence.status}
+                  </span>{" "}
+                  <span className="mono muted small">
+                    score {qualityPct(runEvidence.avgScore)} · {runEvidence.examplesScored}/
+                    {runEvidence.examplesPlanned} scored · actual {usdFromCents(runEvidence.actualCostCents)}
+                  </span>
+                </summary>
+                <div className="stack" style={{ marginTop: 10, gap: 8 }}>
+                  {runEvidence.examples.map((example) => (
+                    <div className="card" key={example.id}>
+                      <div className="row between wrap" style={{ marginBottom: 6 }}>
+                        <span className="mono small">score {qualityPct(example.score)}</span>
+                        <div className="row wrap" style={{ gap: 4 }}>
+                          {example.issuesJson.length === 0 ? (
+                            <span className="badge pass">no issue</span>
+                          ) : (
+                            example.issuesJson.map((issue) => (
+                              <span className="badge warn" key={issue}>
+                                {issue.replaceAll("_", " ")}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="muted small" style={{ whiteSpace: "pre-wrap" }}>
+                        {example.input.slice(0, 240)}
+                      </div>
+                      {example.referenceOutput && (
+                        <div className="hint" style={{ whiteSpace: "pre-wrap" }}>
+                          Reference: {example.referenceOutput}
+                        </div>
+                      )}
+                      {example.candidateOutput && (
+                        <div className="hint" style={{ whiteSpace: "pre-wrap" }}>
+                          Candidate: {example.candidateOutput}
+                        </div>
+                      )}
+                      {example.perCriterionJson.length > 0 && (
+                        <div className="row wrap" style={{ gap: 4, marginTop: 6 }}>
+                          {example.perCriterionJson.map((criterion) => (
+                            <span className="badge neutral" key={criterion.criterion}>
+                              {criterion.criterion}: {qualityPct(criterion.score)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {example.reasoning && (
+                        <div className="hint">Judge: {example.reasoning}</div>
+                      )}
+                      {example.error && <div className="alert warn">{example.error}</div>}
+                    </div>
+                  ))}
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
       </div>
     </>
   );

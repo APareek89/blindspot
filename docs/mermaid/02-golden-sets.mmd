@@ -4,7 +4,8 @@ flowchart TD
   S{"Seed path?<br/>USER chooses"}:::dec
   U["Parse upload CSV or JSONL<br/>FUNCTION · csv-parse<br/>in: file text · out: rows"]:::fn
   UV["Validate rows<br/>FUNCTION · Zod GoldenExampleInput<br/>out: examples or row-level error"]:::fn
-  A["Golden Set Agent<br/>AGENT · GOLDEN_MODEL or JUDGE_MODEL<br/>in: task description plus sample inputs · out: input + referenceOutput + rubric xN"]:::agent
+  CTX["Optional context<br/>USER · product brief, system prompt, architecture<br/>live traces require an explicit checkbox"]:::ask
+  A["Golden Set Agent<br/>AGENT · GOLDEN_MODEL or JUDGE_MODEL<br/>in: task + bounded context/sample inputs · out: input + referenceOutput + rubric xN"]:::agent
   AV["Schema-validate via generateObject<br/>FUNCTION · Zod GeneratedGolden"]:::fn
   NV["nextVersion(routeId)<br/>FUNCTION · max(version) + 1"]:::fn
   C["createGoldenSet + insert examples<br/>DATA · golden_sets (origin) and golden_examples"]:::data
@@ -13,7 +14,7 @@ flowchart TD
   G["planned: Grow from production<br/>AGENT · propose judge-uncertain / drift / diverse candidates<br/>into a suggested-additions queue, USER accepts"]:::todo
 
   S -- "upload" --> U --> UV --> NV
-  S -- "no upload" --> A --> AV --> NV
+  S -- "no upload" --> CTX --> A --> AV --> NV
   NV --> C --> CUR
   C --> PT --> CUR
   C -.-> G -.-> CUR

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireApi } from "@/lib/session";
+import type { EvalPlan } from "@/lib/types";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -55,10 +56,24 @@ export async function removeCandidateA(route: string, modelRef: string): Promise
   return { ok: true };
 }
 
-export async function runEvalA(route: string, modelRef?: string): Promise<Result> {
+export async function estimateEvalA(
+  route: string,
+  modelRefs: string[],
+  budgetUsd: number,
+): Promise<{ ok: true; plan: EvalPlan } | { ok: false; error: string }> {
   const client = await requireApi();
   try {
-    await client.runEval(route, modelRef);
+    const { plan } = await client.createEvalPlan(route, { modelRefs, budgetUsd });
+    return { ok: true, plan };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "estimate failed" };
+  }
+}
+
+export async function runEvalPlanA(route: string, planId: string): Promise<Result> {
+  const client = await requireApi();
+  try {
+    await client.runEvalPlan(planId);
   } catch (e) {
     return fail(e);
   }

@@ -107,7 +107,13 @@ export async function listRoutes(
   const pendingCount = new Map(pending.map((p) => [p.routeId, p.n]));
 
   const summaries = rows.map((r): RouteSummary => {
-    const liveRuns = runs.filter((run) => run.routeId === r.id && run.modelRef === r.liveModel);
+    const liveRuns = runs.filter(
+      (run): run is (typeof runs)[number] & { avgScore: number } =>
+        run.routeId === r.id &&
+        run.modelRef === r.liveModel &&
+        run.status === "completed" &&
+        run.avgScore != null,
+    );
     const quality = liveRuns[0]?.avgScore ?? null; // runs are newest-first
     const sparkline = liveRuns
       .slice(0, 12)
@@ -176,8 +182,12 @@ export async function getRouteDetail(projectId: string, name: string) {
     .orderBy(desc(recommendations.createdAt));
 
   // latest eval per model → candidate evidence
-  const latest = new Map<string, (typeof runs)[number]>();
-  for (const r of runs) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
+  const completedRuns = runs.filter(
+    (run): run is (typeof runs)[number] & { avgScore: number } =>
+      run.status === "completed" && run.avgScore != null,
+  );
+  const latest = new Map<string, (typeof completedRuns)[number]>();
+  for (const r of completedRuns) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
 
   const candidateDetails: CandidateDetail[] = cands.map((c) => {
     const run = latest.get(c.modelRef);
@@ -196,7 +206,7 @@ export async function getRouteDetail(projectId: string, name: string) {
 
   // score-over-time for the live model (oldest→newest) with golden-set version markers
   const liveSeries = route.liveModel
-    ? runs
+    ? completedRuns
         .filter((r) => r.modelRef === route.liveModel)
         .map((r) => ({ score: r.avgScore, version: r.goldenSetVersion, at: r.createdAt }))
         .reverse()

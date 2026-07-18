@@ -1,5 +1,11 @@
 import { and, desc, eq, getTableColumns } from "drizzle-orm";
-import { evalRuns, getDb, recommendations, routes } from "@blindspot/db";
+import {
+  evalExampleResults,
+  evalRuns,
+  getDb,
+  recommendations,
+  routes,
+} from "@blindspot/db";
 import { costPer1kCents } from "@blindspot/providers";
 import { clampPagination, type Evidence } from "@blindspot/shared";
 
@@ -13,7 +19,7 @@ const COST_UNKNOWN = Number.POSITIVE_INFINITY;
  */
 export async function generateRecommendation(
   routeId: string,
-  opts?: { mode?: "cost" | "drift" },
+  opts?: { mode?: "cost" | "drift"; planId?: string },
 ) {
   const mode = opts?.mode ?? "cost";
   const db = getDb();
@@ -27,9 +33,17 @@ export async function generateRecommendation(
     .where(eq(evalRuns.routeId, routeId))
     .orderBy(desc(evalRuns.createdAt));
 
-  // latest eval per model
-  const latest = new Map<string, (typeof runs)[number]>();
-  for (const r of runs) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
+  const completed = runs.filter(
+    (run): run is (typeof runs)[number] & { avgScore: number } =>
+      run.status === "completed" &&
+      run.avgScore != null &&
+      run.examplesFailed === 0 &&
+      run.examplesScored === run.examplesPlanned &&
+      (!opts?.planId || run.planId === opts.planId),
+  );
+  // latest completed eval per model
+  const latest = new Map<string, (typeof completed)[number]>();
+  for (const r of completed) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
 
   const liveModel = route.liveModel;
   const liveRun = liveModel ? latest.get(liveModel) : undefined;
@@ -37,7 +51,7 @@ export async function generateRecommendation(
 
   // "cost": cheapest passing candidate cheaper than live (optimize spend).
   // "drift": highest-scoring passing candidate regardless of cost (recover quality).
-  let best: (typeof runs)[number] | null = null;
+  let best: (typeof completed)[number] | null = null;
   let bestCost = mode === "cost" ? liveCost : COST_UNKNOWN;
   let bestScore = -1;
   for (const r of latest.values()) {
@@ -75,6 +89,37 @@ export async function generateRecommendation(
 
   const costDeltaPct =
     liveCost === COST_UNKNOWN ? -100 : ((bestCost - liveCost) / liveCost) * 100;
+  const resultRows = await db
+    .select()
+    .from(evalExampleResults)
+    .where(eq(evalExampleResults.evalRunId, best.id));
+  const liveResultRows = liveRun
+    ? await db
+        .select()
+        .from(evalExampleResults)
+        .where(eq(evalExampleResults.evalRunId, liveRun.id))
+    : [];
+  const liveByExample = new Map(
+    liveResultRows.map((result) => [result.goldenExampleId, result]),
+  );
+  const criterionTotals = new Map<string, { sum: number; count: number }>();
+  const liveCriterionTotals = new Map<string, { sum: number; count: number }>();
+  for (const result of resultRows) {
+    for (const item of result.perCriterionJson) {
+      const aggregate = criterionTotals.get(item.criterion) ?? { sum: 0, count: 0 };
+      aggregate.sum += item.score;
+      aggregate.count += 1;
+      criterionTotals.set(item.criterion, aggregate);
+    }
+  }
+  for (const result of liveResultRows) {
+    for (const item of result.perCriterionJson) {
+      const aggregate = liveCriterionTotals.get(item.criterion) ?? { sum: 0, count: 0 };
+      aggregate.sum += item.score;
+      aggregate.count += 1;
+      liveCriterionTotals.set(item.criterion, aggregate);
+    }
+  }
   const evidence: Evidence = {
     fromModel: liveModel,
     toModel: best.modelRef,
@@ -85,10 +130,23 @@ export async function generateRecommendation(
       liveRun && best.latencyMs != null && liveRun.latencyMs != null
         ? best.latencyMs - liveRun.latencyMs
         : null,
-    // per-criterion + side-by-side samples: filled once we persist per-example
-    // outputs (Phase 4.5). Scores + deltas carry the recommendation for now.
-    perCriterion: [],
-    samples: [],
+    perCriterion: [...criterionTotals.entries()].map(([criterion, aggregate]) => {
+      const from = liveCriterionTotals.get(criterion);
+      return {
+        criterion,
+        from: from ? from.sum / from.count : null,
+        to: aggregate.sum / aggregate.count,
+      };
+    }),
+    samples: resultRows
+      .filter((result) => result.candidateOutput != null)
+      .sort((a, b) => (a.score ?? 1) - (b.score ?? 1))
+      .slice(0, 3)
+      .map((result) => ({
+        input: result.input,
+        fromOutput: liveByExample.get(result.goldenExampleId)?.candidateOutput ?? null,
+        toOutput: result.candidateOutput!,
+      })),
   };
 
   // Per-route auto-approve (default OFF, PRD §3): "within band AND cost decreases".
@@ -97,22 +155,24 @@ export async function generateRecommendation(
   // expensive. Cost guard (FMEA P2): never auto-switch to a pricier model. If recovery
   // needs a costlier model, fall back to a pending recommendation for human approval.
   const autoApprove = route.autoApprove && costDeltaPct <= 0;
-  const rec = (
-    await db
-      .insert(recommendations)
-      .values({
-        routeId,
-        fromModel: liveModel,
-        toModel: best.modelRef,
-        evidenceJson: evidence,
-        status: autoApprove ? "approved" : "pending",
-      })
-      .returning()
-  )[0]!;
-
-  if (autoApprove) {
-    await db.update(routes).set({ liveModel: best.modelRef }).where(eq(routes.id, routeId));
-  }
+  const rec = await db.transaction(async (tx) => {
+    const created = (
+      await tx
+        .insert(recommendations)
+        .values({
+          routeId,
+          fromModel: liveModel,
+          toModel: best.modelRef,
+          evidenceJson: evidence,
+          status: autoApprove ? "approved" : "pending",
+        })
+        .returning()
+    )[0]!;
+    if (autoApprove) {
+      await tx.update(routes).set({ liveModel: best.modelRef }).where(eq(routes.id, routeId));
+    }
+    return created;
+  });
   return rec;
 }
 

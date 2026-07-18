@@ -254,6 +254,92 @@ export interface ModelRegistryOverview {
   }>;
 }
 
+export interface EvalPlanDisclosure {
+  mode: "full" | "sampled";
+  models: string[];
+  judgeModel: string;
+  goldenSetVersion: number;
+  fullExampleCount: number;
+  selectedExampleIds: string[];
+  selectedExamples: Array<{
+    id: string;
+    input: string;
+    referenceOutput: string | null;
+    rubric: string | null;
+    label: GoldenLabel;
+    active: true;
+  }>;
+  omittedExamples: Array<{ id: string; input: string; label: GoldenLabel }>;
+  omittedExampleCount: number;
+  strataSelected: Record<"must_pass" | "known_failure" | "edge" | "representative", number>;
+  strataAvailable: Record<"must_pass" | "known_failure" | "edge" | "representative", number>;
+  seed: string;
+  budgetCents: number;
+  fullEstimatedCostCents: number;
+  selectedEstimatedCostCents: number;
+  minimumBudgetCents: number;
+  modelEstimates: Array<{ modelRef: string; estimatedCostCents: number; calls: number }>;
+  safetyMethod: string;
+  confidenceNote: string;
+}
+
+export interface EvalPlan {
+  id: string;
+  projectId: string;
+  routeId: string;
+  goldenSetId: string;
+  status: "draft" | "running" | "completed" | "failed" | "expired";
+  modelRefsJson: string[];
+  judgeModel: string;
+  budgetCents: number;
+  fullEstimatedCostCents: number;
+  selectedEstimatedCostCents: number;
+  sampleSeed: string;
+  expiresAt: string;
+  actualCostCents: number | null;
+  failureReason: string | null;
+  createdAt: string;
+  disclosure: EvalPlanDisclosure;
+}
+
+export interface EvalExampleEvidence {
+  id: string;
+  evalRunId: string;
+  goldenExampleId: string | null;
+  input: string;
+  referenceOutput: string | null;
+  candidateOutput: string | null;
+  score: number | null;
+  perCriterionJson: Array<{ criterion: string; score: number }>;
+  reasoning: string | null;
+  issuesJson: string[];
+  latencyMs: number | null;
+  candidateCostCents: number | null;
+  judgeCostCents: number | null;
+  error: string | null;
+  createdAt: string;
+}
+
+export interface EvalRunEvidence {
+  id: string;
+  routeId: string;
+  planId: string | null;
+  modelRef: string;
+  goldenSetVersion: number;
+  status: "running" | "completed" | "failed";
+  avgScore: number | null;
+  costPer1k: number | null;
+  latencyMs: number | null;
+  examplesPlanned: number;
+  examplesScored: number;
+  examplesFailed: number;
+  estimatedCostCents: number | null;
+  actualCostCents: number | null;
+  sampleSeed: string | null;
+  createdAt: string;
+  examples: EvalExampleEvidence[];
+}
+
 export interface WorkflowSummary {
   id: string;
   projectId: string;

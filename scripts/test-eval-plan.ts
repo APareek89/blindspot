@@ -1,0 +1,251 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { eq } from "drizzle-orm";
+import {
+  candidates,
+  evalExampleResults,
+  evalPlans,
+  getDb,
+  modelRegistry,
+  projects,
+  recommendations,
+  routes,
+  workflowNodes,
+  workflows,
+} from "@blindspot/db";
+import {
+  createEvalPlan,
+  createGoldenSet,
+  runAuthorizedEvalPlan,
+  setProviderKey,
+  type EvalRuntime,
+} from "@blindspot/core";
+import { loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
+
+loadRootEnv(import.meta.url);
+
+const SONNET = "anthropic:claude-sonnet-4-6";
+const HAIKU = "anthropic:claude-haiku-4-5-20251001";
+
+async function main() {
+  const db = getDb();
+  const project = (
+    await db
+      .insert(projects)
+      .values({ userId: `eval-plan-test-${randomUUID()}`, name: "Eval plan integration test" })
+      .returning()
+  )[0]!;
+
+  try {
+    await setProviderKey(project.id, "anthropic", "test-only-provider-key");
+    const capabilities = ModelCapabilitiesSchema.parse({
+      inputModalities: ["text"],
+      outputModalities: ["text"],
+      toolCalling: true,
+      structuredOutput: true,
+      streaming: true,
+      systemMessages: true,
+      contextTokens: 200_000,
+      maxOutputTokens: 64_000,
+    });
+    await db.insert(modelRegistry).values([
+      {
+        projectId: project.id,
+        provider: "anthropic",
+        modelRef: SONNET,
+        providerModelId: "claude-sonnet-4-6",
+        displayName: "Claude Sonnet 4.6",
+        availability: "available",
+        capabilitiesJson: { ...capabilities, contextTokens: 1_000_000 },
+        inputUsdPerMillion: 3,
+        outputUsdPerMillion: 15,
+        probeStatus: "verified",
+      },
+      {
+        projectId: project.id,
+        provider: "anthropic",
+        modelRef: HAIKU,
+        providerModelId: "claude-haiku-4-5-20251001",
+        displayName: "Claude Haiku 4.5",
+        availability: "available",
+        capabilitiesJson: capabilities,
+        inputUsdPerMillion: 1,
+        outputUsdPerMillion: 5,
+        probeStatus: "verified",
+      },
+    ]);
+
+    const workflow = (
+      await db
+        .insert(workflows)
+        .values({ projectId: project.id, name: "gstpilot-test", environment: "local", selected: true })
+        .returning()
+    )[0]!;
+    const route = (
+      await db
+        .insert(routes)
+        .values({
+          projectId: project.id,
+          name: "gstpilot-test@local:answer",
+          liveModel: SONNET,
+          policyJson: { type: "cheapest_passing", minScore: 0.85 },
+          autoApprove: false,
+        })
+        .returning()
+    )[0]!;
+    await db.insert(workflowNodes).values({
+      workflowId: workflow.id,
+      routeId: route.id,
+      name: "answer",
+      kind: "generation",
+      latestModel: SONNET,
+      requirementsJson: {
+        inputModalities: ["text"],
+        outputModalities: ["text"],
+        toolCalling: false,
+        structuredOutput: false,
+        streaming: false,
+        systemMessages: false,
+      },
+    });
+    await db.insert(candidates).values([
+      { routeId: route.id, modelRef: SONNET, source: "api", enabled: true },
+      { routeId: route.id, modelRef: HAIKU, source: "api", enabled: true },
+    ]);
+    await createGoldenSet({
+      routeId: route.id,
+      origin: "upload",
+      examples: [
+        {
+          input: "Must-pass: summarize a ₹1,000 GST invoice into one sentence.",
+          referenceOutput: "A ₹1,000 GST invoice was issued.",
+          rubric: "Accurate amount and concise summary",
+          label: "pass",
+        },
+        {
+          input: "Known failure: explain an invoice with a missing GSTIN.",
+          referenceOutput: "Flag the missing GSTIN and request correction.",
+          rubric: "Must flag compliance risk",
+          label: "fail",
+        },
+        {
+          input: "Edge case: summarize a multilingual GST note with Unicode ₹ characters.",
+          referenceOutput: "Summarize without corrupting Unicode currency symbols.",
+          rubric: "Preserve Unicode and meaning",
+          label: "unlabeled",
+        },
+        {
+          input: "Summarize a standard purchase invoice.",
+          referenceOutput: "A standard purchase invoice was received.",
+          rubric: "Concise and accurate",
+          label: "unlabeled",
+        },
+      ],
+    });
+
+    const full = await createEvalPlan(project.id, route.name, {
+      modelRefs: [SONNET, HAIKU],
+      budgetUsd: 1,
+    });
+    const sampledBudgetCents = Math.max(
+      full.disclosure.minimumBudgetCents,
+      full.disclosure.fullEstimatedCostCents * 0.55,
+    );
+    const sampled = await createEvalPlan(project.id, route.name, {
+      modelRefs: [SONNET, HAIKU],
+      budgetUsd: sampledBudgetCents / 100,
+    });
+    assert.equal(sampled.disclosure.mode, "sampled");
+    assert.ok(sampled.disclosure.selectedExampleIds.length >= 1);
+    assert.ok(sampled.disclosure.selectedExampleIds.length < sampled.disclosure.fullExampleCount);
+    assert.ok(sampled.disclosure.selectedEstimatedCostCents <= sampled.disclosure.budgetCents);
+
+    let activeCandidate = "";
+    const runtime: EvalRuntime = {
+      async runCandidate({ modelRef, input }) {
+        activeCandidate = modelRef;
+        return {
+          text: `${modelRef === HAIKU ? "Haiku" : "Sonnet"} answer: ${input}`,
+          promptTokens: 20,
+          completionTokens: 20,
+          latencyMs: modelRef === HAIKU ? 35 : 60,
+          costCents: modelRef === HAIKU ? 0.01 : 0.02,
+        };
+      },
+      async judge() {
+        const score = activeCandidate === HAIKU ? 0.9 : 0.93;
+        return {
+          verdict: {
+            score,
+            perCriterion: [
+              { criterion: "accuracy", score },
+              { criterion: "clarity", score: score - 0.01 },
+            ],
+            reasoning: "Deterministic local test verdict",
+          },
+          promptTokens: 30,
+          completionTokens: 10,
+          costCents: 0.005,
+        };
+      },
+    };
+
+    const result = await runAuthorizedEvalPlan(project.id, sampled.id, true, runtime);
+    assert.equal(result.plan.status, "completed");
+    assert.equal(result.runs.length, 2);
+    assert.ok((result.plan.actualCostCents ?? Infinity) <= result.plan.budgetCents);
+    assert.equal(result.recommendation?.toModel, HAIKU);
+    assert.equal(result.recommendation?.status, "pending");
+    assert.ok((result.recommendation?.evidenceJson.perCriterion.length ?? 0) > 0);
+    assert.ok((result.recommendation?.evidenceJson.samples.length ?? 0) > 0);
+
+    const liveAfter = (
+      await db.select({ liveModel: routes.liveModel }).from(routes).where(eq(routes.id, route.id))
+    )[0]?.liveModel;
+    assert.equal(liveAfter, SONNET, "an eval-backed Recommendation must not silently switch live_model");
+    const storedEvidence = await db
+      .select()
+      .from(evalExampleResults)
+      .where(eq(evalExampleResults.evalRunId, result.runs[0]!.evalRunId));
+    assert.equal(storedEvidence.length, sampled.disclosure.selectedExampleIds.length);
+    const planRows = await db.select().from(evalPlans).where(eq(evalPlans.id, sampled.id));
+    assert.equal(planRows[0]?.status, "completed");
+    const recRows = await db
+      .select()
+      .from(recommendations)
+      .where(eq(recommendations.routeId, route.id));
+    assert.equal(recRows.length, 1);
+
+    let duplicateBlocked = false;
+    try {
+      await runAuthorizedEvalPlan(project.id, sampled.id, true, runtime);
+    } catch {
+      duplicateBlocked = true;
+    }
+    assert.equal(duplicateBlocked, true, "a confirmed plan must be single-use");
+
+    console.log(
+      JSON.stringify({
+        passed: true,
+        mode: sampled.disclosure.mode,
+        selectedExamples: sampled.disclosure.selectedExampleIds.length,
+        totalExamples: sampled.disclosure.fullExampleCount,
+        models: result.runs.length,
+        evidenceRows: storedEvidence.length,
+        recommendation: result.recommendation?.status,
+        liveModelUnchanged: liveAfter === SONNET,
+        duplicateRunBlocked: duplicateBlocked,
+        providerTokenCost: 0,
+      }),
+    );
+  } finally {
+    await db.delete(projects).where(eq(projects.id, project.id));
+  }
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error(error instanceof Error ? error.message : "eval plan integration test failed");
+    process.exit(1);
+  });

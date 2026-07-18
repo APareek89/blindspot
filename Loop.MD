@@ -34,9 +34,9 @@ These are the yardstick the loop finetunes against.>
 | 1 | POST an OpenAI-compatible completion with `model: "route:summarizer"` to the gateway | Resolves to the route's approved `live_model`, calls the provider via the user's key, returns a valid completion, and writes a `traces` row (cost, latency, output). |
 | 2 | Call `model: "route:brand-new"` for a route that doesn't exist yet | A new route is auto-created with the default policy and shows up in Routes & Models; the call still succeeds. |
 | 3 | A route with **no uploaded golden set**, only a task description | Golden Set Agent generates ≥20 diverse examples, each with a `reference_output` + rubric; origin badge = `agent`. |
-| 4 | Add a cheaper candidate to a route that has a golden set | A back-test runs; if it passes the policy bar at lower cost, a **Recommendation with evidence** (per-criterion scores, cost/latency delta, 3 side-by-side samples) appears in Approvals. `live_model` is **unchanged**. |
+| 4 | Add a cheaper candidate, calculate an eval plan, then explicitly confirm its disclosed cap/cases | Candidate addition spends nothing. Confirmation runs only the immutable plan; if complete evidence passes the bar at lower cost, a **Recommendation with evidence** (per-criterion scores, cost/latency delta, 3 side-by-side samples) appears in Approvals. `live_model` is **unchanged**. |
 | 5 | Approve, then (separately) reject a pending Recommendation | Approve → `routes.live_model` updates to the new model. Reject → `live_model` unchanged, status=`rejected`, reason stored. |
-| 6 | Simulate a provider version bump that drops a live model's score below its band | A `drift_event` + an approval-gated Recommendation are created; the live model is **NOT** auto-reverted unless that route opted into auto-approve. |
+| 6 | Simulate a provider version bump that drops a live model's score below its band | A `drift_event` + an approval-gated Recommendation are created; the live model is **NOT** auto-reverted unless that route opted into auto-approve. Real paid drift/CI paths remain 409 until Phase 8 consumes an approved plan. |
 | 7 | (negative — security) Inspect stored provider keys via API/logs | Keys are encrypted at rest (AES-256-GCM); no endpoint or log line ever returns/prints a raw key value. |
 
 ## Run journal (paid/slow checks only)

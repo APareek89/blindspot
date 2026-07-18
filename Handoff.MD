@@ -1,28 +1,28 @@
 # Handoff.MD — Blindspot
-> last-synced: 8ec7c26 · Read this + Loop.MD at session start. Update before checkpoints and phase ends.
+> last-synced: bfbe5bc + Phase 7C working tree · Read this + Loop.MD at session start. Update before checkpoints/commits.
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/Blindspot_v1` and begin**
 
 ## Current state
-- ✅ Shipped through Phase 7; **7A Connect + Observe** and **7B Registry + Compatibility** are built locally.
-- ✅ SDK ingest → workflow/node/execution/span tables → environment-scoped Routes; capture is user-selected (`metadata` default) and workflow optimization is explicit/observe-only by default.
-- ✅ Project-scoped `model_registry`: read-only Anthropic/HF/Fireworks adapters, normalized capabilities/pricing/access, Sonnet 4.6 vs Haiku 4.5 picker, exact eligible/excluded reasons and server-side candidate guard.
-- ✅ Candidate addition spends nothing and never changes `live_model`; direct eval buttons are disabled until Phase 7C presents an estimate + explicit budget approval.
-- ✅ Provider-key replacement/removal invalidates prior catalog verification; in-flight sync locks/rechecks key version; responses have timeout + streaming 5 MB cap.
-- ✅ Migration `0002_moaning_sinister_six.sql` applied to dev Postgres. Real Anthropic GET probe: 10 discovered, 2 prototype models, 0 inference tokens; synthetic compatibility/selection/live-model gates pass and test rows are removed.
-- ✅ `pnpm typecheck`, production build and 8/8 Mermaid validation pass. Local `BLINDSPOT_EVAL_MODE=inline` bypasses Redis even while its URL remains configured.
-- ⚠️ In-app browser bootstrap still fails (`Cannot redefine property: process`); compiled UI verified, click-through not claimed.
+- ✅ Shipped through Phase 7; agent-workspace Phases **7A Connect + Observe, 7B Registry + Compatibility and 7C Quality + Experiment** are built locally.
+- ✅ Free immutable eval estimate → full or SHA-seeded stratified sample → exact selected/omitted disclosure → explicit confirmation → single-use authorized run.
+- ✅ Every selected model/example persists output, score, criteria, reasoning, issues, latency and provider-reported candidate/judge cost; only complete evidence can create a Recommendation.
+- ✅ Raw eval, real paid drift and CI-gate bypasses return 409. `live_model` remains unchanged unless a Recommendation is approved or the route explicitly opted into cheaper-within-band auto-approve.
+- ✅ Golden agent accepts product brief, system prompt and architecture; production traces are used only via explicit checkbox and bounded before provider submission.
+- ✅ Migration `0003_nice_jigsaw.sql` is applied to dev Postgres. Anthropic Sonnet 4.6 / Haiku 4.5 pricing matches the official current pricing page; HF + Fireworks wiring remains pluggable.
+- ✅ `pnpm typecheck`, production build, 9/9 Mermaid validation and `pnpm test:eval-plan` pass. The integration test uses real Postgres + fake provider runtime, costs zero provider tokens, proves sampling/evidence/pending Recommendation/no live swap/no replay.
+- ✅ Local gateway `http://localhost:8787` and dashboard `http://localhost:3001` are healthy in the active Codex sessions.
+- ⚠️ In-app browser bootstrap still fails (`Cannot redefine property: process`); compiled UI + HTTP verified, click-through not claimed.
 
-## Decisions (approved 2026-07-18)
-- Discovery, content capture, experiment eligibility and live-model approval are separate permissions. Technical compatibility permits an experiment; golden quality permits a Recommendation; the user approves every swap.
-- Full eval cost is estimated first. Below-full caps use a disclosed reproducible stratified sample; never silently sample or overspend.
-- Claude Sonnet 4.6 vs Haiku 4.5 is the prototype picker; HF + Fireworks stay pluggable. Redis is intentionally bypassed locally until Monday.
+## Decisions
+- Eval spend is a server authorization object, not a UI convention. Plan TTL is 30 minutes; selected examples are snapshotted/hashed; budget reduction is visible deterministic sampling.
+- Local evals remain inline and Redis-bypassed until Monday. Queue handoff, crash recovery, plan-aware CI/drift jobs, rate limits and Sentry/OTel remain Phase 8.
+- Loop stays `off`; no paid eval/model calls without the user seeing and confirming the estimate.
 
-## Pending — wait for user OK between checkpoints
-- 🧑 USER: review Phase 7B. Next checkpoint after OK is **7C Quality + Experiment**: context import, golden lifecycle growth, per-example issues/evidence, cost estimator and transparent stratified sampling.
-- 🧑 USER before Redis/live gstpilot use: rotate the exposed Upstash credential and update both projects; never paste the replacement in chat.
-- 🤖 Phase 7B FMEA (feature commit `8ec7c26`): 0 P0; P1 — add per-project registry-sync rate limit/cooldown and replace the legacy raw eval API with Phase 7C server-side spend authorization. P2 — provider retry/backoff, registry freshness TTL, bulk upserts/limited registry pagination, persistent regression tests.
-- 🤖 Phase 7A P1 backlog remains: batched/scheduled ingest rate limits, dropped-span/DLQ visibility, bounded workflow-history aggregates/N+1 removal. Phase 7D is continuous eval/drift simulation/debug/approval application.
-- 🔒 Loop stays `off`; no paid model/eval calls without explicit estimated-cost approval.
-
+## Pending — next checkpoint needs user OK
+- 🧑 USER: sign into localhost with an existing `bs_live_` project key (or run bootstrap), inspect the Experiment panel, then connect gstpilot with the SDK envs and choose its workflow.
+- 🧑 USER: decide capture mode (`metadata` default; `inputs`/`full` opt-in), golden source/context, candidate models and displayed eval cap before the first paid Claude run.
+- 🧑 USER before Redis use: rotate the previously exposed Upstash credential and update the git-ignored env; never paste it in chat.
+- 🤖 Phase 7D after the localhost checkpoint: continuous selected-node monitoring, budget-authorized drift simulation/debug and approval application.
+- 🤖 Phase 8 P1: BullMQ + stale-plan recovery/DLQ, plan-aware CI/drift, rate limits, unknown-cost/retry handling, pricing freshness, OTel/Sentry and load tests.
 ## Run
-`set -a; . ./.env; set +a` · migrate: `pnpm --filter @blindspot/db db:push` · gateway `pnpm start:gateway` (:8787) · dashboard `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm build`.
+Migrate `pnpm --filter @blindspot/db db:push` · gateway `pnpm start:gateway` (:8787) · dashboard `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm test:eval-plan && pnpm build`.

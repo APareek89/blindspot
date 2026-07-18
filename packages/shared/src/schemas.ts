@@ -84,6 +84,88 @@ export type RegistryProvider = z.infer<typeof RegistryProviderSchema>;
 export const ModelRegistrySyncInputSchema = z.object({ provider: RegistryProviderSchema });
 export const ModelProbeInputSchema = z.object({ modelRef: z.string().trim().min(3).max(300) });
 
+export const EvalPlanStatusSchema = z.enum([
+  "draft",
+  "running",
+  "completed",
+  "failed",
+  "expired",
+]);
+export type EvalPlanStatus = z.infer<typeof EvalPlanStatusSchema>;
+
+export const EvalSampleStratumSchema = z.enum([
+  "must_pass",
+  "known_failure",
+  "edge",
+  "representative",
+]);
+export type EvalSampleStratum = z.infer<typeof EvalSampleStratumSchema>;
+
+const EvalModelEstimateSchema = z.object({
+  modelRef: z.string(),
+  estimatedCostCents: z.number().nonnegative(),
+  calls: z.number().int().nonnegative(),
+});
+
+export const EvalPlannedExampleSchema = z.object({
+  id: z.string().uuid(),
+  input: z.string(),
+  referenceOutput: z.string().nullable(),
+  rubric: z.string().nullable(),
+  label: z.enum(["pass", "fail", "unlabeled"]),
+  active: z.literal(true),
+});
+export type EvalPlannedExample = z.infer<typeof EvalPlannedExampleSchema>;
+
+const EvalPlanListedExampleSchema = EvalPlannedExampleSchema.pick({
+  id: true,
+  input: true,
+  label: true,
+});
+
+export const EvalPlanDisclosureSchema = z.object({
+  mode: z.enum(["full", "sampled"]),
+  models: z.array(z.string()).min(1),
+  judgeModel: z.string(),
+  goldenSetVersion: z.number().int().positive(),
+  fullExampleCount: z.number().int().positive(),
+  selectedExampleIds: z.array(z.string().uuid()).min(1),
+  selectedExamples: z.array(EvalPlannedExampleSchema).min(1),
+  omittedExamples: z.array(EvalPlanListedExampleSchema),
+  omittedExampleCount: z.number().int().nonnegative(),
+  strataSelected: z.record(EvalSampleStratumSchema, z.number().int().nonnegative()),
+  strataAvailable: z.record(EvalSampleStratumSchema, z.number().int().nonnegative()),
+  seed: z.string().min(1),
+  budgetCents: z.number().positive(),
+  fullEstimatedCostCents: z.number().positive(),
+  selectedEstimatedCostCents: z.number().positive(),
+  minimumBudgetCents: z.number().positive(),
+  modelEstimates: z.array(EvalModelEstimateSchema),
+  perModelExampleCostCents: z.record(z.string(), z.record(z.string().uuid(), z.number().positive())),
+  safetyMethod: z.string(),
+  confidenceNote: z.string(),
+});
+export type EvalPlanDisclosure = z.infer<typeof EvalPlanDisclosureSchema>;
+
+/** Estimate only: no provider inference occurs until a returned plan is explicitly confirmed. */
+export const EvalPlanCreateInputSchema = z.object({
+  modelRefs: z.array(z.string().trim().min(3).max(300)).min(1).max(4),
+  budgetUsd: z.number().positive().max(100),
+});
+export type EvalPlanCreateInput = z.infer<typeof EvalPlanCreateInputSchema>;
+
+export const EvalPlanRunInputSchema = z.object({
+  planId: z.string().uuid(),
+  confirm: z.literal(true),
+});
+export type EvalPlanRunInput = z.infer<typeof EvalPlanRunInputSchema>;
+
+export const EvalCriterionScoreSchema = z.object({
+  criterion: z.string(),
+  score: z.number().min(0).max(1),
+});
+export type EvalCriterionScore = z.infer<typeof EvalCriterionScoreSchema>;
+
 const JsonRecordSchema = z.record(z.unknown());
 
 /** One SDK observation. Batches are capped again at the HTTP boundary. */
@@ -204,6 +286,16 @@ export const GoldenExampleInputSchema = z.object({
   label: z.enum(["pass", "fail", "unlabeled"]).default("unlabeled"),
 });
 export type GoldenExampleInput = z.infer<typeof GoldenExampleInputSchema>;
+
+export const GoldenGenerateInputSchema = z.object({
+  taskDescription: z.string().trim().max(10_000).optional(),
+  productBrief: z.string().trim().max(50_000).optional(),
+  systemPrompt: z.string().trim().max(50_000).optional(),
+  architecture: z.string().trim().max(50_000).optional(),
+  useLiveTraces: z.boolean().default(false),
+  count: z.number().int().min(1).max(50).default(20),
+});
+export type GoldenGenerateInput = z.infer<typeof GoldenGenerateInputSchema>;
 
 /** What the Golden Set Agent must return per generated example. */
 export const GeneratedGoldenSchema = z.object({

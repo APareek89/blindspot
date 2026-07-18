@@ -1,9 +1,9 @@
 %% Blindspot — drift detection + CI gate (PRD §5)
 flowchart TD
   TR["Trigger<br/>FUNCTION · schedule OR provider version bump OR manual drift-check"]:::fn
-  RE{"Real re-eval or simulated bump?<br/>FUNCTION"}:::dec
-  EV["runEval on LIVE model<br/>AGENT+FUNCTION · candidate + judge over golden set · out: newScore"]:::agent
-  SIM["Inject simulated newScore<br/>FUNCTION · writes a synthetic eval_runs row"]:::fn
+  RE{"Explicit simulated bump supplied?<br/>FUNCTION"}:::dec
+  BLOCK["409: real paid drift eval requires an approved plan<br/>FUNCTION · Phase 8 queue handoff pending"]:::term
+  SIM["Inject validated simulated newScore 0..1<br/>FUNCTION · writes a synthetic eval_runs row"]:::fn
   CMP{"Drift? newScore below (oldScore - margin) OR below policy bar<br/>FUNCTION · margin default 0.05"}:::dec
   OK["No drift — done<br/>FUNCTION"]:::term
   DE["Record drift_event<br/>DATA · drift_events (old/new score, action=recommended)"]:::data
@@ -12,22 +12,15 @@ flowchart TD
   INBOX["Approval-gated recommendation → inbox<br/>USER · approve applies swap"]:::ask
   NONE["drift_event only (no passing alternative yet)<br/>FUNCTION"]:::term
 
-  G["CI Gate · POST /routes/:name/gate<br/>FUNCTION · runEval(modelRef or live)"]:::fn
-  GC{"avgScore >= policy bar?<br/>FUNCTION"}:::dec
-  PASS["200 pass:true — change may ship"]:::term
-  FAIL["422 pass:false — CI blocks the regressing change"]:::term
+  G["CI Gate · POST /routes/:name/gate<br/>FUNCTION · 409 until it can consume an approved queued plan"]:::term
 
   TR --> RE
-  RE -- "real" --> EV --> CMP
-  RE -- "simulated" --> SIM --> CMP
+  RE -- "no" --> BLOCK
+  RE -- "yes" --> SIM --> CMP
   CMP -- "no" --> OK
   CMP -- "yes" --> DE --> REC --> HASC
   HASC -- "yes" --> INBOX
   HASC -- "no" --> NONE
-
-  G --> GC
-  GC -- "yes" --> PASS
-  GC -- "no" --> FAIL
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;

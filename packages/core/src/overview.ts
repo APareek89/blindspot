@@ -75,8 +75,14 @@ export async function getOverview(projectId: string) {
   const liveScore = new Map<string, number>();
   for (const r of projectRoutes) {
     if (!r.liveModel) continue;
-    const run = runs.find((x) => x.routeId === r.id && x.modelRef === r.liveModel);
-    if (run) liveScore.set(r.id, run.avgScore);
+    const run = runs.find(
+      (x) =>
+        x.routeId === r.id &&
+        x.modelRef === r.liveModel &&
+        x.status === "completed" &&
+        x.avgScore != null,
+    );
+    if (run?.avgScore != null) liveScore.set(r.id, run.avgScore);
   }
 
   const qualities = [...liveScore.values()];

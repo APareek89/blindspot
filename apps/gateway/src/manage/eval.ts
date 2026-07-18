@@ -1,8 +1,20 @@
 import { desc, eq } from "drizzle-orm";
 import { Hono } from "hono";
-import { addCompatibleCandidate, enqueueEval, generateRecommendation } from "@blindspot/core";
+import {
+  EvalBudgetTooLowError,
+  EvalPlanStateError,
+  addCompatibleCandidate,
+  createEvalPlan,
+  getEvalPlan,
+  listEvalRunEvidence,
+  runAuthorizedEvalPlan,
+} from "@blindspot/core";
 import { evalRuns, getDb } from "@blindspot/db";
-import { clampPagination } from "@blindspot/shared";
+import {
+  EvalPlanCreateInputSchema,
+  EvalPlanRunInputSchema,
+  clampPagination,
+} from "@blindspot/shared";
 import { getRouteByName } from "../route-resolver";
 import type { Env } from "../types";
 
@@ -21,26 +33,83 @@ evalRouter.post("/routes/:name/candidates", async (c) => {
   return c.json(result);
 });
 
-// run an eval now for a given model (or the route's live model)
+// Legacy raw-spend path is deliberately closed. Callers must estimate, inspect and confirm a plan.
 evalRouter.post("/routes/:name/eval", async (c) => {
-  const projectId = c.get("projectId");
-  const route = await getRouteByName(projectId, c.req.param("name"));
+  const route = await getRouteByName(c.get("projectId"), c.req.param("name"));
   if (!route) return c.json({ error: { message: "route not found" } }, 404);
+  return c.json(
+    { error: { message: "Calculate and confirm an eval plan before any paid run" } },
+    409,
+  );
+});
 
-  const body = (await c.req.json().catch(() => ({}))) as { modelRef?: string };
-  const modelRef = body.modelRef ?? route.liveModel;
-  if (!modelRef) {
-    return c.json({ error: { message: "no modelRef and route has no live model" } }, 400);
+evalRouter.post("/routes/:name/eval-plans", async (c) => {
+  const parsed = EvalPlanCreateInputSchema.safeParse(await c.req.json().catch(() => null));
+  if (!parsed.success) {
+    return c.json({ error: { message: parsed.error.issues[0]?.message ?? "invalid eval plan" } }, 400);
   }
-
   try {
-    const result = await enqueueEval({ projectId, routeId: route.id, modelRef });
-    const recommendation =
-      result.mode === "inline" ? await generateRecommendation(route.id) : null;
-    return c.json({ ...result, recommendation });
-  } catch (e) {
-    return c.json({ error: { message: (e as Error).message } }, 502);
+    const plan = await createEvalPlan(c.get("projectId"), c.req.param("name"), parsed.data);
+    return c.json({ plan }, 201);
+  } catch (error) {
+    if (error instanceof EvalBudgetTooLowError) {
+      return c.json(
+        {
+          error: {
+            message: error.message,
+            minimumBudgetCents: error.minimumBudgetCents,
+            fullEstimatedCostCents: error.fullEstimatedCostCents,
+          },
+        },
+        422,
+      );
+    }
+    return c.json({ error: { message: (error as Error).message } }, 409);
   }
+});
+
+evalRouter.get("/eval-plans/:id", async (c) => {
+  const plan = await getEvalPlan(c.get("projectId"), c.req.param("id"));
+  if (!plan) return c.json({ error: { message: "eval plan not found" } }, 404);
+  return c.json({ plan });
+});
+
+evalRouter.post("/eval-plans/:id/run", async (c) => {
+  const parsed = EvalPlanRunInputSchema.safeParse({
+    ...(await c.req.json().catch(() => null)),
+    planId: c.req.param("id"),
+  });
+  if (!parsed.success) {
+    return c.json({ error: { message: "Explicit { confirm: true } is required" } }, 400);
+  }
+  try {
+    return c.json({
+      result: await runAuthorizedEvalPlan(
+        c.get("projectId"),
+        parsed.data.planId,
+        parsed.data.confirm,
+      ),
+    });
+  } catch (error) {
+    const status = error instanceof EvalPlanStateError ? 409 : 502;
+    return c.json(
+      {
+        error: {
+          message:
+            status === 409
+              ? (error as Error).message
+              : "Eval execution failed; inspect the plan and persisted example evidence",
+        },
+      },
+      status,
+    );
+  }
+});
+
+evalRouter.get("/routes/:name/eval-evidence", async (c) => {
+  const route = await getRouteByName(c.get("projectId"), c.req.param("name"));
+  if (!route) return c.json({ error: { message: "route not found" } }, 404);
+  return c.json({ runs: await listEvalRunEvidence(c.get("projectId"), route.id, 10) });
 });
 
 evalRouter.get("/routes/:name/eval-runs", async (c) => {

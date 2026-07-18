@@ -1,0 +1,44 @@
+%% Blindspot — immutable eval spend authorization (Phase 7C)
+%% files: packages/core/src/eval/cost.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
+%% granularity: full
+flowchart TD
+  PICK["Choose technically eligible models + maximum USD spend<br/>USER"]:::ask
+  ELIG["Re-check selected workflow, account registry and candidate pool<br/>FUNCTION"]:::fn
+  LOAD["Load latest versioned golden set<br/>DATA · active golden_examples"]:::data
+  PRICE["Estimate candidate + judge calls<br/>FUNCTION · UTF-8 byte input bound, fixed 384-token outputs, 15% safety"]:::fn
+  FULL{"Budget covers every case?<br/>FUNCTION"}:::dec
+  SAMPLE["Choose reproducible strata<br/>FUNCTION · must-pass → known-failure → edge → representative<br/>stable SHA seed"]:::fn
+  DRAFT["Store immutable plan for 30 minutes<br/>DATA · eval_plans status=draft<br/>examples, hash, selected/omitted, calls, costs, confidence"]:::data
+  REVIEW{"Confirm this exact plan?<br/>USER"}:::ask
+  FRESH{"Examples, model eligibility and key-bound access still valid?<br/>FUNCTION"}:::dec
+  LOCK["SELECT FOR UPDATE + single-use state transition<br/>FUNCTION · draft → running"]:::fn
+  REFRESH["409: calculate a fresh estimate<br/>FUNCTION · no provider spend"]:::term
+  LOOP["For each authorized model and selected example<br/>FUNCTION · pre-check per-model cap"]:::fn
+  CAND["Generate candidate output<br/>AGENT · selected model through encrypted BYO key"]:::agent
+  JUDGE["Score output<br/>AGENT · JUDGE_MODEL<br/>overall + per-criterion + reasoning"]:::agent
+  EVID["Persist evidence immediately<br/>DATA · eval_example_results<br/>input/reference/output, issues, latency, reported costs/errors"]:::data
+  DONE{"Every selected case scored without failure?<br/>FUNCTION"}:::dec
+  REC["Create evidence-backed Recommendation<br/>DATA · pending by default<br/>live_model unchanged"]:::data
+  WARN["Keep visible evidence/issues; no Recommendation<br/>DATA"]:::term
+  APPROVE{"Approve or reject Recommendation<br/>USER"}:::ask
+  APPLY["Transactional live_model update<br/>FUNCTION · approval or explicit per-route auto-approve only"]:::fn
+
+  PICK --> ELIG --> LOAD --> PRICE --> FULL
+  FULL -- "yes" --> DRAFT
+  FULL -- "no" --> SAMPLE --> DRAFT
+  DRAFT --> REVIEW
+  REVIEW -- "revise" --> PICK
+  REVIEW -- "confirm=true" --> FRESH
+  FRESH -- "no" --> REFRESH
+  FRESH -- "yes" --> LOCK --> LOOP --> CAND --> JUDGE --> EVID --> DONE
+  DONE -- "yes" --> REC --> APPROVE
+  DONE -- "no" --> WARN
+  APPROVE -- "approve" --> APPLY
+  APPROVE -- "reject" --> WARN
+
+  classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
+  classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
+  classDef dec fill:#f3e8ff,stroke:#9333ea,color:#2a0a4a;
+  classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
+  classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
+  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;

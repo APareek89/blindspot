@@ -5,6 +5,8 @@ export * from "./golden/agent";
 export * from "./eval/judge";
 export * from "./eval/runner";
 export * from "./eval/queue";
+export * from "./eval/cost";
+export * from "./eval/planner";
 export * from "./recommend";
 export * from "./drift";
 export * from "./routes/service";

@@ -13,6 +13,9 @@ import {
 import type {
   CaptureMode,
   Evidence,
+  EvalCriterionScore,
+  EvalPlanDisclosure,
+  EvalPlanStatus,
   ModelAvailability,
   ModelCapabilities,
   ModelProbeStatus,
@@ -213,6 +216,43 @@ export const goldenExamples = bs.table("golden_examples", {
   createdAt: createdAt(),
 });
 
+/** Immutable estimate + disclosed sample. A paid run can start only from a confirmed draft. */
+export const evalPlans = bs.table(
+  "eval_plans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    routeId: uuid("route_id")
+      .notNull()
+      .references(() => routes.id, { onDelete: "cascade" }),
+    goldenSetId: uuid("golden_set_id")
+      .notNull()
+      .references(() => goldenSets.id, { onDelete: "cascade" }),
+    status: text("status").$type<EvalPlanStatus>().notNull().default("draft"),
+    modelRefsJson: jsonb("model_refs_json").$type<string[]>().notNull(),
+    judgeModel: text("judge_model").notNull(),
+    budgetCents: real("budget_cents").notNull(),
+    fullEstimatedCostCents: real("full_estimated_cost_cents").notNull(),
+    selectedEstimatedCostCents: real("selected_estimated_cost_cents").notNull(),
+    sampleSeed: text("sample_seed").notNull(),
+    selectionHash: text("selection_hash").notNull(),
+    disclosureJson: jsonb("disclosure_json").$type<EvalPlanDisclosure>().notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    authorizedAt: timestamp("authorized_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    failureReason: text("failure_reason"),
+    actualCostCents: real("actual_cost_cents"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("eval_plans_project_route_idx").on(t.projectId, t.routeId),
+    index("eval_plans_status_expires_idx").on(t.status, t.expiresAt),
+  ],
+);
+
 export const evalRuns = bs.table(
   "eval_runs",
   {
@@ -220,15 +260,53 @@ export const evalRuns = bs.table(
     routeId: uuid("route_id")
       .notNull()
       .references(() => routes.id, { onDelete: "cascade" }),
+    planId: uuid("plan_id").references(() => evalPlans.id, { onDelete: "set null" }),
     modelRef: text("model_ref").notNull(),
     goldenSetVersion: integer("golden_set_version").notNull(),
-    avgScore: real("avg_score").notNull(),
+    status: text("status").$type<"running" | "completed" | "failed">().notNull().default("completed"),
+    avgScore: real("avg_score"),
     /** USD cents per 1k tokens (all money is cents). */
     costPer1k: real("cost_per_1k"),
     latencyMs: integer("latency_ms"),
+    examplesPlanned: integer("examples_planned").notNull().default(0),
+    examplesScored: integer("examples_scored").notNull().default(0),
+    examplesFailed: integer("examples_failed").notNull().default(0),
+    estimatedCostCents: real("estimated_cost_cents"),
+    actualCostCents: real("actual_cost_cents"),
+    sampleSeed: text("sample_seed"),
     createdAt: createdAt(),
   },
   (t) => [index("eval_runs_route_idx").on(t.routeId)],
+);
+
+/** Stable per-example evidence used by issue views and Recommendations. */
+export const evalExampleResults = bs.table(
+  "eval_example_results",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    evalRunId: uuid("eval_run_id")
+      .notNull()
+      .references(() => evalRuns.id, { onDelete: "cascade" }),
+    goldenExampleId: uuid("golden_example_id").references(() => goldenExamples.id, {
+      onDelete: "set null",
+    }),
+    input: text("input").notNull(),
+    referenceOutput: text("reference_output"),
+    candidateOutput: text("candidate_output"),
+    score: real("score"),
+    perCriterionJson: jsonb("per_criterion_json").$type<EvalCriterionScore[]>().notNull().default([]),
+    reasoning: text("reasoning"),
+    issuesJson: jsonb("issues_json").$type<string[]>().notNull().default([]),
+    latencyMs: integer("latency_ms"),
+    candidateCostCents: real("candidate_cost_cents"),
+    judgeCostCents: real("judge_cost_cents"),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("eval_example_results_run_idx").on(t.evalRunId),
+    index("eval_example_results_example_idx").on(t.goldenExampleId),
+  ],
 );
 
 export const recommendations = bs.table(

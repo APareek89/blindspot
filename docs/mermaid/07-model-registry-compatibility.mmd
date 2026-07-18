@@ -19,8 +19,8 @@ flowchart TD
   ADD["Add experiment candidate<br/>USER"]:::ask
   GUARD["Re-run server-side compatibility gate<br/>FUNCTION · arbitrary raw refs rejected"]:::fn
   POOL["Candidate stored; back-test not started<br/>DATA · candidates<br/>zero eval spend · live_model unchanged"]:::data
-  QUALITY["Phase 7C: estimate + user-approved eval<br/>then golden-set quality gate"]:::term
-  APPROVAL["Phase 7D: evidence-backed Recommendation<br/>USER approves before any live swap"]:::term
+  QUALITY["Phase 7C BUILT: estimate + exact disclosed sample + confirmation<br/>then per-example golden-set quality evidence"]:::term
+  APPROVAL["Evidence-backed Recommendation<br/>USER approves before any live swap<br/>Phase 7D adds continuous monitoring"]:::term
   OBSERVE["Remain observe-only<br/>DATA · no experiment or route change"]:::term
   FAIL["Return sanitized sync error<br/>FUNCTION · no secret/provider body exposed"]:::term
 

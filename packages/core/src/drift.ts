@@ -2,7 +2,6 @@ import { and, desc, eq, getTableColumns, inArray } from "drizzle-orm";
 import { driftEvents, evalRuns, getDb, recommendations, routes } from "@blindspot/db";
 import { costPer1kCents } from "@blindspot/providers";
 import { clampPagination, type PageInput } from "@blindspot/shared";
-import { runEval } from "./eval/runner";
 import { generateRecommendation } from "./recommend";
 
 /**
@@ -13,7 +12,7 @@ import { generateRecommendation } from "./recommend";
  */
 export async function checkDrift(opts: {
   routeId: string;
-  simulateNewScore?: number;
+  simulateNewScore: number;
   margin?: number;
 }) {
   const db = getDb();
@@ -32,27 +31,20 @@ export async function checkDrift(opts: {
   )[0];
   const oldScore = prior?.avgScore ?? null;
 
-  let newScore: number;
-  if (opts.simulateNewScore != null) {
-    // simulate a provider version bump degrading the live model
-    newScore = opts.simulateNewScore;
-    await db.insert(evalRuns).values({
-      routeId: opts.routeId,
-      modelRef: route.liveModel,
-      goldenSetVersion: prior?.goldenSetVersion ?? 1,
-      avgScore: newScore,
-      costPer1k: costPer1kCents(route.liveModel),
-      latencyMs: prior?.latencyMs ?? null,
-    });
-  } else {
-    newScore = (
-      await runEval({
-        projectId: route.projectId,
-        routeId: opts.routeId,
-        modelRef: route.liveModel,
-      })
-    ).avgScore;
+  if (!Number.isFinite(opts.simulateNewScore) || opts.simulateNewScore < 0 || opts.simulateNewScore > 1) {
+    throw new Error("simulateNewScore must be between 0 and 1");
   }
+  // Phase 7C keeps this as an explicitly free simulation. Real drift evals must enter through
+  // the immutable estimate + confirmation path, never through this helper.
+  const newScore = opts.simulateNewScore;
+  await db.insert(evalRuns).values({
+    routeId: opts.routeId,
+    modelRef: route.liveModel,
+    goldenSetVersion: prior?.goldenSetVersion ?? 1,
+    avgScore: newScore,
+    costPer1k: costPer1kCents(route.liveModel),
+    latencyMs: prior?.latencyMs ?? null,
+  });
 
   const drifted =
     (oldScore != null && newScore < oldScore - margin) ||
@@ -112,24 +104,4 @@ export async function listDriftEvents(projectId: string, page?: PageInput) {
   return {
     drift_events: rows.map((r) => ({ ...r, recommendationId: recByRoute.get(r.routeId) ?? null })),
   };
-}
-
-/**
- * CI gate (PRD §5, §12 Phase 5): evaluate a model against the route's golden set and pass
- * only if it clears the policy bar — so a regressing model/prompt change can't reach prod.
- */
-export async function runGate(opts: {
-  projectId: string;
-  routeId: string;
-  modelRef?: string;
-}) {
-  const db = getDb();
-  const route = (await db.select().from(routes).where(eq(routes.id, opts.routeId)).limit(1))[0];
-  if (!route) throw new Error("route not found");
-  const modelRef = opts.modelRef ?? route.liveModel;
-  if (!modelRef) throw new Error("no model to gate");
-
-  const result = await runEval({ projectId: opts.projectId, routeId: opts.routeId, modelRef });
-  const bar = route.policyJson.minScore;
-  return { pass: result.avgScore >= bar, avgScore: result.avgScore, bar, modelRef };
 }

@@ -1,18 +1,18 @@
 # Blindspot — Architecture Flow
 
-> **Status: Phases 0–7 verified live; Phases 7A–7B built 2026-07-18.** The original
+> **Status: Phases 0–7 verified live; Phases 7A–7C built 2026-07-18.** The original
 > loop + dashboard run against Groq + Supabase; the SDK/ingestion/workflow path plus the
-> account-scoped model registry and node compatibility gate are implemented and await the first
-> gstpilot connection. Pending: Phase 4.5 / 7C (per-example
-> outputs → fill evidence samples/perCriterion) and Phase 8 (queue scale, observability,
+> account-scoped model registry, node compatibility gate, immutable eval plans, deterministic
+> budget sampling and per-example evidence are implemented and await the first gstpilot connection.
+> Pending: Phase 7D (continuous loop) and Phase 8 (queue scale, crash recovery, observability,
 > rate limits). These diagrams describe the *real* runtime; update the `.mmd` in the same
 > session as any structural change — the git diff of the `.mmd` IS the change highlight.
 > Regenerate the standalone viewer with:
-> `node /Users/anandpareek/.claude/skills/power-coding/scripts/build-html.mjs docs/mermaid docs/architecture-flow.html`
+> `node /Users/anandpareek/.codex/skills/power-coding/scripts/build-html.mjs docs/mermaid docs/architecture-flow.html`
 >
 > **Diagrams:** `00` master loop · `01` build decisions · `02` golden sets · `03` eval→recommend ·
 > `04` drift→gate · `05` dashboard + management API · `06` Connect + Observe ·
-> **`07` Model Registry + Compatibility**.
+> `07` Model Registry + Compatibility · **`08` Budgeted Eval Authorization**.
 
 ## Legend
 | Label | Meaning |
@@ -30,12 +30,12 @@
 | Drift detection | FUNCTION | new score **below** route band (old − margin) → drift event |
 | Approval | USER | no `live_model` change without approve — unless route `auto_approve` = ON |
 | Auto-approve (opt-in) | FUNCTION | within quality band **AND** cost decreases (default OFF) |
-| CI Gate | FUNCTION | regressing candidate vs bar → block the change |
+| CI Gate | FUNCTION | legacy paid endpoint is closed; plan-aware queued CI gate returns in Phase 8 |
 | Content retention | USER + FUNCTION | effective mode is the stricter of SDK and project (`metadata` default) |
 | Workflow selection | USER | discovery is observe-only until `workflows.selected = true` |
 | Provider availability | FUNCTION | read-only account catalog sync; no inference/token spend |
 | Technical compatibility | FUNCTION | key/access plus modality, tool, schema, streaming, system and context requirements |
-| Eval spend | USER | adding a candidate spends nothing; Phase 7C estimates and asks before a paid run |
+| Eval spend | USER + FUNCTION | immutable estimate → exact disclosed sample → explicit confirmation → single-use plan; legacy paid paths return 409 |
 
 ## Master flow — Observe → Eval → Recommend → Approve → Route → Gate
 ```mermaid
@@ -47,7 +47,9 @@ flowchart TD
   E["Decrypt user provider key<br/>FUNCTION · AES-256-GCM<br/>in: provider_keys.encrypted_key · out: in-memory key"]:::fn
   F["Live LLM call through user key<br/>LIBRARY · Vercel AI SDK adapter<br/>in: prompt + model_ref · out: completion"]:::data
   G["Write trace<br/>DATA · traces · cost, latency, output"]:::data
-  H["Dispatch an explicitly approved eval<br/>FUNCTION · inline local override or BullMQ on Redis"]:::data
+  EST["Calculate full cost and deterministic sample<br/>FUNCTION · no provider calls<br/>DATA · eval_plans status = draft"]:::fn
+  CONF{"User confirms disclosed cap and exact cases?<br/>USER"}:::ask
+  H["Lock single-use plan and run inline locally<br/>FUNCTION · Phase 8 queues the same authorization"]:::data
   I["Judge scores golden set<br/>AGENT · JUDGE_MODEL<br/>in: outputs vs golden_examples · out: per-criterion scores"]:::agent
   J["Aggregate avg_score, cost, latency<br/>FUNCTION · writes DATA · eval_runs"]:::fn
   K{"Drift? new score below route band<br/>FUNCTION · new below old minus margin"}:::dec
@@ -57,13 +59,15 @@ flowchart TD
   O{"User decision<br/>USER · approve or reject"}:::ask
   P["Apply: update routes.live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
-  R["CI Gate endpoint<br/>FUNCTION · blocks a regressing change<br/>in: candidate eval vs bar · out: pass or fail"]:::fn
+  R["CI Gate paid endpoint<br/>FUNCTION · closed with 409 until Phase 8 consumes an approved plan"]:::term
 
   A --> B --> C
   C -- "no" --> D --> E
   C -- "yes" --> E
   E --> F --> G
-  F --> H --> I --> J
+  F --> EST --> CONF
+  CONF -- "confirm" --> H --> I --> J
+  CONF -- "change budget/models" --> EST
   J --> K
   J --> L
   K -- "yes, quality dropped" --> M
@@ -130,6 +134,13 @@ verified and every known requirement fits. Unknown facts are shown as “needs v
 hard mismatches are excluded with the exact reason. The same check runs again server-side when a
 candidate is added. Candidate creation spends no eval budget and never changes `live_model`.
 
+Phase 7C then computes a free conservative estimate for the chosen compatible candidates and the
+configured judge. A below-full cap produces a deterministic stratified sample, with selected and
+omitted cases, strata, seed, calls, cost and confidence disclosed before confirmation. Confirmation
+atomically consumes the 30-minute plan once. Candidate and judge results are stored per example;
+only complete evidence can create a Recommendation, and `live_model` remains unchanged unless the
+existing approval rule (or explicit per-route auto-approve opt-in) applies.
+
 ```mermaid
 flowchart LR
   SYNC["USER · Sync provider"]:::ask --> LIST["FUNCTION · list models<br/>zero inference tokens"]:::fn
@@ -158,3 +169,4 @@ flowchart LR
 | Dashboard + management | [`docs/mermaid/05-dashboard-mgmt.mmd`](./mermaid/05-dashboard-mgmt.mmd) |
 | Connect + Observe | [`docs/mermaid/06-connect-observe.mmd`](./mermaid/06-connect-observe.mmd) |
 | Model Registry + Compatibility | [`docs/mermaid/07-model-registry-compatibility.mmd`](./mermaid/07-model-registry-compatibility.mmd) |
+| Budgeted Eval Authorization | [`docs/mermaid/08-budgeted-eval-authorization.mmd`](./mermaid/08-budgeted-eval-authorization.mmd) |

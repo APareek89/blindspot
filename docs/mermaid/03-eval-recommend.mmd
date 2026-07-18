@@ -1,27 +1,34 @@
-%% Blindspot — eval + recommend (PRD §3, §6): back-test a candidate then propose a swap
-%% files: apps/gateway/src/manage/eval.ts, packages/core/src/eval/queue.ts, packages/core/src/eval/runner.ts, packages/core/src/policy.ts
+%% Blindspot — eval + recommend (PRD §3, §6, §7a): authorize spend, back-test, then propose
+%% files: apps/gateway/src/manage/eval.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
 %% granularity: full
 flowchart TD
-  T["Trigger<br/>FUNCTION · explicit paid-run approval OR (Phase 5) version bump"]:::fn
-  Q{"BLINDSPOT_EVAL_MODE=inline<br/>OR REDIS_URL absent?<br/>FUNCTION"}:::dec
-  EN["Enqueue eval job<br/>DATA · BullMQ bs:evals"]:::data
-  IN["Run inline (dev)<br/>FUNCTION"]:::fn
-  RUN["runEval: for each active golden example<br/>FUNCTION · loop"]:::fn
-  CAND["Candidate output<br/>AGENT · candidate model via user key<br/>in: example.input · out: text + tokens + latency"]:::agent
-  JUDGE["Judge score<br/>AGENT · JUDGE_MODEL via generateObject<br/>in: output vs reference + rubric · out: score 0..1"]:::agent
-  AGG["Aggregate avg_score, latency, cost<br/>FUNCTION · write DATA · eval_runs"]:::data
-  POL{"Policy: cheapest passing candidate cheaper than live?<br/>FUNCTION · score >= route.policy.minScore"}:::dec
+  T["Select eligible candidate models + USD cap<br/>USER"]:::ask
+  EST["Conservative full estimate<br/>FUNCTION · candidate + judge token ceilings<br/>zero provider calls"]:::fn
+  FIT{"Cap covers full active golden set?<br/>FUNCTION"}:::dec
+  SAMPLE["Deterministic stratified sample<br/>FUNCTION · must-pass, known-failure, edge, representative"]:::fn
+  PLAN["Persist immutable 30-minute plan<br/>DATA · exact selected/omitted cases, strata, seed, calls, costs"]:::data
+  OK{"Confirm disclosed plan?<br/>USER · explicit confirm = true"}:::ask
+  LOCK["Lock + consume draft once<br/>FUNCTION · re-check ownership, eligibility and example hash"]:::fn
+  RUN["runEval for each selected model/example<br/>FUNCTION · enforce authorized per-model cost before every call"]:::fn
+  CAND["Candidate output<br/>AGENT · candidate model via user key<br/>in: example.input · out: text + usage + latency"]:::agent
+  JUDGE["Judge score<br/>AGENT · JUDGE_MODEL<br/>in: output vs reference + rubric · out: score, criteria, reasoning"]:::agent
+  ROW["Persist per-example output + issue evidence<br/>DATA · eval_example_results<br/>candidate/judge costs and errors"]:::data
+  AGG["Aggregate score, latency, reported cost and failures<br/>DATA · eval_runs + eval_plans"]:::data
+  POL{"Complete evidence and cheaper passing candidate?<br/>FUNCTION · score at or above route quality bar"}:::dec
   DUP{"Pending rec already exists for this target?<br/>FUNCTION"}:::dec
-  REC["Create Recommendation + evidence<br/>DATA · recommendations status = pending<br/>fromScore/toScore + cost & latency delta"]:::data
-  AUTO{"route.auto_approve ON?<br/>FUNCTION · default OFF"}:::dec
-  APPLY["Apply swap: update routes.live_model<br/>FUNCTION · logged"]:::fn
+  REC["Create Recommendation + evidence<br/>DATA · recommendations status = pending<br/>criteria + cost/latency delta + samples"]:::data
+  AUTO{"route.auto_approve ON and cost decreases?<br/>FUNCTION · default OFF"}:::dec
+  APPLY["Transactional Recommendation + routes.live_model update<br/>FUNCTION · logged"]:::fn
   INBOX["Approvals inbox — USER approve or reject<br/>USER · approve applies swap, reject stores reason"]:::ask
-  STOP["No recommendation<br/>FUNCTION · none warranted"]:::term
+  STOP["No recommendation<br/>FUNCTION · live model unchanged"]:::term
 
-  T --> Q
-  Q -- "no" --> EN --> RUN
-  Q -- "yes" --> IN --> RUN
-  RUN --> CAND --> JUDGE --> AGG --> POL
+  T --> EST --> FIT
+  FIT -- "yes" --> PLAN
+  FIT -- "no" --> SAMPLE --> PLAN
+  PLAN --> OK
+  OK -- "revise" --> T
+  OK -- "confirm" --> LOCK --> RUN
+  RUN --> CAND --> JUDGE --> ROW --> AGG --> POL
   POL -- "no" --> STOP
   POL -- "yes" --> DUP
   DUP -- "yes" --> STOP

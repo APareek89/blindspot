@@ -34,12 +34,22 @@ export async function seedGenerate(
   route: string,
   taskDescription: string,
   count: number,
+  context: {
+    productBrief?: string;
+    systemPrompt?: string;
+    architecture?: string;
+    useLiveTraces?: boolean;
+  } = {},
 ): Promise<Result> {
   const client = await requireApi();
   try {
     await client.generateGolden(route, {
       taskDescription: taskDescription.trim() || undefined,
       count,
+      productBrief: context.productBrief?.trim() || undefined,
+      systemPrompt: context.systemPrompt?.trim() || undefined,
+      architecture: context.architecture?.trim() || undefined,
+      useLiveTraces: context.useLiveTraces,
     });
   } catch (e) {
     return fail(e);

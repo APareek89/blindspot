@@ -10,7 +10,9 @@ flowchart TD
   E["Decrypt user provider key<br/>FUNCTION · AES-256-GCM<br/>in: provider_keys.encrypted_key · out: in-memory key"]:::fn
   F["Live LLM call through user key<br/>LIBRARY · Vercel AI SDK adapter<br/>in: prompt + model_ref · out: completion"]:::data
   G["Write trace<br/>DATA · traces · cost, latency, output"]:::data
-  H["Dispatch an explicitly approved eval<br/>FUNCTION · inline local override or BullMQ on Redis<br/>in: authorized run · out: eval job"]:::data
+  EST["Free cost + sample estimate<br/>FUNCTION · immutable eval_plan draft<br/>no provider calls"]:::fn
+  CONF{"Confirm disclosed cases + maximum spend?<br/>USER"}:::ask
+  H["Lock single-use plan and run inline locally<br/>FUNCTION · Phase 8 queues this authorization"]:::data
   I["Judge scores golden set<br/>AGENT · JUDGE_MODEL<br/>in: outputs vs golden_examples · out: per-criterion scores"]:::agent
   J["Aggregate avg_score, cost, latency<br/>FUNCTION · writes DATA · eval_runs"]:::fn
   K{"Drift? new score below route band<br/>FUNCTION · new below old minus margin"}:::dec
@@ -20,13 +22,15 @@ flowchart TD
   O{"User decision<br/>USER · approve or reject"}:::ask
   P["Apply: update routes.live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
-  R["CI Gate endpoint<br/>FUNCTION · blocks a regressing change<br/>in: candidate eval vs bar · out: pass or fail"]:::fn
+  R["Legacy paid drift + CI endpoints closed<br/>FUNCTION · plan-aware queue handoff in Phase 8"]:::term
 
   A --> B --> C
   C -- "no" --> D --> E
   C -- "yes" --> E
   E --> F --> G
-  F --> H --> I --> J
+  F --> EST --> CONF
+  CONF -- "confirm" --> H --> I --> J
+  CONF -- "revise" --> EST
   J --> K
   J --> L
   K -- "yes, quality dropped" --> M

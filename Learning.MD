@@ -6,6 +6,18 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-18 — Paid eval approval must be an immutable server object
+**What happened:** Phase 7C needed to let a user lower an eval budget without hiding what the
+smaller run would skip, while old eval, drift and CI endpoints could still contact providers directly.
+**Why chain:** disabling a dashboard button did not authorize spend → because HTTP callers could bypass
+the UI → because the previous eval job carried only a route/model, not the exact approved cases and cap.
+Deepest cause: `design` — spend consent was treated as an interaction instead of durable state.
+**Action:** added expiring single-use eval plans with model/route ownership, conservative costs, exact
+snapshotted examples, stable stratified sampling, content hash, row lock and per-model caps. Closed every
+legacy paid endpoint; persisted per-example evidence; incomplete results cannot recommend or switch.
+**Preventive action:** any future scheduled drift/CI/worker path must consume the same plan authorization;
+no provider eval call may be added behind a separate boolean or UI-only confirmation.
+
 ## 2026-07-18 — Provider catalog evidence must be bound to the current account key
 **What happened:** Phase 7B FMEA found that replacing a provider key while a catalog sync was in
 flight could certify the old account's models for the new key.

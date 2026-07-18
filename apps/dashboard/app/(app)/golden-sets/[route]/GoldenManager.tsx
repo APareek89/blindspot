@@ -180,6 +180,10 @@ function SeedPanel({
   empty?: boolean;
 }) {
   const [task, setTask] = useState("");
+  const [productBrief, setProductBrief] = useState("");
+  const [systemPrompt, setSystemPrompt] = useState("");
+  const [architecture, setArchitecture] = useState("");
+  const [useLiveTraces, setUseLiveTraces] = useState(false);
   const [count, setCount] = useState(20);
   const [format, setFormat] = useState<"csv" | "jsonl">("jsonl");
   const [data, setData] = useState("");
@@ -207,6 +211,46 @@ function SeedPanel({
           value={task}
           onChange={(e) => setTask(e.target.value)}
         />
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 550 }}>
+            Add product context, prompts or architecture
+          </summary>
+          <div className="stack" style={{ gap: 8, marginTop: 8 }}>
+            <textarea
+              className="textarea"
+              style={{ minHeight: 70 }}
+              placeholder="Product brief / README / design notes"
+              value={productBrief}
+              onChange={(event) => setProductBrief(event.target.value)}
+            />
+            <textarea
+              className="textarea mono"
+              style={{ minHeight: 70 }}
+              placeholder="System prompt"
+              value={systemPrompt}
+              onChange={(event) => setSystemPrompt(event.target.value)}
+            />
+            <textarea
+              className="textarea"
+              style={{ minHeight: 70 }}
+              placeholder="Agentic architecture / node responsibilities"
+              value={architecture}
+              onChange={(event) => setArchitecture(event.target.value)}
+            />
+            <label className="row small" style={{ gap: 7, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={useLiveTraces}
+                onChange={(event) => setUseLiveTraces(event.target.checked)}
+              />
+              I approve using retained inputs from up to 20 recent live traces as examples
+            </label>
+            <div className="hint">
+              Live data is never used unless this box is selected; project capture controls still
+              determine what Blindspot retained.
+            </div>
+          </div>
+        </details>
         <div className="row" style={{ gap: 8, marginTop: 8 }}>
           <input
             className="input"
@@ -220,7 +264,16 @@ function SeedPanel({
           <button
             className="btn primary"
             disabled={pending}
-            onClick={() => run(() => seedGenerate(route, task, count))}
+            onClick={() =>
+              run(() =>
+                seedGenerate(route, task, count, {
+                  productBrief,
+                  systemPrompt,
+                  architecture,
+                  useLiveTraces,
+                }),
+              )
+            }
           >
             {pending ? "Generating…" : "Generate"}
           </button>
