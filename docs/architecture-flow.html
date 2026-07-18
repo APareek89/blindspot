@@ -14,7 +14,7 @@
 <h2>Blindspot — master flow: Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Route -&gt; Gate</h2>
 <pre class="mermaid">%% Blindspot — master flow: Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Route -&gt; Gate
 %% BUILT &amp; verified live 2026-07-16 (Groq + Supabase). Dashboard surface: see 05-dashboard-mgmt.mmd.
-%% files: apps/gateway/src/index.ts, packages/core/src/eval/queue.ts, packages/core/src/eval/runner.ts, packages/core/src/policy.ts, packages/core/src/approvals.ts
+%% files: apps/gateway/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
 %% granularity: summary
 flowchart TD
   A["User agent call&lt;br/&gt;ENTRY · base_url points to gateway, model = route:name"]:::term
@@ -30,11 +30,11 @@ flowchart TD
   I["Judge scores golden set&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;in: outputs vs golden_examples · out: per-criterion scores"]:::agent
   J["Aggregate avg_score, cost, latency&lt;br/&gt;FUNCTION · writes DATA · eval_runs"]:::fn
   K{"Drift? new score below route band&lt;br/&gt;FUNCTION · new below old minus margin"}:::dec
-  L{"Policy: cheaper candidate at or above bar?&lt;br/&gt;FUNCTION · cheapest with score at or above 0.85"}:::dec
+  L{"Same-plan live + candidate evidence; passing and provably cheaper?&lt;br/&gt;FUNCTION · score at or above 0.85, comparable price"}:::dec
   M["Create Recommendation with evidence&lt;br/&gt;FUNCTION · per-criterion scores, cost and latency delta, 3 side-by-side samples&lt;br/&gt;DATA · recommendations status = pending"]:::fn
   N["Approvals inbox&lt;br/&gt;DATA · recommendations"]:::data
   O{"User decision&lt;br/&gt;USER · approve or reject"}:::ask
-  P["Apply: update routes.live_model&lt;br/&gt;FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
+  P["Lock decision + Route; reject stale from_model; update live_model&lt;br/&gt;FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs&lt;br/&gt;FUNCTION · DATA · recommendations status = rejected"]:::fn
   R["Legacy paid drift + CI endpoints closed&lt;br/&gt;FUNCTION · plan-aware queue handoff in Phase 8"]:::term
 
@@ -63,8 +63,8 @@ flowchart TD
 </pre>
 <h2>Blindspot — BUILD DECISIONS LOG (not a runtime flow)</h2>
 <pre class="mermaid">%% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Updated every phase; newest at bottom.
-%% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts
+%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0; QA sync: c32fb88 + working tree.
+%% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
   P0["Phase 0 · Monorepo skeleton — DONE"]:::done
@@ -118,6 +118,7 @@ flowchart TD
   P7Ca["Immutable 30-minute eval plan: full estimate or disclosed SHA-seeded stratified sample;&lt;br/&gt;selected + omitted cases, calls, cost, safety and confidence shown before confirm&lt;br/&gt;WHY: the user owns eval spend and must know exactly what a smaller budget changes"]:::why
   P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;&lt;br/&gt;per-example evidence is persisted immediately and incomplete runs cannot recommend&lt;br/&gt;WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
   P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,&lt;br/&gt;rate limits, observability and plan-aware CI/drift jobs&lt;br/&gt;WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
+  QA["2026-07-18 · Power Coding QA hardening&lt;br/&gt;Recommendations now require complete same-plan live + candidate evidence; unknown price cannot auto-approve;&lt;br/&gt;critical/high dependency advisories removed without changing the approved stack"]:::done
 
   P0 --&gt; P0c --&gt; P0d --&gt; P05
   P05 --&gt; P05c --&gt; P05d --&gt; P05e --&gt; P1
@@ -125,7 +126,7 @@ flowchart TD
   P2 --&gt; P2a --&gt; P2b --&gt; P2c --&gt; P3
   P3 --&gt; P3a --&gt; P3b --&gt; P3fix --&gt; P4
   P4 --&gt; P4a --&gt; P4b --&gt; P4c --&gt; P5
-  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc --&gt; P7C --&gt; P7Ca --&gt; P7Cb --&gt; P7Cc
+  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc --&gt; P7C --&gt; P7Ca --&gt; P7Cb --&gt; P7Cc --&gt; QA
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;
@@ -135,6 +136,8 @@ flowchart TD
 <h2>Blindspot — golden-set lifecycle (PRD §7): seed -&gt; grow -&gt; curate</h2>
 <pre class="mermaid">%% Blindspot — golden-set lifecycle (PRD §7): seed -&gt; grow -&gt; curate
 %% grow-from-production step is intended, not yet built
+%% files: apps/gateway/src/manage/golden.ts, packages/core/src/golden/agent.ts, packages/core/src/golden/service.ts, packages/core/src/golden/upload.ts
+%% granularity: full
 flowchart TD
   S{"Seed path?&lt;br/&gt;USER chooses"}:::dec
   U["Parse upload CSV or JSONL&lt;br/&gt;FUNCTION · csv-parse&lt;br/&gt;in: file text · out: rows"]:::fn
@@ -142,10 +145,10 @@ flowchart TD
   CTX["Optional context&lt;br/&gt;USER · product brief, system prompt, architecture&lt;br/&gt;live traces require an explicit checkbox"]:::ask
   A["Golden Set Agent&lt;br/&gt;AGENT · GOLDEN_MODEL or JUDGE_MODEL&lt;br/&gt;in: task + bounded context/sample inputs · out: input + referenceOutput + rubric xN"]:::agent
   AV["Schema-validate via generateObject&lt;br/&gt;FUNCTION · Zod GeneratedGolden"]:::fn
-  NV["nextVersion(routeId)&lt;br/&gt;FUNCTION · max(version) + 1"]:::fn
+  NV["Lock parent Route + allocate next version&lt;br/&gt;FUNCTION · serialized max(version) + 1"]:::fn
   C["createGoldenSet + insert examples&lt;br/&gt;DATA · golden_sets (origin) and golden_examples"]:::data
   CUR["Curate: add / edit / delete / label / active&lt;br/&gt;FUNCTION · CRUD on golden_examples"]:::fn
-  PT["Promote a trace&lt;br/&gt;FUNCTION · reads traces then addExample&lt;br/&gt;input = last user msg, referenceOutput = trace output"]:::fn
+  PT["Promote a same-route trace&lt;br/&gt;FUNCTION · route ownership/match then addExample&lt;br/&gt;input = last user msg, referenceOutput = trace output"]:::fn
   G["planned: Grow from production&lt;br/&gt;AGENT · propose judge-uncertain / drift / diverse candidates&lt;br/&gt;into a suggested-additions queue, USER accepts"]:::todo
 
   S -- "upload" --&gt; U --&gt; UV --&gt; NV
@@ -177,11 +180,12 @@ flowchart TD
   JUDGE["Judge score&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;in: output vs reference + rubric · out: score, criteria, reasoning"]:::agent
   ROW["Persist per-example output + issue evidence&lt;br/&gt;DATA · eval_example_results&lt;br/&gt;candidate/judge costs and errors"]:::data
   AGG["Aggregate score, latency, reported cost and failures&lt;br/&gt;DATA · eval_runs + eval_plans"]:::data
-  POL{"Complete evidence and cheaper passing candidate?&lt;br/&gt;FUNCTION · score at or above route quality bar"}:::dec
+  POL{"Same-plan live + candidate evidence complete?&lt;br/&gt;FUNCTION · identical cases, scores, criteria and paired outputs"}:::dec
+  VALUE{"Candidate passes bar and proves the policy claim?&lt;br/&gt;FUNCTION · cost mode requires comparable verified prices"}:::dec
   DUP{"Pending rec already exists for this target?&lt;br/&gt;FUNCTION"}:::dec
   REC["Create Recommendation + evidence&lt;br/&gt;DATA · recommendations status = pending&lt;br/&gt;criteria + cost/latency delta + samples"]:::data
   AUTO{"route.auto_approve ON and cost decreases?&lt;br/&gt;FUNCTION · default OFF"}:::dec
-  APPLY["Transactional Recommendation + routes.live_model update&lt;br/&gt;FUNCTION · logged"]:::fn
+  APPLY["Lock decision + Route; verify evidence.from_model is still live&lt;br/&gt;FUNCTION · transactional status + live_model update, logged"]:::fn
   INBOX["Approvals inbox — USER approve or reject&lt;br/&gt;USER · approve applies swap, reject stores reason"]:::ask
   STOP["No recommendation&lt;br/&gt;FUNCTION · live model unchanged"]:::term
 
@@ -193,7 +197,9 @@ flowchart TD
   OK -- "confirm" --&gt; LOCK --&gt; RUN
   RUN --&gt; CAND --&gt; JUDGE --&gt; ROW --&gt; AGG --&gt; POL
   POL -- "no" --&gt; STOP
-  POL -- "yes" --&gt; DUP
+  POL -- "yes" --&gt; VALUE
+  VALUE -- "no" --&gt; STOP
+  VALUE -- "yes" --&gt; DUP
   DUP -- "yes" --&gt; STOP
   DUP -- "no" --&gt; REC --&gt; AUTO
   AUTO -- "yes" --&gt; APPLY
@@ -298,8 +304,8 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
 </pre>
-<h2>Blindspot — Connect + Observe workflow discovery (Phase 7A)</h2>
-<pre class="mermaid">%% Blindspot — Connect + Observe workflow discovery (Phase 7A)
+<h2>Blindspot — Connect + Observe workflow discovery (Phase 7A; FMEA concurrency sync 2026-07-18)</h2>
+<pre class="mermaid">%% Blindspot — Connect + Observe workflow discovery (Phase 7A; FMEA concurrency sync 2026-07-18)
 %% files: packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx
 %% granularity: full
 flowchart TD
@@ -317,13 +323,14 @@ flowchart TD
   UI["Workflows dashboard&lt;br/&gt;FUNCTION&lt;br/&gt;in: discovered nodes · out: observable flow and metrics"]:::fn
   SELECT{"User selects workflow for optimization?&lt;br/&gt;USER · default observe-only"}:::ask
   READY["Selected workflow becomes eligible for model experiments&lt;br/&gt;DATA · workflows.selected = true"]:::term
+  NEXT["Connect guidance continues to Golden Set → estimate → confirm → Approvals&lt;br/&gt;FUNCTION · no experiment spend or live-model change before user authorization"]:::fn
   OBSERVE["Remain observe-only&lt;br/&gt;DATA · no model or route changes"]:::term
 
   APP --&gt; SDK --&gt; CAP --&gt; API --&gt; REDACT --&gt; WF --&gt; NODE --&gt; GEN
   GEN -- "yes" --&gt; ROUTE --&gt; SPAN --&gt; TRACE --&gt; UI
   GEN -- "no" --&gt; SPAN
   SPAN --&gt; UI --&gt; SELECT
-  SELECT -- "yes" --&gt; READY
+  SELECT -- "yes" --&gt; READY --&gt; NEXT
   SELECT -- "no" --&gt; OBSERVE
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
@@ -399,11 +406,11 @@ flowchart TD
   CAND["Generate candidate output&lt;br/&gt;AGENT · selected model through encrypted BYO key"]:::agent
   JUDGE["Score output&lt;br/&gt;AGENT · JUDGE_MODEL&lt;br/&gt;overall + per-criterion + reasoning"]:::agent
   EVID["Persist evidence immediately&lt;br/&gt;DATA · eval_example_results&lt;br/&gt;input/reference/output, issues, latency, reported costs/errors"]:::data
-  DONE{"Every selected case scored without failure?&lt;br/&gt;FUNCTION"}:::dec
-  REC["Create evidence-backed Recommendation&lt;br/&gt;DATA · pending by default&lt;br/&gt;live_model unchanged"]:::data
+  DONE{"Every selected case scored for candidate and live model?&lt;br/&gt;FUNCTION · same plan, criteria + paired outputs required"}:::dec
+  REC["Create evidence-backed Recommendation&lt;br/&gt;DATA · pending by default&lt;br/&gt;unknown price is not a saving; live_model unchanged"]:::data
   WARN["Keep visible evidence/issues; no Recommendation&lt;br/&gt;DATA"]:::term
   APPROVE{"Approve or reject Recommendation&lt;br/&gt;USER"}:::ask
-  APPLY["Transactional live_model update&lt;br/&gt;FUNCTION · approval or explicit per-route auto-approve only"]:::fn
+  APPLY["Lock Recommendation + Route; reject stale baseline&lt;br/&gt;FUNCTION · transactional live_model update on approval/opt-in auto-approve only"]:::fn
 
   PICK --&gt; ELIG --&gt; LOAD --&gt; PRICE --&gt; FULL
   FULL -- "yes" --&gt; DRAFT

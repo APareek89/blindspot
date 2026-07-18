@@ -5,17 +5,22 @@ import {
   candidates,
   evalExampleResults,
   evalPlans,
+  evalRuns,
   getDb,
   modelRegistry,
   projects,
   recommendations,
   routes,
+  traces,
   workflowNodes,
   workflows,
 } from "@blindspot/db";
 import {
   createEvalPlan,
   createGoldenSet,
+  generateRecommendation,
+  approveRecommendation,
+  promoteTrace,
   runAuthorizedEvalPlan,
   setProviderKey,
   type EvalRuntime,
@@ -112,7 +117,7 @@ async function main() {
       { routeId: route.id, modelRef: SONNET, source: "api", enabled: true },
       { routeId: route.id, modelRef: HAIKU, source: "api", enabled: true },
     ]);
-    await createGoldenSet({
+    const goldenSet = await createGoldenSet({
       routeId: route.id,
       origin: "upload",
       examples: [
@@ -142,6 +147,60 @@ async function main() {
         },
       ],
     });
+
+    const otherRoute = (
+      await db
+        .insert(routes)
+        .values({
+          projectId: project.id,
+          name: "gstpilot-test@local:other-node",
+          liveModel: SONNET,
+          policyJson: { type: "cheapest_passing", minScore: 0.85 },
+        })
+        .returning()
+    )[0]!;
+    const wrongRouteTrace = (
+      await db
+        .insert(traces)
+        .values({
+          routeId: otherRoute.id,
+          model: SONNET,
+          input: [{ role: "user", content: "A trace from another route" }],
+          output: "Not valid evidence for this route",
+        })
+        .returning()
+    )[0]!;
+    await assert.rejects(
+      promoteTrace({ goldenSetId: goldenSet.id, traceId: wrongRouteTrace.id }),
+      /only a trace from this route/,
+      "a project-owned trace must still match the target golden set's route",
+    );
+
+    // Legacy aggregate-only runs have no immutable plan or per-example evidence. They must
+    // never be enough to create an approval, even if their aggregate scores look plausible.
+    await db.insert(evalRuns).values([
+      {
+        routeId: route.id,
+        modelRef: SONNET,
+        goldenSetVersion: 1,
+        avgScore: 0.93,
+        examplesPlanned: 0,
+        examplesScored: 0,
+      },
+      {
+        routeId: route.id,
+        modelRef: HAIKU,
+        goldenSetVersion: 1,
+        avgScore: 0.9,
+        examplesPlanned: 0,
+        examplesScored: 0,
+      },
+    ]);
+    assert.equal(
+      await generateRecommendation(route.id),
+      null,
+      "aggregate-only legacy runs must not create a recommendation",
+    );
 
     const full = await createEvalPlan(project.id, route.name, {
       modelRefs: [SONNET, HAIKU],
@@ -190,6 +249,24 @@ async function main() {
       },
     };
 
+    // A candidate-only plan is useful for issue discovery, but cannot prove a safe swap
+    // because the current live model was not evaluated on the same authorized examples.
+    const candidateOnly = await createEvalPlan(project.id, route.name, {
+      modelRefs: [HAIKU],
+      budgetUsd: 1,
+    });
+    const candidateOnlyResult = await runAuthorizedEvalPlan(
+      project.id,
+      candidateOnly.id,
+      true,
+      runtime,
+    );
+    assert.equal(
+      candidateOnlyResult.recommendation,
+      null,
+      "candidate-only evidence must not create a model-swap recommendation",
+    );
+
     const result = await runAuthorizedEvalPlan(project.id, sampled.id, true, runtime);
     assert.equal(result.plan.status, "completed");
     assert.equal(result.runs.length, 2);
@@ -216,6 +293,14 @@ async function main() {
       .where(eq(recommendations.routeId, route.id));
     assert.equal(recRows.length, 1);
 
+    await db.update(routes).set({ liveModel: HAIKU }).where(eq(routes.id, route.id));
+    await assert.rejects(
+      approveRecommendation(recRows[0]!.id, project.id),
+      /route live model changed/,
+      "stale recommendation evidence must not overwrite a newer live-model decision",
+    );
+    await db.update(routes).set({ liveModel: SONNET }).where(eq(routes.id, route.id));
+
     let duplicateBlocked = false;
     try {
       await runAuthorizedEvalPlan(project.id, sampled.id, true, runtime);
@@ -223,6 +308,17 @@ async function main() {
       duplicateBlocked = true;
     }
     assert.equal(duplicateBlocked, true, "a confirmed plan must be single-use");
+
+    const concurrentVersions = await Promise.all(
+      Array.from({ length: 4 }, () =>
+        createGoldenSet({ routeId: route.id, origin: "grown", examples: [] }),
+      ),
+    );
+    assert.deepEqual(
+      concurrentVersions.map((set) => set.version).sort((a, b) => a - b),
+      [2, 3, 4, 5],
+      "concurrent golden-set creation must allocate unique consecutive versions",
+    );
 
     console.log(
       JSON.stringify({
@@ -234,6 +330,11 @@ async function main() {
         evidenceRows: storedEvidence.length,
         recommendation: result.recommendation?.status,
         liveModelUnchanged: liveAfter === SONNET,
+        legacyAggregateBlocked: true,
+        candidateOnlySwapBlocked: candidateOnlyResult.recommendation == null,
+        crossRouteTracePromotionBlocked: true,
+        concurrentGoldenVersionsSafe: true,
+        staleApprovalBlocked: true,
         duplicateRunBlocked: duplicateBlocked,
         providerTokenCost: 0,
       }),

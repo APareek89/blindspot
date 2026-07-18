@@ -75,7 +75,12 @@ function buildModel(ref: ModelRef, apiKey: string) {
 
 /** Abort signal that fires after PROVIDER_TIMEOUT_MS (default 60s) so calls can't hang. */
 export function providerTimeoutSignal(): AbortSignal {
-  return AbortSignal.timeout(Number(process.env.PROVIDER_TIMEOUT_MS ?? 60000));
+  const configured = Number(process.env.PROVIDER_TIMEOUT_MS ?? 60_000);
+  const timeoutMs =
+    Number.isFinite(configured) && configured >= 1_000
+      ? Math.min(configured, 120_000)
+      : 60_000;
+  return AbortSignal.timeout(timeoutMs);
 }
 
 export interface RunResult {

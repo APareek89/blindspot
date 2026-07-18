@@ -16,7 +16,12 @@ approvals.post("/routes/:name/recommend", async (c) => {
   const route = await getRouteByName(c.get("projectId"), c.req.param("name"));
   if (!route) return c.json({ error: { message: "route not found" } }, 404);
   const rec = await generateRecommendation(route.id);
-  return c.json({ recommendation: rec ?? null, note: rec ? undefined : "no better candidate" });
+  return c.json({
+    recommendation: rec ?? null,
+    note: rec
+      ? undefined
+      : "no cheaper passing candidate with complete same-plan live-model evidence",
+  });
 });
 
 // the inbox

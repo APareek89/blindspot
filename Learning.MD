@@ -6,6 +6,35 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-18 — A model swap needs one comparable evidence cohort
+**What happened:** Power Coding FMEA found that the manual recommendation path could reuse legacy
+aggregate-only eval rows, and a candidate-only plan could propose a swap without evaluating the live
+model on the same cases. Unknown live pricing was also represented as a 100% saving, which could satisfy
+an opted-in auto-approve rule. **Why chain:** averages looked complete → old rows had zero planned and
+zero scored examples → equality alone passed → recommendation selection was route-wide rather than tied
+to one authorization plan. Deepest cause: `design` — evidence completeness and comparability were treated
+as separate display concerns instead of one decision boundary.
+**Action:** bind every recommendation to one completed eval plan; require non-empty, failure-free,
+per-example criteria and paired live/candidate outputs on the same sample; make unknown cost nullable and
+ineligible for cost optimization or auto-approval. Added zero-token regressions for legacy aggregates,
+candidate-only plans, stale approvals, concurrent golden versions, and cross-route trace promotion.
+**Preventive action:** any future policy input must carry its authorization/cohort identity; never infer a
+saving or live-model delta from missing data.
+
+## 2026-07-18 — Local dev servers are session processes, not a durable deployment
+**What happened:** the user reported localhost was not working after it had previously been verified.
+Restarting the gateway and dashboard restored `/healthz` and `/login`.
+**Why chain:** the URLs had worked → the original dev processes no longer served them → they belonged to
+prior long-running terminal sessions → there is no local process supervisor. Deepest cause: `process` —
+an active-session health check was mistaken for durable availability.
+**Action:** terminated only the stale service PIDs, restarted both apps, and verified HTTP 200 responses.
+During QA, the old dashboard process also returned `/login` 404 after the Next.js upgrade until it was
+restarted on 15.5.18. Running `next build` while `next dev` was active then replaced shared `.next`
+manifests and caused a temporary 500; a clean dev restart restored HTTP 200.
+**Preventive action:** every localhost handoff must include the exact start commands and a fresh endpoint
+check; stop/restart Next dev around production builds and dependency changes; never imply a Codex process
+will survive sessions.
+
 ## 2026-07-18 — Paid eval approval must be an immutable server object
 **What happened:** Phase 7C needed to let a user lower an eval budget without hiding what the
 smaller run would skip, while old eval, drift and CI endpoints could still contact providers directly.

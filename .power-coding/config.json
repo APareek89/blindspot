@@ -1,8 +1,14 @@
 {
   "version": "1.0.0",
+  "consent": {
+    "git_checkpoints": "auto",
+    "fmea_full_scan": "ask",
+    "paid_evals": "ask"
+  },
   "modules": {
     "fmea": {
       "enabled": true,
+      "pin_to_commit": true,
       "triggers": {
         "on_feature_complete": true,
         "on_pre_commit": false,
@@ -54,6 +60,22 @@
         "max_failure_modes": 25,
         "sort_by": "rpn_desc"
       }
+    },
+    "secret_scan": {
+      "enabled": true,
+      "block_on_hit": true,
+      "runs_on": "on_pre_commit + day-one baseline (scripts/secret-scan.mjs)"
+    },
+    "sentinel": {
+      "enabled": false,
+      "manual_only": true
+    },
+    "session_pulse": {
+      "enabled": false
+    },
+    "security_baseline": {
+      "done": true,
+      "completed_date": "2026-07-18"
     }
   }
 }

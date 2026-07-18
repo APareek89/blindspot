@@ -1,6 +1,6 @@
 # Blindspot — Architecture Flow
 
-> **Status: Phases 0–7 verified live; Phases 7A–7C built 2026-07-18.** The original
+> **Status: Phases 0–7 verified live; Phases 7A–7C built and QA-hardened 2026-07-18.** The original
 > loop + dashboard run against Groq + Supabase; the SDK/ingestion/workflow path plus the
 > account-scoped model registry, node compatibility gate, immutable eval plans, deterministic
 > budget sampling and per-example evidence are implemented and await the first gstpilot connection.
@@ -26,9 +26,9 @@
 ## Gates at a glance
 | Gate | Enforcer | Threshold / rule |
 |---|---|---|
-| Policy (recommend) | FUNCTION | cheapest candidate with judge score **≥ 0.85** (per route) |
+| Policy (recommend) | FUNCTION | complete same-plan live/candidate evidence; cheapest candidate with score **≥ 0.85** and comparable price |
 | Drift detection | FUNCTION | new score **below** route band (old − margin) → drift event |
-| Approval | USER | no `live_model` change without approve — unless route `auto_approve` = ON |
+| Approval | USER | lock Route + Recommendation; reject stale `from_model`; no change without approve unless `auto_approve` = ON |
 | Auto-approve (opt-in) | FUNCTION | within quality band **AND** cost decreases (default OFF) |
 | CI Gate | FUNCTION | legacy paid endpoint is closed; plan-aware queued CI gate returns in Phase 8 |
 | Content retention | USER + FUNCTION | effective mode is the stricter of SDK and project (`metadata` default) |
@@ -57,7 +57,7 @@ flowchart TD
   M["Create Recommendation with evidence<br/>FUNCTION · per-criterion scores, cost and latency delta, 3 side-by-side samples<br/>DATA · recommendations status = pending"]:::fn
   N["Approvals inbox<br/>DATA · recommendations"]:::data
   O{"User decision<br/>USER · approve or reject"}:::ask
-  P["Apply: update routes.live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
+  P["Lock decision + Route; reject stale from_model; update live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
   R["CI Gate paid endpoint<br/>FUNCTION · closed with 409 until Phase 8 consumes an approved plan"]:::term
 
@@ -138,8 +138,10 @@ Phase 7C then computes a free conservative estimate for the chosen compatible ca
 configured judge. A below-full cap produces a deterministic stratified sample, with selected and
 omitted cases, strata, seed, calls, cost and confidence disclosed before confirmation. Confirmation
 atomically consumes the 30-minute plan once. Candidate and judge results are stored per example;
-only complete evidence can create a Recommendation, and `live_model` remains unchanged unless the
-existing approval rule (or explicit per-route auto-approve opt-in) applies.
+only complete live-and-candidate evidence from that same plan can create a Recommendation. Missing
+pricing cannot prove a saving or trigger auto-approval. `live_model` remains unchanged unless the
+existing approval rule (or explicit per-route auto-approve opt-in) applies, and approval rejects a
+Recommendation if its `from_model` is no longer live.
 
 ```mermaid
 flowchart LR

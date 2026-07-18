@@ -45,17 +45,6 @@ export async function traceProjectId(traceId: string): Promise<string | null> {
 
 type GoldenLabel = "pass" | "fail" | "unlabeled";
 
-/** Next version number for a route's golden set (versions grow so scores stay comparable). */
-export async function nextVersion(routeId: string): Promise<number> {
-  const rows = await getDb()
-    .select({ v: goldenSets.version })
-    .from(goldenSets)
-    .where(eq(goldenSets.routeId, routeId))
-    .orderBy(desc(goldenSets.version))
-    .limit(1);
-  return (rows[0]?.v ?? 0) + 1;
-}
-
 /** Create a new golden set version and insert its examples. */
 export async function createGoldenSet(opts: {
   routeId: string;
@@ -63,10 +52,28 @@ export async function createGoldenSet(opts: {
   examples: GoldenExampleInput[];
 }) {
   const db = getDb();
-  const version = await nextVersion(opts.routeId);
   // FMEA P2: the set row and its examples must land atomically — a failed examples
-  // insert must not leave an empty golden-set version behind.
+  // insert must not leave an empty golden-set version behind. Locking the parent route
+  // also serializes version allocation, so concurrent upload/agent calls cannot collide.
   return db.transaction(async (tx) => {
+    const owner = (
+      await tx
+        .select({ id: routes.id })
+        .from(routes)
+        .where(eq(routes.id, opts.routeId))
+        .limit(1)
+        .for("update")
+    )[0];
+    if (!owner) throw new Error("route not found");
+    const latest = (
+      await tx
+        .select({ version: goldenSets.version })
+        .from(goldenSets)
+        .where(eq(goldenSets.routeId, opts.routeId))
+        .orderBy(desc(goldenSets.version))
+        .limit(1)
+    )[0];
+    const version = (latest?.version ?? 0) + 1;
     const gs = (
       await tx
         .insert(goldenSets)
@@ -147,10 +154,20 @@ export async function promoteTrace(opts: {
   goldenSetId: string;
   traceId: string;
 }) {
-  const trace = (
-    await getDb().select().from(traces).where(eq(traces.id, opts.traceId)).limit(1)
-  )[0];
+  const [trace, goldenSet] = await Promise.all([
+    getDb().select().from(traces).where(eq(traces.id, opts.traceId)).limit(1).then((rows) => rows[0]),
+    getDb()
+      .select({ routeId: goldenSets.routeId })
+      .from(goldenSets)
+      .where(eq(goldenSets.id, opts.goldenSetId))
+      .limit(1)
+      .then((rows) => rows[0]),
+  ]);
   if (!trace) throw new Error("trace not found");
+  if (!goldenSet) throw new Error("golden set not found");
+  if (!trace.routeId || trace.routeId !== goldenSet.routeId) {
+    throw new Error("only a trace from this route can be promoted into its golden set");
+  }
 
   return addExample(opts.goldenSetId, {
     input: extractInput(trace.input),

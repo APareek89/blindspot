@@ -1,6 +1,6 @@
 %% Blindspot — master flow: Observe -> Eval -> Recommend -> Approve -> Route -> Gate
 %% BUILT & verified live 2026-07-16 (Groq + Supabase). Dashboard surface: see 05-dashboard-mgmt.mmd.
-%% files: apps/gateway/src/index.ts, packages/core/src/eval/queue.ts, packages/core/src/eval/runner.ts, packages/core/src/policy.ts, packages/core/src/approvals.ts
+%% files: apps/gateway/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
 %% granularity: summary
 flowchart TD
   A["User agent call<br/>ENTRY · base_url points to gateway, model = route:name"]:::term
@@ -16,11 +16,11 @@ flowchart TD
   I["Judge scores golden set<br/>AGENT · JUDGE_MODEL<br/>in: outputs vs golden_examples · out: per-criterion scores"]:::agent
   J["Aggregate avg_score, cost, latency<br/>FUNCTION · writes DATA · eval_runs"]:::fn
   K{"Drift? new score below route band<br/>FUNCTION · new below old minus margin"}:::dec
-  L{"Policy: cheaper candidate at or above bar?<br/>FUNCTION · cheapest with score at or above 0.85"}:::dec
+  L{"Same-plan live + candidate evidence; passing and provably cheaper?<br/>FUNCTION · score at or above 0.85, comparable price"}:::dec
   M["Create Recommendation with evidence<br/>FUNCTION · per-criterion scores, cost and latency delta, 3 side-by-side samples<br/>DATA · recommendations status = pending"]:::fn
   N["Approvals inbox<br/>DATA · recommendations"]:::data
   O{"User decision<br/>USER · approve or reject"}:::ask
-  P["Apply: update routes.live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
+  P["Lock decision + Route; reject stale from_model; update live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
   Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
   R["Legacy paid drift + CI endpoints closed<br/>FUNCTION · plan-aware queue handoff in Phase 8"]:::term
 

@@ -452,10 +452,25 @@ export async function runAuthorizedEvalPlan(
         result.failedExamples === 0 &&
         result.examples === existing.disclosureJson.selectedExampleIds.length,
     );
-    const recommendation = allEvidenceComplete
-      ? await generateRecommendation(started.routeId, { planId: started.id })
-      : null;
-    return { plan: { ...completed, disclosure: completed.disclosureJson }, runs: results, recommendation };
+    let recommendation = null;
+    let recommendationWarning: string | null = null;
+    if (allEvidenceComplete) {
+      try {
+        recommendation = await generateRecommendation(started.routeId, { planId: started.id });
+      } catch (error) {
+        // The paid work is already complete and durably evidenced. A downstream policy/inbox
+        // failure must not rewrite that truthful state to "failed" or invite an accidental rerun.
+        recommendationWarning =
+          "Eval completed, but recommendation generation failed; retry the policy check without rerunning the eval";
+        console.error(`[eval-plan] recommendation generation failed: ${safePlanFailure(error)}`);
+      }
+    }
+    return {
+      plan: { ...completed, disclosure: completed.disclosureJson },
+      runs: results,
+      recommendation,
+      recommendationWarning,
+    };
   } catch (error) {
     const message = safePlanFailure(error);
     const observedRuns = await getDb()

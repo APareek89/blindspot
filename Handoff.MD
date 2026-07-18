@@ -1,28 +1,30 @@
 # Handoff.MD — Blindspot
-> last-synced: 356cef0 · Read this + Loop.MD at session start. Update before checkpoints/commits.
+> last-synced: c32fb88 · FIRST reconcile `git log --oneline c32fb88..HEAD`, then read Loop.MD.
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/Blindspot_v1` and begin**
 
 ## Current state
-- ✅ Shipped through Phase 7; agent-workspace Phases **7A Connect + Observe, 7B Registry + Compatibility and 7C Quality + Experiment** are built locally.
-- ✅ Free immutable eval estimate → full or SHA-seeded stratified sample → exact selected/omitted disclosure → explicit confirmation → single-use authorized run.
-- ✅ Every selected model/example persists output, score, criteria, reasoning, issues, latency and provider-reported candidate/judge cost; only complete evidence can create a Recommendation.
-- ✅ Raw eval, real paid drift and CI-gate bypasses return 409. `live_model` remains unchanged unless a Recommendation is approved or the route explicitly opted into cheaper-within-band auto-approve.
-- ✅ Golden agent accepts product brief, system prompt and architecture; production traces are used only via explicit checkbox and bounded before provider submission.
-- ✅ Migration `0003_nice_jigsaw.sql` is applied to dev Postgres. Anthropic Sonnet 4.6 / Haiku 4.5 pricing matches the official current pricing page; HF + Fireworks wiring remains pluggable.
-- ✅ `pnpm typecheck`, production build, 9/9 Mermaid validation and `pnpm test:eval-plan` pass. The integration test uses real Postgres + fake provider runtime, costs zero provider tokens, proves sampling/evidence/pending Recommendation/no live swap/no replay.
-- ✅ Local gateway `http://localhost:8787` and dashboard `http://localhost:3001` are healthy in the active Codex sessions.
-- ⚠️ In-app browser bootstrap still fails (`Cannot redefine property: process`); compiled UI + HTTP verified, click-through not claimed.
+- ✅ Shipped locally through agent-workspace **7A Connect + Observe, 7B Registry + Compatibility, 7C Budget-authorized Quality + Experiment**; see `Blindspot-PRD.md` and `docs/ARCHITECTURE_FLOW.md`.
+- ✅ 2026-07-18 Power Coding QA closed all P0s found: recommendations now require complete same-plan live/candidate evidence; unknown price cannot prove savings/auto-approve; approval/rejection and route changes are locked and stale baselines are rejected.
+- ✅ Golden versions serialize concurrent creation, workflow requirement merges lock against lost updates, and only a same-route trace can be promoted. A recommendation/inbox failure no longer rewrites a completed paid eval as failed.
+- ✅ Production dependency audit improved from 29 findings (2 critical/9 high) to **2 low**: Next 15.5.18, Drizzle 0.45.2, patched PostCSS/jsondiffpatch. Remaining AI SDK v4 advisories need a deliberate v5 adapter migration.
+- ✅ `pnpm typecheck`, zero-token `pnpm test:eval-plan`, production build, 9/9 Mermaid validation, full secret scan and localhost HTTP smoke pass. Integration coverage proves sampling/evidence/no silent swap/no replay plus legacy, candidate-only, stale-approval, cross-route and concurrency guards. Provider token cost: $0.
+- ✅ Gateway `http://localhost:8787/healthz` and freshly restarted dashboard `http://localhost:3001/login` return 200 in active Codex sessions. In-app browser bootstrap remains unavailable; compiled UI + HTTP are verified, click-through is not claimed.
+
+## FMEA / Sentinel outcome
+- ✅ Full 12-category scan at `c32fb88` + QA working tree: no P0 remains after fixes above; secret/supply-chain/tenant and approval boundaries checked.
+- ⚠️ Phase 8 P1s: inline eval crash/stale-plan recovery and long HTTP runs; project/provider rate limits; versioned pricing freshness/cost reconciliation; OTel/Sentry + dropped-trace/eval alerts and load tests.
+- ⚠️ P2: duplicate pending-Recommendation race, capture-mode downgrade does not purge older retained content, and two low AI SDK v4 advisories. No paid eval was run.
 
 ## Decisions
-- Eval spend is a server authorization object, not a UI convention. Plan TTL is 30 minutes; selected examples are snapshotted/hashed; budget reduction is visible deterministic sampling.
-- Local evals remain inline and Redis-bypassed until Monday. Queue handoff, crash recovery, plan-aware CI/drift jobs, rate limits and Sentry/OTel remain Phase 8.
-- Loop stays `off`; no paid eval/model calls without the user seeing and confirming the estimate.
+- 2026-07-18 — Eval spend remains an immutable single-use server authorization; incomplete or incomparable evidence cannot recommend or switch.
+- 2026-07-18 — Redis stays bypassed locally until Monday; queue durability/rate limits/observability remain Phase 8, not an unreviewed weekend architecture change.
+- 2026-07-18 — Loop remains `off`; paid evals stay `ask`. Power Coding defaults added as `git checkpoints=auto`, `full FMEA=ask`, Sentinel/session pulse manual/off.
 
-## Pending — next checkpoint needs user OK
-- 🧑 USER: sign into localhost with an existing `bs_live_` project key (or run bootstrap), inspect the Experiment panel, then connect gstpilot with the SDK envs and choose its workflow.
-- 🧑 USER: decide capture mode (`metadata` default; `inputs`/`full` opt-in), golden source/context, candidate models and displayed eval cap before the first paid Claude run.
-- 🧑 USER before Redis use: rotate the previously exposed Upstash credential and update the git-ignored env; never paste it in chat.
-- 🤖 Phase 7D after the localhost checkpoint: continuous selected-node monitoring, budget-authorized drift simulation/debug and approval application.
-- 🤖 Phase 8 P1: BullMQ + stale-plan recovery/DLQ, plan-aware CI/drift, rate limits, unknown-cost/retry handling, pricing freshness, OTel/Sentry and load tests.
+## Monday — pending
+- 🧑 USER: confirm or change the new Power Coding defaults above (they are ⚠️ unconfirmed), then sign into localhost with an existing `bs_live_` key or bootstrap one.
+- 🧑 USER: connect gstpilot, select its workflow and capture mode (`metadata` default; `inputs`/`full` opt-in), choose golden context, Sonnet/Haiku and the displayed eval cap before the first paid Claude run.
+- 🧑 USER before Redis: rotate the previously exposed Upstash credential and update the git-ignored `.env`; never paste it in chat.
+- 🤖 Then: Phase 7D continuous selected-node monitoring/debug/simulation; Phase 8 queue handoff + recovery/rate limits/pricing/OTel/Sentry/k6; decide AI SDK v5 migration; Phase 9 Render deploy.
+
 ## Run
-Migrate `pnpm --filter @blindspot/db db:push` · gateway `pnpm start:gateway` (:8787) · dashboard `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm test:eval-plan && pnpm build`.
+Gateway `pnpm start:gateway` (:8787) · dashboard `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm test:eval-plan && pnpm build`.

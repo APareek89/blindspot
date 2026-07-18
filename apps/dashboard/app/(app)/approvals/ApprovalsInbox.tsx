@@ -6,8 +6,12 @@ import { modelName, pct, qualityPct, signedMs } from "@/lib/format";
 import type { Recommendation } from "@/lib/types";
 import { approveRec, rejectRec } from "./actions";
 
-function DeltaCost({ v }: { v: number }) {
-  return <span className={v < 0 ? "delta-down" : v > 0 ? "delta-up" : ""}>{pct(v)} cost</span>;
+function DeltaCost({ v }: { v: number | null }) {
+  return (
+    <span className={v != null && v < 0 ? "delta-down" : v != null && v > 0 ? "delta-up" : ""}>
+      {v == null ? "cost not comparable" : `${pct(v)} cost`}
+    </span>
+  );
 }
 
 export function ApprovalsInbox({ recommendations }: { recommendations: Recommendation[] }) {
@@ -149,7 +153,15 @@ function EvidenceDrawer({
               <div className="kpi-label">Cost</div>
               <div
                 className="kpi-value"
-                style={{ fontSize: 20, color: e.costDeltaPct < 0 ? "var(--pass)" : "var(--danger)" }}
+                style={{
+                  fontSize: 20,
+                  color:
+                    e.costDeltaPct == null
+                      ? "var(--muted)"
+                      : e.costDeltaPct < 0
+                        ? "var(--pass)"
+                        : "var(--danger)",
+                }}
               >
                 {pct(e.costDeltaPct)}
               </div>

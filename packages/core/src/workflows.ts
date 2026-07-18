@@ -187,6 +187,7 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
             ),
           )
           .limit(1)
+          .for("update")
       )[0];
       const requirements = mergeRequirements(existingNode?.requirementsJson, observedRequirements);
       let node = existingNode

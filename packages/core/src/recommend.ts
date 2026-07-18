@@ -1,6 +1,7 @@
 import { and, desc, eq, getTableColumns } from "drizzle-orm";
 import {
   evalExampleResults,
+  evalPlans,
   evalRuns,
   getDb,
   recommendations,
@@ -26,6 +27,20 @@ export async function generateRecommendation(
   const route = (await db.select().from(routes).where(eq(routes.id, routeId)).limit(1))[0];
   if (!route) return null;
 
+  const evidencePlan = (
+    await db
+      .select()
+      .from(evalPlans)
+      .where(
+        opts?.planId
+          ? and(eq(evalPlans.id, opts.planId), eq(evalPlans.routeId, routeId))
+          : and(eq(evalPlans.routeId, routeId), eq(evalPlans.status, "completed")),
+      )
+      .orderBy(desc(evalPlans.completedAt), desc(evalPlans.createdAt))
+      .limit(1)
+  )[0];
+  if (!evidencePlan || evidencePlan.status !== "completed") return null;
+
   const minScore = route.policyJson.minScore;
   const runs = await db
     .select()
@@ -37,9 +52,10 @@ export async function generateRecommendation(
     (run): run is (typeof runs)[number] & { avgScore: number } =>
       run.status === "completed" &&
       run.avgScore != null &&
+      run.planId === evidencePlan.id &&
+      run.examplesPlanned > 0 &&
       run.examplesFailed === 0 &&
-      run.examplesScored === run.examplesPlanned &&
-      (!opts?.planId || run.planId === opts.planId),
+      run.examplesScored === run.examplesPlanned,
   );
   // latest completed eval per model
   const latest = new Map<string, (typeof completed)[number]>();
@@ -48,6 +64,9 @@ export async function generateRecommendation(
   const liveModel = route.liveModel;
   const liveRun = liveModel ? latest.get(liveModel) : undefined;
   const liveCost = liveModel ? (costPer1kCents(liveModel) ?? COST_UNKNOWN) : COST_UNKNOWN;
+  // A swap needs a baseline measured under the exact same authorization and golden sample.
+  if (!liveModel || !liveRun) return null;
+  if (mode === "cost" && liveCost === COST_UNKNOWN) return null;
 
   // "cost": cheapest passing candidate cheaper than live (optimize spend).
   // "drift": highest-scoring passing candidate regardless of cost (recover quality).
@@ -71,24 +90,8 @@ export async function generateRecommendation(
   }
   if (!best) return null;
 
-  // don't stack duplicate pending recs for the same target
-  const dupe = (
-    await db
-      .select()
-      .from(recommendations)
-      .where(
-        and(
-          eq(recommendations.routeId, routeId),
-          eq(recommendations.status, "pending"),
-          eq(recommendations.toModel, best.modelRef),
-        ),
-      )
-      .limit(1)
-  )[0];
-  if (dupe) return dupe;
-
-  const costDeltaPct =
-    liveCost === COST_UNKNOWN ? -100 : ((bestCost - liveCost) / liveCost) * 100;
+  const costsComparable = liveCost !== COST_UNKNOWN && bestCost !== COST_UNKNOWN;
+  const costDeltaPct = costsComparable ? ((bestCost - liveCost) / liveCost) * 100 : null;
   const resultRows = await db
     .select()
     .from(evalExampleResults)
@@ -99,6 +102,25 @@ export async function generateRecommendation(
         .from(evalExampleResults)
         .where(eq(evalExampleResults.evalRunId, liveRun.id))
     : [];
+  const candidateEvidenceComplete =
+    resultRows.length === best.examplesPlanned &&
+    resultRows.every(
+      (result) =>
+        result.error == null &&
+        result.score != null &&
+        result.candidateOutput != null &&
+        result.perCriterionJson.length > 0,
+    );
+  const liveEvidenceComplete =
+    liveResultRows.length === liveRun.examplesPlanned &&
+    liveResultRows.every(
+      (result) =>
+        result.error == null &&
+        result.score != null &&
+        result.candidateOutput != null &&
+        result.perCriterionJson.length > 0,
+    );
+  if (!candidateEvidenceComplete || !liveEvidenceComplete) return null;
   const liveByExample = new Map(
     liveResultRows.map((result) => [result.goldenExampleId, result]),
   );
@@ -120,6 +142,22 @@ export async function generateRecommendation(
       liveCriterionTotals.set(item.criterion, aggregate);
     }
   }
+  const samples = resultRows
+    .filter(
+      (result) =>
+        result.candidateOutput != null &&
+        liveByExample.get(result.goldenExampleId)?.candidateOutput != null,
+    )
+    .sort((a, b) => (a.score ?? 1) - (b.score ?? 1))
+    .slice(0, 3)
+    .map((result) => ({
+      input: result.input,
+      fromOutput: liveByExample.get(result.goldenExampleId)!.candidateOutput!,
+      toOutput: result.candidateOutput!,
+    }));
+  if (criterionTotals.size === 0 || liveCriterionTotals.size === 0 || samples.length === 0) {
+    return null;
+  }
   const evidence: Evidence = {
     fromModel: liveModel,
     toModel: best.modelRef,
@@ -138,24 +176,44 @@ export async function generateRecommendation(
         to: aggregate.sum / aggregate.count,
       };
     }),
-    samples: resultRows
-      .filter((result) => result.candidateOutput != null)
-      .sort((a, b) => (a.score ?? 1) - (b.score ?? 1))
-      .slice(0, 3)
-      .map((result) => ({
-        input: result.input,
-        fromOutput: liveByExample.get(result.goldenExampleId)?.candidateOutput ?? null,
-        toOutput: result.candidateOutput!,
-      })),
+    samples,
   };
+
+  // Don't stack duplicate pending recs for the same target. This check happens only after
+  // the new plan has independently satisfied the complete-evidence boundary above.
+  const dupe = (
+    await db
+      .select()
+      .from(recommendations)
+      .where(
+        and(
+          eq(recommendations.routeId, routeId),
+          eq(recommendations.status, "pending"),
+          eq(recommendations.toModel, best.modelRef),
+        ),
+      )
+      .limit(1)
+  )[0];
+  if (dupe) return dupe;
 
   // Per-route auto-approve (default OFF, PRD §3): "within band AND cost decreases".
   // In "cost" mode the candidate is always cheaper by construction, but "drift" mode
   // picks the highest-scoring passing model regardless of price — which could be MORE
   // expensive. Cost guard (FMEA P2): never auto-switch to a pricier model. If recovery
   // needs a costlier model, fall back to a pending recommendation for human approval.
-  const autoApprove = route.autoApprove && costDeltaPct <= 0;
+  const autoApprove = route.autoApprove && costDeltaPct != null && costDeltaPct < 0;
   const rec = await db.transaction(async (tx) => {
+    const currentRoute = (
+      await tx
+        .select({ liveModel: routes.liveModel })
+        .from(routes)
+        .where(eq(routes.id, routeId))
+        .limit(1)
+        .for("update")
+    )[0];
+    if (!currentRoute || currentRoute.liveModel !== liveModel) {
+      throw new Error("route live model changed while recommendation evidence was prepared");
+    }
     const created = (
       await tx
         .insert(recommendations)
@@ -203,19 +261,39 @@ export async function approveRecommendation(id: string, projectId: string) {
     // re-check status inside the tx to close the approve/approve race
     const current = (
       await tx
-        .select({ status: recommendations.status })
+        .select({
+          status: recommendations.status,
+          fromModel: recommendations.fromModel,
+          toModel: recommendations.toModel,
+          routeId: recommendations.routeId,
+        })
         .from(recommendations)
         .where(eq(recommendations.id, id))
         .limit(1)
+        .for("update")
     )[0];
     if (!current || current.status !== "pending") {
       throw new Error(`recommendation already ${current?.status ?? "gone"}`);
+    }
+    const currentRoute = (
+      await tx
+        .select({ liveModel: routes.liveModel, projectId: routes.projectId })
+        .from(routes)
+        .where(eq(routes.id, current.routeId))
+        .limit(1)
+        .for("update")
+    )[0];
+    if (!currentRoute || currentRoute.projectId !== projectId) {
+      throw new Error("recommendation not found");
+    }
+    if (currentRoute.liveModel !== current.fromModel) {
+      throw new Error("route live model changed; run a new comparable eval before approval");
     }
     await tx
       .update(recommendations)
       .set({ status: "approved" })
       .where(eq(recommendations.id, id));
-    await tx.update(routes).set({ liveModel: rec.toModel }).where(eq(routes.id, rec.routeId));
+    await tx.update(routes).set({ liveModel: current.toModel }).where(eq(routes.id, current.routeId));
   });
   return { ...rec, status: "approved" as const };
 }
@@ -226,10 +304,23 @@ export async function rejectRecommendation(id: string, projectId: string, reason
   const rec = await getOwnedRec(id, projectId);
   if (!rec) throw new Error("recommendation not found");
   if (rec.status !== "pending") throw new Error(`recommendation already ${rec.status}`);
-  await db
-    .update(recommendations)
-    .set({ status: "rejected", reason: reason ?? null })
-    .where(eq(recommendations.id, id));
+  await db.transaction(async (tx) => {
+    const current = (
+      await tx
+        .select({ status: recommendations.status })
+        .from(recommendations)
+        .where(eq(recommendations.id, id))
+        .limit(1)
+        .for("update")
+    )[0];
+    if (!current || current.status !== "pending") {
+      throw new Error(`recommendation already ${current?.status ?? "gone"}`);
+    }
+    await tx
+      .update(recommendations)
+      .set({ status: "rejected", reason: reason ?? null })
+      .where(eq(recommendations.id, id));
+  });
   return { ...rec, status: "rejected" as const, reason: reason ?? null };
 }
 

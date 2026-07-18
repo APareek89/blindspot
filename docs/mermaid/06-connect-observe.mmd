@@ -1,4 +1,4 @@
-%% Blindspot — Connect + Observe workflow discovery (Phase 7A; reviewed unchanged in Phase 7C)
+%% Blindspot — Connect + Observe workflow discovery (Phase 7A; FMEA concurrency sync 2026-07-18)
 %% files: packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx
 %% granularity: full
 flowchart TD
@@ -16,13 +16,14 @@ flowchart TD
   UI["Workflows dashboard<br/>FUNCTION<br/>in: discovered nodes · out: observable flow and metrics"]:::fn
   SELECT{"User selects workflow for optimization?<br/>USER · default observe-only"}:::ask
   READY["Selected workflow becomes eligible for model experiments<br/>DATA · workflows.selected = true"]:::term
+  NEXT["Connect guidance continues to Golden Set → estimate → confirm → Approvals<br/>FUNCTION · no experiment spend or live-model change before user authorization"]:::fn
   OBSERVE["Remain observe-only<br/>DATA · no model or route changes"]:::term
 
   APP --> SDK --> CAP --> API --> REDACT --> WF --> NODE --> GEN
   GEN -- "yes" --> ROUTE --> SPAN --> TRACE --> UI
   GEN -- "no" --> SPAN
   SPAN --> UI --> SELECT
-  SELECT -- "yes" --> READY
+  SELECT -- "yes" --> READY --> NEXT
   SELECT -- "no" --> OBSERVE
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;

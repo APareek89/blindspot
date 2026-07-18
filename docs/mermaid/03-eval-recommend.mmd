@@ -14,11 +14,12 @@ flowchart TD
   JUDGE["Judge score<br/>AGENT · JUDGE_MODEL<br/>in: output vs reference + rubric · out: score, criteria, reasoning"]:::agent
   ROW["Persist per-example output + issue evidence<br/>DATA · eval_example_results<br/>candidate/judge costs and errors"]:::data
   AGG["Aggregate score, latency, reported cost and failures<br/>DATA · eval_runs + eval_plans"]:::data
-  POL{"Complete evidence and cheaper passing candidate?<br/>FUNCTION · score at or above route quality bar"}:::dec
+  POL{"Same-plan live + candidate evidence complete?<br/>FUNCTION · identical cases, scores, criteria and paired outputs"}:::dec
+  VALUE{"Candidate passes bar and proves the policy claim?<br/>FUNCTION · cost mode requires comparable verified prices"}:::dec
   DUP{"Pending rec already exists for this target?<br/>FUNCTION"}:::dec
   REC["Create Recommendation + evidence<br/>DATA · recommendations status = pending<br/>criteria + cost/latency delta + samples"]:::data
   AUTO{"route.auto_approve ON and cost decreases?<br/>FUNCTION · default OFF"}:::dec
-  APPLY["Transactional Recommendation + routes.live_model update<br/>FUNCTION · logged"]:::fn
+  APPLY["Lock decision + Route; verify evidence.from_model is still live<br/>FUNCTION · transactional status + live_model update, logged"]:::fn
   INBOX["Approvals inbox — USER approve or reject<br/>USER · approve applies swap, reject stores reason"]:::ask
   STOP["No recommendation<br/>FUNCTION · live model unchanged"]:::term
 
@@ -30,7 +31,9 @@ flowchart TD
   OK -- "confirm" --> LOCK --> RUN
   RUN --> CAND --> JUDGE --> ROW --> AGG --> POL
   POL -- "no" --> STOP
-  POL -- "yes" --> DUP
+  POL -- "yes" --> VALUE
+  VALUE -- "no" --> STOP
+  VALUE -- "yes" --> DUP
   DUP -- "yes" --> STOP
   DUP -- "no" --> REC --> AUTO
   AUTO -- "yes" --> APPLY

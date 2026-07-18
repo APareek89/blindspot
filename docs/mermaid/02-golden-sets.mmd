@@ -1,5 +1,7 @@
 %% Blindspot — golden-set lifecycle (PRD §7): seed -> grow -> curate
 %% grow-from-production step is intended, not yet built
+%% files: apps/gateway/src/manage/golden.ts, packages/core/src/golden/agent.ts, packages/core/src/golden/service.ts, packages/core/src/golden/upload.ts
+%% granularity: full
 flowchart TD
   S{"Seed path?<br/>USER chooses"}:::dec
   U["Parse upload CSV or JSONL<br/>FUNCTION · csv-parse<br/>in: file text · out: rows"]:::fn
@@ -7,10 +9,10 @@ flowchart TD
   CTX["Optional context<br/>USER · product brief, system prompt, architecture<br/>live traces require an explicit checkbox"]:::ask
   A["Golden Set Agent<br/>AGENT · GOLDEN_MODEL or JUDGE_MODEL<br/>in: task + bounded context/sample inputs · out: input + referenceOutput + rubric xN"]:::agent
   AV["Schema-validate via generateObject<br/>FUNCTION · Zod GeneratedGolden"]:::fn
-  NV["nextVersion(routeId)<br/>FUNCTION · max(version) + 1"]:::fn
+  NV["Lock parent Route + allocate next version<br/>FUNCTION · serialized max(version) + 1"]:::fn
   C["createGoldenSet + insert examples<br/>DATA · golden_sets (origin) and golden_examples"]:::data
   CUR["Curate: add / edit / delete / label / active<br/>FUNCTION · CRUD on golden_examples"]:::fn
-  PT["Promote a trace<br/>FUNCTION · reads traces then addExample<br/>input = last user msg, referenceOutput = trace output"]:::fn
+  PT["Promote a same-route trace<br/>FUNCTION · route ownership/match then addExample<br/>input = last user msg, referenceOutput = trace output"]:::fn
   G["planned: Grow from production<br/>AGENT · propose judge-uncertain / drift / diverse candidates<br/>into a suggested-additions queue, USER accepts"]:::todo
 
   S -- "upload" --> U --> UV --> NV

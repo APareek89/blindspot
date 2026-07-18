@@ -116,7 +116,7 @@ export interface Evidence {
   toModel: string;
   fromScore: number | null;
   toScore: number;
-  costDeltaPct: number;
+  costDeltaPct: number | null;
   latencyDeltaMs: number | null;
   perCriterion: { criterion: string; from: number | null; to: number }[];
   samples: { input: string; fromOutput: string | null; toOutput: string }[];

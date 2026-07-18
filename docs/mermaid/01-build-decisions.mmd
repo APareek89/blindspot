@@ -1,6 +1,6 @@
 %% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0.
-%% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts
+%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0; QA sync: c32fb88 + working tree.
+%% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
   P0["Phase 0 · Monorepo skeleton — DONE"]:::done
@@ -54,6 +54,7 @@ flowchart TD
   P7Ca["Immutable 30-minute eval plan: full estimate or disclosed SHA-seeded stratified sample;<br/>selected + omitted cases, calls, cost, safety and confidence shown before confirm<br/>WHY: the user owns eval spend and must know exactly what a smaller budget changes"]:::why
   P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;<br/>per-example evidence is persisted immediately and incomplete runs cannot recommend<br/>WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
   P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,<br/>rate limits, observability and plan-aware CI/drift jobs<br/>WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
+  QA["2026-07-18 · Power Coding QA hardening<br/>Recommendations now require complete same-plan live + candidate evidence; unknown price cannot auto-approve;<br/>critical/high dependency advisories removed without changing the approved stack"]:::done
 
   P0 --> P0c --> P0d --> P05
   P05 --> P05c --> P05d --> P05e --> P1
@@ -61,7 +62,7 @@ flowchart TD
   P2 --> P2a --> P2b --> P2c --> P3
   P3 --> P3a --> P3b --> P3fix --> P4
   P4 --> P4a --> P4b --> P4c --> P5
-  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc
+  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc --> QA
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;

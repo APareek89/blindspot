@@ -43,15 +43,25 @@ optional). `JUDGE_MODEL` configurable (Gemini flash / Claude Haiku).
 - `docs/mermaid` + `docs/ARCHITECTURE_FLOW.md` — architecture diagrams
 
 ## Power Coding (auto — do not remove without asking the user)
-At session start read Handoff.MD; open with its pending points. Update Handoff.MD
-after major changes and when ~10% of context remains (then tell the user to start a
-fresh session with: "Refer to Handoff.MD in /Users/anandpareek/Documents/Projects/blindspot and begin").
-Log flow changes / user-reported bugs with root cause in Learning.MD.
-Read Loop.MD every session and obey its `status:` machine — when the first working
-draft is done, ASK the user whether to turn the loop on; while `status: on`, run the
-Loop.MD evals after every meaningful change and report per-eval pass/fail.
+At session start read Handoff.MD; FIRST run `git log --oneline <its last-synced sha>..HEAD`
+and reconcile anything changed underneath it; then open with its pending points. Update
+Handoff.MD before every git checkpoint commit and at the end of every phase (low context is
+a secondary trigger) — snapshot, not journal, re-stamp `last-synced` with HEAD. If context
+was the trigger, give the continuation phrase using the absolute `Blindspot_v1` path. Above
+~40 lines or ~15 ✅ items, collapse shipped detail into one line.
+Log flow changes / user-reported bugs in Learning.MD using its 5-whys format.
+Read Loop.MD every session and obey its `status:` machine. While `status: on`, run the FREE
+evals after every meaningful change and report pass/fail. Paid/golden evals run only per
+`consent.paid_evals` (default ask; offer at milestones, never auto per-change).
 Keep docs/mermaid/*.mmd current when the flow changes (see docs/ARCHITECTURE_FLOW.md).
-Obey .power-coding/config.json FMEA triggers: on_feature_complete is ON — run the full
-FMEA scan (branch diff vs main) when a feature is declared complete (P0 → block and ask).
-Run `power-coding fmea` on request. The config's failure_categories list is the mandatory
-checklist; prd_path is Blindspot-PRD.md.
+Obey `.power-coding/config.json` FMEA triggers. A pre-commit trigger runs the staged secret
+scan first and blocks on a hit, then light FMEA; feature-complete runs the consent-governed
+full scan; manual requests always scan. Pin scans to a sha, use every configured failure
+category, and re-stamp `.power-coding/state.json`. P0 blocks and asks.
+If Sentinel is enabled, run its four-lens scan after major tasks; if Session Pulse is enabled,
+report feature/support/rework effort and save it in Handoff.MD.
+Checkpoint every working state and before risky changes per `consent.git_checkpoints`.
+Before features, state and build the smallest proof first. New service/dependency/data-model/
+async architecture requires a plain-language diagram delta and user approval before code.
+Log stack/architecture/behavior decisions in Handoff.MD; never silently reverse one. Keep
+Blindspot-PRD.md current. Full FMEA scans obey `consent.fmea_full_scan`.

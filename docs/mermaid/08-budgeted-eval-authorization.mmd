@@ -17,11 +17,11 @@ flowchart TD
   CAND["Generate candidate output<br/>AGENT · selected model through encrypted BYO key"]:::agent
   JUDGE["Score output<br/>AGENT · JUDGE_MODEL<br/>overall + per-criterion + reasoning"]:::agent
   EVID["Persist evidence immediately<br/>DATA · eval_example_results<br/>input/reference/output, issues, latency, reported costs/errors"]:::data
-  DONE{"Every selected case scored without failure?<br/>FUNCTION"}:::dec
-  REC["Create evidence-backed Recommendation<br/>DATA · pending by default<br/>live_model unchanged"]:::data
+  DONE{"Every selected case scored for candidate and live model?<br/>FUNCTION · same plan, criteria + paired outputs required"}:::dec
+  REC["Create evidence-backed Recommendation<br/>DATA · pending by default<br/>unknown price is not a saving; live_model unchanged"]:::data
   WARN["Keep visible evidence/issues; no Recommendation<br/>DATA"]:::term
   APPROVE{"Approve or reject Recommendation<br/>USER"}:::ask
-  APPLY["Transactional live_model update<br/>FUNCTION · approval or explicit per-route auto-approve only"]:::fn
+  APPLY["Lock Recommendation + Route; reject stale baseline<br/>FUNCTION · transactional live_model update on approval/opt-in auto-approve only"]:::fn
 
   PICK --> ELIG --> LOAD --> PRICE --> FULL
   FULL -- "yes" --> DRAFT

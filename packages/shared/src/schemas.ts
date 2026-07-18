@@ -237,8 +237,8 @@ export const EvidenceSchema = z.object({
   toModel: z.string(),
   fromScore: z.number().nullable(),
   toScore: z.number(),
-  /** cost change as a percent; negative = cheaper. */
-  costDeltaPct: z.number(),
+  /** Cost change as a percent; negative = cheaper. Null means prices are not comparable. */
+  costDeltaPct: z.number().nullable(),
   latencyDeltaMs: z.number().nullable(),
   perCriterion: z.array(
     z.object({
