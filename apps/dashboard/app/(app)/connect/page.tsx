@@ -108,13 +108,13 @@ const STEPS = [
   },
   {
     n: 3,
-    title: "Blindspot evals + recommends",
-    body: "Add cheaper candidate models; each is back-tested on the golden set. A passing, cheaper model becomes an evidence-backed Recommendation.",
+    title: "Estimate, confirm, then evaluate",
+    body: "Adding a compatible candidate spends nothing. Choose models and a budget, review the exact full or sampled plan, then explicitly confirm the paid run.",
   },
   {
     n: 4,
     title: "You approve — never a silent switch",
-    body: "Approve in the Approvals inbox and the route’s live model updates. On a provider version bump, drift is caught and re-surfaced for approval.",
+    body: "A complete passing eval creates evidence in Approvals. Approve there to update the live model; rejection or no action leaves it unchanged.",
   },
 ];
 
