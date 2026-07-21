@@ -739,6 +739,121 @@ h3 {
   font-size: 17px;
 }
 
+/* ---- invite signup ----------------------------------------------------- */
+.signup-wrap {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 34px 24px;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(99, 91, 255, 0.12), transparent 34%),
+    radial-gradient(circle at 90% 15%, rgba(61, 183, 192, 0.08), transparent 28%);
+}
+
+.signup-card {
+  width: min(820px, 100%);
+  background: rgba(20, 23, 28, 0.96);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: var(--shadow);
+}
+
+.signup-card > .brand {
+  padding: 0 0 18px;
+  font-size: 17px;
+}
+
+.signup-steps {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 0;
+  margin-bottom: 26px;
+  color: var(--muted-2);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.signup-steps span.active { color: #cfccff; }
+.signup-steps span.done { color: var(--pass); }
+
+.signup-head {
+  text-align: center;
+  margin: 0 auto 22px;
+  max-width: 610px;
+}
+
+.signup-head h1,
+.signup-state h1 {
+  font-size: 24px;
+  margin: 10px 0 7px;
+}
+
+.signup-head p { color: var(--muted); }
+
+.signup-state {
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.signup-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-2);
+  border-top-color: var(--accent);
+  border-radius: 999px;
+  animation: signup-spin 0.8s linear infinite;
+}
+
+@keyframes signup-spin { to { transform: rotate(360deg); } }
+
+.signup-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+.signup-mark.danger { background: var(--danger-soft); color: var(--danger); }
+
+.signup-primary {
+  width: 100%;
+  min-height: 42px;
+}
+
+.signup-secret {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.signup-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 18px 0 14px;
+  cursor: pointer;
+}
+
+.signup-confirm input { margin-top: 3px; accent-color: var(--accent); }
+
+@media (max-width: 700px) {
+  .signup-card { padding: 22px 18px; }
+  .signup-card .grid.cols-2 { grid-template-columns: 1fr; }
+  .signup-steps { font-size: 10.5px; }
+}
+
 /* ---- meter (per-criterion bars) --------------------------------------- */
 .meter {
   height: 6px;

@@ -78,18 +78,21 @@ A user runs a LangGraph app (e.g., a lesson generator or a RAG assistant) that m
 
 ### 5a. Invite-only beta adoption
 
-Before open signup, a Blindspot operator creates one isolated project and shown-once recovery key
-for each invited application owner. The tester signs in with that key, mints a separately revocable
-server-side application key, installs a versioned TypeScript connector, and starts with
-`metadata + observe_only`. Connect confirms success only after a recent production request is
-actually ingested. Context sharing, prompt/output retention, provider keys, paid evals and managed
-routing are separate later decisions; accepting an invite does not enable any of them.
+Before open signup, a Blindspot operator creates an expiring, recipient-and-project-bound signup
+link. Its HMAC-signed token lives in the URL fragment so it is not sent in request/referrer logs. The
+tester confirms the workspace once; Blindspot atomically creates separate shown-once recovery and
+application keys, signs the browser in, and guides the tester through the versioned TypeScript
+connector in `metadata + observe_only`. Connect confirms success only after a recent production
+request is actually ingested. Context sharing, prompt/output retention, provider keys, paid evals and
+managed routing are separate later decisions; accepting an invite does not enable any of them.
+One signed email/project pair is concurrency-serialized. A lost creation response may recover the
+same derived keys for five minutes; after that, the invite cannot reveal them again.
 
 The beta distribution is intentionally simple: the dashboard serves an immutable-version SDK
 tarball with a published SHA-256 checksum, and the dashboard provides a project-scoped structured
 feedback form that never attaches application logs implicitly.
-Open signup, organization roles, billing, npm publication and a native Python observability SDK are
-general-availability work, not claims of this beta.
+Uninvited/open signup, email/password identity, organization roles, billing, npm publication and a
+native Python observability SDK are general-availability work, not claims of this beta.
 
 **The catalog = “models on the platform to choose from.”** A provider sync discovers models, then Blindspot normalizes and verifies them. The experiment selector defaults to technically compatible models; an “Excluded” view explains every omitted model. Spans:
 - **A · Frontier APIs** — first prototype: Anthropic Claude Sonnet 4.6 vs Claude Haiku 4.5. Provider-list synchronization is account-specific.

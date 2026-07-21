@@ -13,6 +13,7 @@ export * from "./routes/service";
 export * from "./overview";
 export * from "./project";
 export * from "./onboarding";
+export * from "./signup";
 export * from "./feedback";
 export * from "./config-check";
 export * from "./workflows";

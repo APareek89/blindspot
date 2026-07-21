@@ -8,6 +8,7 @@
     "start": "tsx src/index.ts",
     "bootstrap": "tsx src/scripts/bootstrap.ts",
     "invite": "tsx src/scripts/invite.ts",
+    "signup-link": "tsx src/scripts/signup-link.ts",
     "feedback": "tsx src/scripts/feedback.ts",
     "typecheck": "tsc --noEmit"
   },

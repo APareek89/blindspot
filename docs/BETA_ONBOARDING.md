@@ -1,22 +1,25 @@
 # Invite-only beta onboarding
 
-The beta is operator-assisted: every company receives an isolated project and shown-once project key.
-There is no open signup, shared project or billing in this phase.
+The beta is invite-only and self-serve after the link: every company receives an expiring signup link
+bound to one email and project. There is no uninvited signup, shared project or billing in this phase.
 
 ## 1. Blindspot operator — create the invite
 
-Run from the Blindspot repository with the production `DATABASE_URL` available in the git-ignored
-environment:
+Run from the Blindspot repository with `ENCRYPTION_KEY` available in the git-ignored environment:
 
 ```bash
-pnpm --filter @blindspot/gateway invite -- \
+pnpm --filter @blindspot/gateway signup-link -- \
+  --owner "owner@example.com" \
   --project "Acme support agent" \
-  --owner "owner@example.com"
+  --days 7
 ```
 
-The command creates the project and first key atomically, defaults retention to metadata, and displays
-the key once. Send the dashboard URL and key through a secure channel. Never paste the key into an
-issue, email thread, screenshot or chat log.
+The command does not create a project. It displays one signed link bound to that recipient/project;
+the token is stored after `#` so browsers do not send it in HTTP or referrer logs. Send the full link
+through a secure channel. Never paste it into an issue, shared log, screenshot or public chat. The
+manual `invite` command remains an operator fallback when link signup is unavailable.
+If creation succeeds but the response is lost, the same link can recover the identical keys for five
+minutes. After that retry window it reports “already used” and cannot reveal the keys again.
 
 Review submitted feedback from the operator's trusted terminal (the output contains tester-authored
 text, so do not pipe it into shared logs):
@@ -25,14 +28,16 @@ text, so do not pipe it into shared logs):
 pnpm --filter @blindspot/gateway feedback -- --limit 25
 ```
 
-## 2. Tester — sign in and separate access
+## 2. Tester — smooth signup and separate access
 
-1. Open <https://blindspot-dashboard.onrender.com/login> and use the invite key.
-2. In Settings, mint a second key for the application. Keep the invite key as recovery.
-3. Add a provider key only when ready to run model evals; observability itself does not require it.
-4. In Connect, keep project retention at Metadata only for the first test.
+1. Open the complete signup link and verify the locked email/project.
+2. Choose **Create workspace**. Blindspot creates separate recovery and application keys and signs in.
+3. Copy the recovery key to a password manager; never put it in the application.
+4. Copy the application environment block, confirm both are saved, then continue to Connect.
+5. Add a provider key only when ready for paid model evals; observability itself does not require it.
 
-The login credential is always a `bs_live_…` project key created by Blindspot. Do not use
+Both credentials are `bs_live_…` project keys created by Blindspot, but they have separate operational
+lifecycles: recovery is for the human; application is revocable server configuration. Do not use
 `ANTHROPIC_API_KEY`, `DATABASE_URL`, `ENCRYPTION_KEY`, or any other value from the Blindspot server's
 own `.env`; those are infrastructure/provider credentials and cannot authenticate a project. For the
 existing GSTPilot test, the working project key is its server-only `BLINDSPOT_API_KEY` in the GSTPilot
@@ -58,7 +63,7 @@ This temporary distribution path makes the beta reproducible without registry cr
 ## 4. Tester — configure the hosted application
 
 ```dotenv
-BLINDSPOT_API_KEY=<the separate application key>
+BLINDSPOT_API_KEY=<the application key copied during signup>
 BLINDSPOT_BASE_URL=https://blindspot-gateway.onrender.com
 BLINDSPOT_ENVIRONMENT=production
 BLINDSPOT_CAPTURE=metadata

@@ -182,6 +182,29 @@ const ONBOARDING = [
   },
 ];
 
+const SIGNUP_ONBOARDING = [
+  {
+    n: 1,
+    title: "Add the copied environment",
+    body: "Paste the application environment from signup into your hosted app. Keep the recovery key out of the app.",
+  },
+  {
+    n: 2,
+    title: "Install the TypeScript SDK",
+    body: "Use the pinned beta package below. Start with metadata + observe-only; signup enabled no content retention or routing changes.",
+  },
+  {
+    n: 3,
+    title: "Wrap one shared model boundary",
+    body: "Instrument the helper every model call already passes through. Environment variables alone do not send telemetry.",
+  },
+  {
+    n: 4,
+    title: "Send one safe test request",
+    body: "Use no customer data for the first request, then reload this page until the workflow and latest-seen time appear.",
+  },
+];
+
 function CodeCard({ title, code }: { title: string; code: string }) {
   return (
     <div className="card">
@@ -194,7 +217,12 @@ function CodeCard({ title, code }: { title: string; code: string }) {
   );
 }
 
-export default async function ConnectPage() {
+export default async function ConnectPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
+  const welcome = (await searchParams).welcome === "1";
   const client = await requireApi();
   let captureMode: CaptureMode;
   let workflows;
@@ -227,6 +255,13 @@ export default async function ConnectPage() {
         </div>
       </div>
 
+      {welcome && (
+        <div className="alert info" style={{ marginBottom: 14 }}>
+          <strong>Workspace created and signed in.</strong> Your app key is separate from the recovery
+          key. Complete the four steps below; Blindspot will confirm only after it receives a real trace.
+        </div>
+      )}
+
       <div className={`alert ${connectionIsFresh ? "success" : "warn"}`} style={{ marginBottom: 14 }}>
         {connectionIsFresh && latest ? (
           <>
@@ -245,7 +280,7 @@ export default async function ConnectPage() {
 
       <h2 style={{ margin: "26px 0 14px", fontSize: 16 }}>Five-minute beta setup</h2>
       <div className="grid cols-2" style={{ marginBottom: 14 }}>
-        {ONBOARDING.map((step) => (
+        {(welcome ? SIGNUP_ONBOARDING : ONBOARDING).map((step) => (
           <div className="card" key={step.n}>
             <div className="row" style={{ gap: 10, marginBottom: 8 }}>
               <span className="badge accent">{step.n}</span>

@@ -264,15 +264,20 @@ flowchart TD
   classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
 </pre>
-<h2>Blindspot — dashboard + management API. Truthful-evidence UX + key rotation synced 2026-07-21.</h2>
-<pre class="mermaid">%% Blindspot — dashboard + management API. Truthful-evidence UX + key rotation synced 2026-07-21.
-%% The Next.js dashboard is a pure HTTP client of /v1; the bs_live_ key never leaves the server.
-%% files: apps/dashboard/lib/api.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts
+<h2>Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-21.</h2>
+<pre class="mermaid">%% Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-21.
+%% Management keeps bs_key server-only; invite signup is the explicit shown-once key-delivery boundary.
+%% files: apps/dashboard/lib/api.ts, apps/dashboard/app/signup/SignupFlow.tsx, apps/dashboard/app/signup/session/route.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/public/signup.ts, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/signup.ts
 %% granularity: full
 flowchart TD
   U["Browser (client components)&lt;br/&gt;ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?&lt;br/&gt;FUNCTION · httpOnly cookie bs_key present"}:::dec
   SI["Sign-in-with-key screen&lt;br/&gt;FUNCTION · validates via GET /v1/me · sets httpOnly cookie"]:::fn
+  IV["Issue invite link&lt;br/&gt;FUNCTION · HMAC-signs email + project + expiry&lt;br/&gt;out: shown-once URL-fragment token"]:::fn
+  SU["Signup screen&lt;br/&gt;USER · confirms locked email/project&lt;br/&gt;out: same-origin creation request"]:::ask
+  VG["Public signup gate&lt;br/&gt;FUNCTION · signature + expiry + size checks&lt;br/&gt;out: verified claims"]:::fn
+  AK["Atomic project creation&lt;br/&gt;FUNCTION · pair lock + metadata default + 5-minute lost-response retry&lt;br/&gt;out: recovery key + application key"]:::fn
+  SK["Save keys and continue&lt;br/&gt;USER · recovery to password manager, app env copied&lt;br/&gt;out: signed-in Connect handoff"]:::ask
   SC["Next.js server (RSC + server actions)&lt;br/&gt;FUNCTION · reads bs_key from cookie, never exposes it"]:::fn
   API["Typed client lib/api.ts&lt;br/&gt;FUNCTION · Bearer bs_live_ key · fetch no-store"]:::fn
   MW["Gateway auth&lt;br/&gt;FUNCTION · requireProject · key hash to project_id"]:::fn
@@ -297,6 +302,7 @@ flowchart TD
   U --&gt; L
   L -- "no" --&gt; SI --&gt; SC
   L -- "yes" --&gt; SC
+  IV --&gt; SU --&gt; VG --&gt; AK --&gt; SK --&gt; SC
   SC --&gt; API --&gt; MW
   MW --&gt; ME
   MW --&gt; RT
@@ -319,6 +325,7 @@ flowchart TD
   WF --&gt; CORE
   REUSE --&gt; CORE
   CORE --&gt; DB
+  AK --&gt; DB
   U -.-&gt; DEC
   DEC -.-&gt; REUSE
 

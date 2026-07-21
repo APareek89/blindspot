@@ -21,6 +21,8 @@ import {
 } from "@blindspot/db";
 import {
   checkDrift,
+  createSignupInvite,
+  createSignupProject,
   createInvitedProject,
   createEvalPlan,
   createGoldenSet,
@@ -34,6 +36,7 @@ import {
   setProviderKey,
   submitBetaFeedback,
   updateWorkflowReplayConfig,
+  verifySignupInvite,
   type EvalRuntime,
 } from "@blindspot/core";
 import { Blindspot } from "@blindspot/sdk";
@@ -128,6 +131,64 @@ async function main() {
   } finally {
     await db.delete(projects).where(eq(projects.id, invited.project.id));
   }
+
+  const signupOwner = `signup-test-${randomUUID()}@example.com`;
+  const signupInvite = createSignupInvite({
+    owner: signupOwner.toUpperCase(),
+    project: "Signup integration test",
+    expiresInSeconds: 60 * 60,
+  });
+  const verifiedSignupInvite = verifySignupInvite(signupInvite.token);
+  assert.equal(verifiedSignupInvite.owner, signupOwner, "signup email must normalize before signing");
+  const tamperedToken = `${signupInvite.token.slice(0, -1)}${signupInvite.token.endsWith("A") ? "B" : "A"}`;
+  assert.throws(() => verifySignupInvite(tamperedToken), "tampered signup links must be rejected");
+  const expiredInvite = createSignupInvite({
+    owner: signupOwner,
+    project: "Expired signup integration test",
+    expiresInSeconds: 60 * 60,
+    now: new Date(Date.now() - 2 * 60 * 60 * 1000),
+  });
+  assert.throws(() => verifySignupInvite(expiredInvite.token), "expired signup links must be rejected");
+
+  const concurrentSignupAttempts = await Promise.all(
+    Array.from({ length: 4 }, () => createSignupProject(signupInvite.token)),
+  );
+  const signedUp = concurrentSignupAttempts[0]!;
+  try {
+    assert.equal(
+      new Set(concurrentSignupAttempts.map((result) => result.project.id)).size,
+      1,
+      "concurrent use of one signup link must create exactly one project",
+    );
+    assert.equal(
+      concurrentSignupAttempts.filter((result) => !result.replayed).length,
+      1,
+      "exactly one concurrent signup request must own project creation",
+    );
+    assert.notEqual(signedUp.recoveryKey, signedUp.applicationKey, "human and app keys must differ");
+    const replayedSignup = await createSignupProject(signupInvite.token);
+    assert.equal(replayedSignup.replayed, true, "a lost signup response must be safely retryable");
+    assert.equal(replayedSignup.project.id, signedUp.project.id, "a signup retry must reuse the project");
+    assert.equal(replayedSignup.recoveryKey, signedUp.recoveryKey, "a signup retry must recover the same recovery key");
+    assert.equal(replayedSignup.applicationKey, signedUp.applicationKey, "a signup retry must recover the same app key");
+    await assert.rejects(
+      () => createSignupProject(signupInvite.token, new Date(Date.now() + 6 * 60 * 1000)),
+      "key recovery through an already-used invite must close after the lost-response window",
+    );
+    const storedSignupKeys = await db
+      .select({ keyHash: apiKeys.keyHash })
+      .from(apiKeys)
+      .where(eq(apiKeys.projectId, signedUp.project.id));
+    assert.equal(storedSignupKeys.length, 2, "signup must atomically create two keys");
+    assert.deepEqual(
+      new Set(storedSignupKeys.map((row) => row.keyHash)),
+      new Set([hashGatewayKey(signedUp.recoveryKey), hashGatewayKey(signedUp.applicationKey)]),
+      "signup must store only the two expected hashes",
+    );
+  } finally {
+    await db.delete(projects).where(eq(projects.id, signedUp.project.id));
+  }
+
   const project = (
     await db
       .insert(projects)
@@ -684,6 +745,8 @@ async function main() {
         observeOnlyApprovalAwaitsRollout: true,
         providerTokenCost: 0,
         inviteProjectAndKeySafe: true,
+        signedSignupIdempotentAndHashOnly: true,
+        concurrentSignupCreatesOneProject: true,
         projectScopedFeedbackSafe: feedbackHistory[0]?.projectId === project.id,
       }),
     );

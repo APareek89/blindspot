@@ -23,6 +23,7 @@ import { metaRouter } from "./manage/meta";
 import { modelRegistryRouter } from "./manage/model-registry";
 import { routesRouter } from "./manage/routes";
 import { workflowsRouter } from "./manage/workflows";
+import { publicSignupRouter } from "./public/signup";
 import { resolveOrCreateRoute } from "./route-resolver";
 import type { Env } from "./types";
 
@@ -42,9 +43,12 @@ app.get("/healthz", (c) =>
     ok: true,
     service: "gateway",
     apiVersion: "0.1.0",
-    features: ["workflow-spans-v2", "beta-feedback"],
+    features: ["workflow-spans-v2", "beta-feedback", "invite-signup-v1"],
   }),
 );
+
+// Recipient/project-bound signed invitations are the only unauthenticated write surface.
+app.route("/public/v1", publicSignupRouter);
 
 // Everything under /v1 requires a project key.
 app.use(

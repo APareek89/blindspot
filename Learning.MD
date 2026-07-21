@@ -6,6 +6,23 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Smooth signup still needs a bounded credential and a retry-safe shown-once boundary
+**What changed:** beta onboarding moved from an operator-created project/key to a link the tester can
+open, confirm and continue directly into SDK connection.
+**Why chain:** an unprotected `/signup` would permit project/key spam → a query-string token would enter
+request/referrer logs → random shown-once keys make a lost HTTP response unrecoverable → unlimited
+recovery from the invite would make “shown once” untrue. Deepest requirement: the invite and key
+delivery are both credential boundaries, not ordinary form UX.
+**Action:** the operator now signs an expiring email/project-bound token with the existing encryption
+secret; it travels in the URL fragment, verifies at a size-limited public gate, concurrency-serializes
+one project, atomically creates separate hash-only recovery/application keys, and permits the identical
+response for only a five-minute loss-retry window. Signup starts metadata + observe-only, signs the
+browser in and hands off to exact SDK steps. A cold database made the first create exceed 20 seconds,
+so only creation gets a 45-second proxy timeout; preview remains 20 seconds.
+**Preventive action:** test signup as invite → preview → create → cookie → both-key auth → retry →
+Connect, plus tamper, expiry, concurrency and post-window denial. Never claim “shown once” while an
+unbounded recovery credential can reproduce plaintext.
+
 ## 2026-07-21 — Never put a state-changing logout behind a prefetched navigation link
 **What happened:** direct HTTP tests proved the login cookie worked across every protected route, but
 the real browser still asked for the key after navigation.
