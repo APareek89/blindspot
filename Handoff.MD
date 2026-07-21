@@ -23,9 +23,9 @@
   GSTPilot project key was replaced, verified and revoked without printing its replacement.
 - ✅ SDK builds to a publishable tarball shape; Render Blueprint uses two free Singapore web services,
   inline eval mode and no Redis for this prototype.
-- 🟡 Render services exist (`blindspot-gateway`, `blindspot-dashboard`). Their first builds failed
-  before dependency installation because `corepack enable` cannot replace Render's read-only
-  `/usr/bin/pnpm`; the Blueprint now invokes Render's provided `pnpm` directly and needs redeployment.
+- ✅ Render gateway and dashboard are live from `dd8eced`; the Blueprint and live services use Render's
+  provided `pnpm`. Exact URLs, service IDs, environment names and GSTPilot rollout order are in
+  `docs/RENDER_DEPLOYMENT.md`.
 
 ## Verification
 - `pnpm typecheck` — 8/8 packages pass.
@@ -35,6 +35,9 @@
 - Mermaid — 9/9 parse; `docs/architecture-flow.html` rebuilt.
 - Local HTTP — gateway `/healthz` and dashboard evidence/golden/drift/approval/settings pages return 200;
   visible assertions pass, simulator is hidden.
+- Hosted HTTP — gateway `/healthz` and dashboard `/login` return 200; unauthenticated dashboard root
+  redirects to login. The rotated GSTPilot key authenticated, `/v1/workflows` returned `gstpilot`, and
+  the authenticated dashboard `/routes` page rendered successfully.
 
 ## FMEA — feature-complete scan at `1a4880b` + working tree
 **Scope:** truthful eval UX, workflow replay, drift, keys, uploads, SDK packaging and Render config.
@@ -56,9 +59,9 @@ retry/idempotency, config drift and PRD edge cases.
 
 ## Next
 - ✅ Truthful-evidence checkpoint committed at `44465df`.
-- 🤖 Commit/push the Render build-command correction, update both live service build commands, redeploy,
-  then verify gateway `/healthz` and dashboard `/login`.
-- 🤖 After deployment, update this handoff with service IDs/URLs and the exact GSTPilot env checklist.
+- ✅ Render build correction is committed/pushed; both services are live and verified.
+- ✅ Service IDs/URLs and the exact hosted-app environment checklist are recorded in
+  `docs/RENDER_DEPLOYMENT.md` without secret values.
 - 🧑 USER: for the first paid hosted eval, choose the route, golden version, Sonnet/Haiku, 1–2 examples,
   displayed budget and capture mode. Paid provider evals remain ask-only; Loop remains off.
 - 🤖 Separate next checkpoint: implement/push GSTPilot’s distributable SDK dependency, managed resolver
