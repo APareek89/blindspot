@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 3c40907
+> last-synced: d22d8b5
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Shipped and live
@@ -9,7 +9,7 @@
 - ✅ Child-span bug fixed: conflict updates are non-empty and cannot reopen a completed root; zero-token regression covers root + ordinary child.
 - ✅ Invite beta: atomic project/key CLI, versioned SDK, fresh-connection banner, native project feedback, operator review CLI and onboarding guide.
 - ✅ Render has additive `beta_feedback`; submission is explicit/bounded, rejects obvious credentials, attaches no logs, and authenticated GET is 200.
-- ✅ Truthful evidence remains: all nodes vs generation Routes, consented goldens, disclosed eval mode/sample, visible evidence, real drift and gated swaps.
+- ⏳ Dashboard session fix is locally verified: response-owned 30-day cookie, requested-tab return and nine protected routes; Render deploy/hosted proof next. Truthful eval evidence remains unchanged.
 
 ## Verification
 - `pnpm typecheck` — 8/8 pass.
@@ -17,9 +17,9 @@
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
 - Mermaid — 9/9 structural parse; HTML viewer rebuilt.
 - Hosted — health/features, feedback, login and SDK pass; GSTPilot project key returns `/v1/me` 200 and is sourced from GSTPilot, not Blindspot `.env`.
-- In-app browser QA hit a local runtime conflict; no click-through is claimed. Build, HTTP/API and real-app flow are verified.
+- Auth regression — unauthenticated `/approvals` preserves `next`; login is 303 to `/approvals`; one cookie opens Overview plus all eight navigation tabs with HTTP 200.
 
-## FMEA at `ade11e4` + feature worktree
+## FMEA at `ade11e4` + beta worktree; auth delta at `d22d8b5` + worktree
 **Outcome:** 0 P0. Fixed during scan: private-GitHub feedback blocker, obvious credential submission,
 operator CLI hang, wrong-target database migration and stale connection confirmation.
 

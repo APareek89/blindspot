@@ -6,6 +6,21 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Dashboard authentication must survive navigation and return to the requested tab
+**What happened:** sign-in accepted the project key, but opening another dashboard tab asked for the key
+again; submitting it then sent the user to Overview instead of the tab they had chosen.
+**Root cause:** the only session writer was a Server Action [a form handler managed internally by
+Next.js], and there was no end-to-end check that its cookie survived Render's proxy and a later page
+request. The sign-in action also hard-coded `/` as its success destination, while protected pages did
+not preserve the requested path when redirecting to login.
+**Fix:** sign-in now uses a same-origin POST route that validates the key, attaches the 30-day httpOnly
+cookie directly to the 303 response, and redirects to a strictly validated `next` path. Middleware
+captures the original protected path before login. A real HTTP cookie-jar probe opened all nine
+protected destinations with the same session.
+**Watch for later:** auth acceptance requires a fresh browser/session test of login → requested page →
+every protected navigation → logout, with cookie Path, Secure, httpOnly and SameSite attributes checked;
+a successful credential-validation call alone is not a successful dashboard login.
+
 ## 2026-07-21 — Provider/infrastructure keys cannot sign into a Blindspot project
 **What happened:** dashboard sign-in failed when a key from Blindspot's own `.env` was used.
 **Root cause:** that file has no `BLINDSPOT_API_KEY`; it contains infrastructure and model-provider

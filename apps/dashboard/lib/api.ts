@@ -96,13 +96,13 @@ export interface Page {
 
 /** Build a typed client bound to one project key. */
 export function api(key: string) {
-  const get = <T>(path: string) => req<T>(key, path);
+  const get = <T>(path: string, init?: RequestInit) => req<T>(key, path, init);
   const send = <T>(method: string, path: string, body?: unknown) =>
     req<T>(key, path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
   return {
     // identity + summary
-    me: () => get<{ project: Project }>("/v1/me"),
+    me: (init?: RequestInit) => get<{ project: Project }>("/v1/me", init),
     overview: () => get<Overview>("/v1/overview"),
     settings: () => get<Settings>("/v1/settings"),
 
