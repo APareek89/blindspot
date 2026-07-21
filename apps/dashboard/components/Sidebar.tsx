@@ -55,9 +55,11 @@ export function Sidebar({ pending, project }: { pending: number; project: string
       <div className="sidebar-foot">
         <div className="muted small">Project</div>
         <div style={{ color: "var(--text)", fontWeight: 550 }}>{project || "—"}</div>
-        <Link href="/logout" className="btn-link" style={{ marginTop: 8, display: "inline-block" }}>
-          Sign out
-        </Link>
+        <form action="/logout" method="post" style={{ marginTop: 8 }}>
+          <button type="submit" className="btn-link">
+            Sign out
+          </button>
+        </form>
       </div>
     </aside>
   );

@@ -6,6 +6,19 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Never put a state-changing logout behind a prefetched navigation link
+**What happened:** direct HTTP tests proved the login cookie worked across every protected route, but
+the real browser still asked for the key after navigation.
+**Root cause:** the sidebar rendered “Sign out” as a Next.js `Link` to `GET /logout`. Next may prefetch
+visible links in the background, so loading the authenticated sidebar could call logout and expire the
+cookie without the user clicking anything. HTTP cookie-jar tests do not execute browser prefetching and
+therefore missed the failure. This was the deepest cause of the repeated-login loop; the earlier
+Server Action diagnosis was incomplete.
+**Fix:** logout is now POST-only, triggered by a normal form button, same-origin checked, and impossible
+for link prefetch to execute. `GET /logout` has no state-changing handler.
+**Watch for later:** every GET and every prefetched route must be read-only. Browser-session acceptance
+must execute the hydrated UI, not only request pages with a cookie jar.
+
 ## 2026-07-21 — Dashboard authentication must survive navigation and return to the requested tab
 **What happened:** sign-in accepted the project key, but opening another dashboard tab asked for the key
 again; submitting it then sent the user to Overview instead of the tab they had chosen.

@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: b2a3bcf
+> last-synced: 8c2a83f
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Shipped and live
@@ -9,7 +9,7 @@
 - ✅ Child-span bug fixed: conflict updates are non-empty and cannot reopen a completed root; zero-token regression covers root + ordinary child.
 - ✅ Invite beta: atomic project/key CLI, versioned SDK, fresh-connection banner, native project feedback, operator review CLI and onboarding guide.
 - ✅ Render has additive `beta_feedback`; submission is explicit/bounded, rejects obvious credentials, attaches no logs, and authenticated GET is 200.
-- ✅ Dashboard session fix is live: response-owned 30-day cookie, requested-tab return and nine protected routes. Truthful eval evidence remains unchanged.
+- ⏳ Browser-only session root cause fixed locally: prefetched GET logout replaced by explicit same-origin POST; deploy/real-user proof next.
 
 ## Verification
 - `pnpm typecheck` — 8/8 pass.
@@ -17,9 +17,9 @@
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
 - Mermaid — 9/9 structural parse; HTML viewer rebuilt.
 - Hosted — health/features, feedback, login and SDK pass; GSTPilot project key returns `/v1/me` 200 and is sourced from GSTPilot, not Blindspot `.env`.
-- Hosted auth — unauthenticated `/approvals` preserves `next`; login is 303 to `/approvals`; one cookie opens all nine protected destinations; logout removes it.
+- Auth regression — GET logout is 405 and preserves the session; rejected POST preserves it; same-origin POST alone removes it. Browser plugin was unavailable, so user confirmation is required.
 
-## FMEA at `ade11e4` + beta worktree; auth delta committed at `b2a3bcf`
+## FMEA at `ade11e4` + beta worktree; logout delta at `8c2a83f` + worktree
 **Outcome:** 0 P0. Fixed during scan: private-GitHub feedback blocker, obvious credential submission,
 operator CLI hang, wrong-target database migration and stale connection confirmation.
 
