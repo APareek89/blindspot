@@ -6,6 +6,19 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — A local schema push does not migrate Render's database
+**What happened:** native beta feedback passed locally, but the production service uses a different
+`DATABASE_URL`. Applying the additive table through the developer `.env` therefore did not prepare
+Render for the new endpoint.
+**Root cause:** application deployment and database migration are separate release steps, and the
+prototype has no deploy-time migration command yet.
+**Fix:** retrieved Render's configured database value into a secret-only shell variable, applied the
+same Drizzle schema without printing it, unset the value, redeployed, then proved the versioned health
+feature and authenticated feedback endpoint live.
+**Watch for later:** every schema-changing checkpoint needs three explicit proofs: migration file in
+git, target production database migrated, and new endpoint exercised. Phase 8 should run reviewed,
+forward-only migrations as a release job instead of an operator `db:push`.
+
 ## 2026-07-21 — A child span exposed an empty database update only in production
 **What happened:** hosted GSTPilot answered normally, but Blindspot recorded only the pipeline root.
 The app logged an ingest 500 and the gateway logged `No values to set` for every ordinary child span.

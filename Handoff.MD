@@ -1,59 +1,40 @@
 # Handoff.MD — Blindspot
-> last-synced: 80e4a00
+> last-synced: 3ea4505
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
-## Current state
-- ✅ Canonical repo is `/Documents/Projects/blindspot` on `main`; Render gateway/dashboard deploy from
-  `APareek89/blindspot`. GSTPilot is `/Documents/gstpilot` on `master`.
-- ✅ Truthful-evidence flow is built: all workflow node kinds vs model-only Routes, consented/versioned
-  golden sets, disclosed model-only vs workflow-replay evals, visible per-example scoring, real drift
-  lanes and approval-gated application state.
-- ✅ GSTPilot commits `02f8c81` + `4b11365` are pushed. Its SDK is a vendored 0.1.0 artifact rather
-  than a non-deployable sibling link; Render has five metadata/observe-only Blindspot variables and a
-  corrected pnpm build command. Hosted GSTPilot is live at `4b11365`.
-- 🟡 The first hosted GSTPilot smoke answered two questions, but child telemetry returned 500 because
-  the execution conflict update was empty. The root-only trace proved the bug; the fix is deployed and
-  must now pass a fresh hosted multi-node smoke.
-- ✅ Invite-only beta is local: atomic isolated project/key CLI, versioned public SDK artifact, recent
-  connection confirmation, private in-product feedback, onboarding guide and consent-safe defaults.
-- ✅ `blindspot.beta_feedback` was added non-destructively to the configured Postgres database. Feedback
-  is authenticated/project-scoped, bounded, explicit, rejects obvious credentials and attaches no logs.
+## Shipped and live
+- ✅ Blindspot gateway/dashboard are live on Render at `3ea4505`; GSTPilot is live at `4b11365`.
+- ✅ GSTPilot is self-contained: vendored SDK 0.1.0, frozen pnpm build and five metadata/observe-only Render variables; no sibling checkout.
+- ✅ Hosted GSTPilot smoke passed: T1 response; production moved 1→2 executions and 1→3 nodes (`pipeline`, `intake`, `fill-slots:registration_threshold`), with Haiku identified and zero ingest errors.
+- ✅ Child-span bug fixed: conflict updates are non-empty and cannot reopen a completed root; zero-token regression covers root + ordinary child.
+- ✅ Invite beta: atomic project/key CLI, versioned SDK, fresh-connection banner, native project feedback, operator review CLI and onboarding guide.
+- ✅ Render has additive `beta_feedback`; submission is explicit/bounded, rejects obvious credentials, attaches no logs, and authenticated GET is 200.
+- ✅ Truthful evidence remains: all nodes vs generation Routes, consented goldens, disclosed eval mode/sample, visible evidence, real drift and gated swaps.
 
-## Verification at this checkpoint
+## Verification
 - `pnpm typecheck` — 8/8 pass.
-- `pnpm test:eval-plan` — pass, zero provider tokens; includes invite/raw-key, feedback isolation,
-  SDK request boundary and root+ordinary-child persistence regressions.
+- `pnpm test:eval-plan` — pass, zero provider tokens; invite/key, feedback, SDK/ingest, budget/evidence/drift/approval and concurrency regressions pass.
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
-- Mermaid — 9/9 structural parse; `docs/architecture-flow.html` rebuilt.
-- SDK artifact SHA-256 matches `docs/BETA_ONBOARDING.md`; GSTPilot clean-checkout production build passed.
-- Render gateway/dashboard are live at `80e4a00`; public SDK/login/health pass. The first feedback URL
-  probe returned 404 although the same committed route passed locally, so a versioned health feature
-  marker plus clean redeploy is the active verification step.
+- Mermaid — 9/9 structural parse; HTML viewer rebuilt.
+- Hosted — health API/version/features, feedback, login and SDK artifact pass; artifact checksum matches.
+- In-app browser QA hit a local runtime conflict; no click-through is claimed. Build, HTTP/API and real-app flow are verified.
 
-## FMEA — feature-complete scan at `ade11e4` + working tree
-**Outcome:** 0 P0. The scan found the private-GitHub feedback path would block external testers, so it
-was replaced before release with project-scoped native feedback.
+## FMEA at `ade11e4` + feature worktree
+**Outcome:** 0 P0. Fixed during scan: private-GitHub feedback blocker, obvious credential submission,
+operator CLI hang, wrong-target database migration and stale connection confirmation.
 
-| Remaining failure mode | Priority | Concrete follow-up |
+| Remaining | Priority | Follow-up |
 |---|---|---|
-| All beta bearer keys currently have project-admin power; secure delivery/revocation is procedural. | P1 | Add scoped/expiring human vs app keys before a broad beta; invite only trusted testers now. |
-| SDK telemetry is best-effort with one retry; prolonged gateway failure can drop spans. | P1 | Phase 8 durable spool/queue, metrics and external alerts. |
-| Inline sequential paid evals lack crash recovery after a provider call. | P1 | Phase 8 BullMQ idempotent resume + DLQ; keep hosted tests to 1–2 examples. |
-| No per-project rate limit, Sentry/OTel alerting or automatic operational thresholds. | P1 | Complete Phase 8 before production traffic. |
-| Concurrent identical operator invites can race the application-level duplicate check. | P2 | Add a DB uniqueness constraint or serializable retry before self-serve signup. |
-| Beta SDK tarball is checksum-pinned but not registry-signed/automatically upgraded. | P2 | Publish `@blindspot/sdk` to npm with provenance before GA. |
+| All bearer keys have project-admin power; delivery/revocation is procedural. | P1 | Scoped/expiring human vs app keys before broad beta. |
+| SDK is best-effort with one retry; outage can drop spans. | P1 | Phase 8 durable queue, metrics, alerts. |
+| Inline paid evals lack crash recovery. | P1 | BullMQ idempotent resume + DLQ; test only 1–2 examples. |
+| No rate limits, Sentry/OTel alerts or automatic operational thresholds. | P1 | Complete before production traffic. |
+| Identical concurrent invites can race; SDK tarball is not registry-signed. | P2 | DB uniqueness + npm provenance before self-serve/GA. |
 
-**Coverage:** 12/12 categories: errors, dependencies, races, resources, security, partial writes,
-observability, scale, billing, retry/idempotency, config drift and PRD edges.
+**Coverage:** 12/12 categories checked. Loop is off; paid evals remain ask-only.
 
 ## Next
-1. Push the CLI-exit/health-marker checkpoint, wait for Render, verify health + feedback endpoint.
-2. Send one harmless hosted GSTPilot question; prove the production execution contains root and child
-   generation/function nodes, not merely a successful app response.
-3. Update this handoff and `docs/RENDER_DEPLOYMENT.md` with the verified commit, then final checkpoint.
-4. Managed routing and protected replay remain OFF for GSTPilot until every model boundary supports
-   temporary overrides. Loop remains off; paid evals remain ask-only.
-
-## Local commands
-`pnpm start:gateway` (:8787) · `pnpm start:dashboard` (:3001) ·
-`pnpm typecheck && pnpm test:eval-plan && pnpm build`
+1. Invite 2–3 trusted TypeScript teams using [`docs/BETA_ONBOARDING.md`](./docs/BETA_ONBOARDING.md).
+2. Add scoped/expiring admin vs application keys, then npm-publish the SDK.
+3. Add a native Python observability SDK; keep Python users on the gateway until then.
+4. Phase 8: Redis workers, durable telemetry, rate limits, OTel/Sentry and k6.
