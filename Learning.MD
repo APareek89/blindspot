@@ -22,6 +22,16 @@ execution remains completed.
 not just by schema shape. Best-effort telemetry needs an app log plus a gateway log and an end-to-end
 node-count assertion; a successful application response does not prove observability succeeded.
 
+## 2026-07-21 — Database-backed operator commands must exit after success
+**What happened:** the beta invite probe created its project/key but the terminal did not return.
+**Root cause:** the one-shot script opened the shared Postgres client, whose live socket kept Node's
+event loop running after `main()` resolved. The same process-lifecycle trap was already known from
+earlier verification scripts but had not been applied to the new operator command.
+**Fix:** the invite CLI now exits explicitly with status 0 after successful output; failure still exits
+1. The feedback review CLI already follows the same pattern.
+**Watch for later:** every database-backed `apps/*/src/scripts` entry point must have an explicit
+success and failure termination path until the database package exposes a shared graceful close.
+
 ## 2026-07-21 — A local workspace dependency is not a deployable SDK release
 **What happened:** GSTPilot worked locally with `link:../Projects/Blindspot_v1/packages/sdk`, but its
 Render build checks out only the GSTPilot repository and cannot see a sibling folder.

@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: ade11e4
+> last-synced: 80e4a00
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Current state
@@ -12,8 +12,8 @@
   than a non-deployable sibling link; Render has five metadata/observe-only Blindspot variables and a
   corrected pnpm build command. Hosted GSTPilot is live at `4b11365`.
 - 🟡 The first hosted GSTPilot smoke answered two questions, but child telemetry returned 500 because
-  the execution conflict update was empty. The root-only trace proved the bug; the fix and regression
-  are local and must now deploy before the final smoke.
+  the execution conflict update was empty. The root-only trace proved the bug; the fix is deployed and
+  must now pass a fresh hosted multi-node smoke.
 - ✅ Invite-only beta is local: atomic isolated project/key CLI, versioned public SDK artifact, recent
   connection confirmation, private in-product feedback, onboarding guide and consent-safe defaults.
 - ✅ `blindspot.beta_feedback` was added non-destructively to the configured Postgres database. Feedback
@@ -26,6 +26,9 @@
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
 - Mermaid — 9/9 structural parse; `docs/architecture-flow.html` rebuilt.
 - SDK artifact SHA-256 matches `docs/BETA_ONBOARDING.md`; GSTPilot clean-checkout production build passed.
+- Render gateway/dashboard are live at `80e4a00`; public SDK/login/health pass. The first feedback URL
+  probe returned 404 although the same committed route passed locally, so a versioned health feature
+  marker plus clean redeploy is the active verification step.
 
 ## FMEA — feature-complete scan at `ade11e4` + working tree
 **Outcome:** 0 P0. The scan found the private-GitHub feedback path would block external testers, so it
@@ -44,7 +47,7 @@ was replaced before release with project-scoped native feedback.
 observability, scale, billing, retry/idempotency, config drift and PRD edges.
 
 ## Next
-1. Commit/push Blindspot, wait for both Render services, verify health + SDK asset + feedback endpoint.
+1. Push the CLI-exit/health-marker checkpoint, wait for Render, verify health + feedback endpoint.
 2. Send one harmless hosted GSTPilot question; prove the production execution contains root and child
    generation/function nodes, not merely a successful app response.
 3. Update this handoff and `docs/RENDER_DEPLOYMENT.md` with the verified commit, then final checkpoint.

@@ -28,7 +28,10 @@ async function main() {
   console.log("The tester signs in, mints a separate application key, and starts metadata-only.");
 }
 
-main().catch((error) => {
-  console.error("invite failed:", (error as Error).message);
-  process.exit(1);
-});
+main()
+  // The postgres client owns a socket; operator CLIs must terminate after their one-shot work.
+  .then(() => process.exit(0))
+  .catch((error) => {
+    console.error("invite failed:", (error as Error).message);
+    process.exit(1);
+  });

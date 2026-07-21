@@ -36,8 +36,15 @@ for (const w of checkModelKeyConfig()) {
 
 const app = new Hono<Env>();
 
-// Liveness probe (no secrets, no auth).
-app.get("/healthz", (c) => c.json({ ok: true, service: "gateway" }));
+// Liveness + connector compatibility probe (no secrets, no auth).
+app.get("/healthz", (c) =>
+  c.json({
+    ok: true,
+    service: "gateway",
+    apiVersion: "0.1.0",
+    features: ["workflow-spans-v2", "beta-feedback"],
+  }),
+);
 
 // Everything under /v1 requires a project key.
 app.use(

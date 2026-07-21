@@ -106,6 +106,9 @@ through `onError`, but must not break the user's application response.
 If no workflow appears, check the application logs for a redacted `[blindspot]` warning, confirm the
 five environment-variable names are present, and verify the SDK wrapper actually ran.
 
+`GET https://blindspot-gateway.onrender.com/healthz` is public and returns the API version plus
+connector features; it never returns project configuration or credentials.
+
 ## 6. Give feedback
 
 Use the dashboard's Beta feedback screen. Report the stage, expected behavior, actual behavior and
