@@ -6,6 +6,25 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Environment variables do not create observability by themselves
+**What happened:** the user asked questions in local gstpilot but Blindspot still showed zero workflows.
+The key authenticated, yet no application code called the SDK. The first bridge test then exposed three
+local integration traps: the package manifest had changed without an installed symlink, Turbopack fenced
+module resolution at the gstpilot folder, and Node rejected Supabase's incomplete certificate chain.
+**Why chain:** env values only configure a client → no client was instantiated → the central Langfuse
+wrapper remained the sole observer. After adding it, the linked SDK existed outside Turbopack's root;
+after resolving that, the request still died creating its database thread because the dev command lacked
+the project's CA bundle. Deepest cause: `integration` — configuration presence had been mistaken for a
+runtime end-to-end connector.
+**Action:** linked and installed `@blindspot/sdk`, dual-instrumented gstpilot's one `recordGeneration`
+helper, expanded the local Turbopack root, started gstpilot with its established CA bundle, added a
+metadata-only pipeline root plus non-blocking terminal flush, and made ordinary child spans omit
+lifecycle status so a late post-answer memory node cannot reopen a completed run. Three real questions
+stored three executions and four generation routes across Haiku/Sonnet; the exemplar is `completed`.
+**Preventive action:** connector acceptance must prove zero-workflow baseline → real host-app request →
+persisted terminal execution with node/model/token/latency evidence. Verify the package at runtime, not
+only in `package.json`; always instrument a request boundary, not only child model calls.
+
 ## 2026-07-18 — A model swap needs one comparable evidence cohort
 **What happened:** Power Coding FMEA found that the manual recommendation path could reuse legacy
 aggregate-only eval rows, and a candidate-only plan could propose a swap without evaluating the live

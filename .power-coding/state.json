@@ -1,6 +1,6 @@
 {
   "_comment": "Power Coding runtime state — commit ranges make scans deterministic across sessions.",
-  "last_sentinel_commit": "c32fb88",
-  "last_fmea_commit": "c32fb88",
+  "last_sentinel_commit": "fb4cfc2",
+  "last_fmea_commit": "fb4cfc2",
   "declined_changesets": []
 }

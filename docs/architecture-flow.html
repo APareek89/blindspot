@@ -63,7 +63,7 @@ flowchart TD
 </pre>
 <h2>Blindspot — BUILD DECISIONS LOG (not a runtime flow)</h2>
 <pre class="mermaid">%% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0; QA sync: c32fb88 + working tree.
+%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0; QA sync: fb4cfc2 + gstpilot live-connect 02f8c81.
 %% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
@@ -310,7 +310,7 @@ flowchart TD
 %% granularity: full
 flowchart TD
   APP["Existing agent model call&lt;br/&gt;FUNCTION&lt;br/&gt;in: application request · out: model result"]:::term
-  SDK["Blindspot SDK wrapper&lt;br/&gt;FUNCTION · project-key/capture envs, 900 KB cap, bounded one retry&lt;br/&gt;terminal status emitted at the real request boundary&lt;br/&gt;in: node, model, usage, optional content · out: queued span or metadata fallback"]:::fn
+  SDK["Blindspot SDK wrapper&lt;br/&gt;FUNCTION · project-key/capture envs, 900 KB cap, bounded one retry&lt;br/&gt;child spans omit lifecycle status; terminal status emitted only at the real request boundary&lt;br/&gt;in: node, model, usage, optional content · out: queued span or metadata fallback"]:::fn
   CAP{"Effective capture mode&lt;br/&gt;FUNCTION · stricter of SDK and project&lt;br/&gt;metadata, inputs, or full"}:::dec
   API["POST /v1/ingest/spans&lt;br/&gt;FUNCTION · auth, 1 MB cap, Zod batch max 100&lt;br/&gt;in: spans + bs_live key · out: accepted ids"]:::fn
   REDACT["Credential-field redaction&lt;br/&gt;FUNCTION&lt;br/&gt;in: permitted payload · out: safe payload"]:::fn

@@ -25,6 +25,7 @@ import {
   setProviderKey,
   type EvalRuntime,
 } from "@blindspot/core";
+import { Blindspot } from "@blindspot/sdk";
 import { loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
 
 loadRootEnv(import.meta.url);
@@ -32,7 +33,64 @@ loadRootEnv(import.meta.url);
 const SONNET = "anthropic:claude-sonnet-4-6";
 const HAIKU = "anthropic:claude-haiku-4-5-20251001";
 
+async function assertSdkExecutionBoundary() {
+  const originalFetch = globalThis.fetch;
+  const delivered: unknown[] = [];
+  globalThis.fetch = async (_input, init) => {
+    delivered.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ accepted: 1 }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  };
+  try {
+    const client = new Blindspot({
+      apiKey: "test-only-api-key",
+      baseUrl: "http://blindspot.test",
+      workflow: "sdk-lifecycle-test",
+      environment: "test",
+      flushIntervalMs: 60_000,
+    });
+    const executionId = "sdk-execution-boundary";
+    await client.observeGeneration(
+      {
+        executionId,
+        node: "child-generation",
+        provider: "anthropic",
+        model: "claude-haiku-test",
+      },
+      async () => "ok",
+    );
+    const root = client.span({
+      id: executionId,
+      executionId,
+      node: "pipeline",
+      kind: "agent",
+    });
+    root.end({ executionStatus: "completed", executionEndedAt: new Date() });
+    await client.flush();
+
+    const spans = delivered.flatMap((batch) =>
+      ((batch as { spans?: Array<{ span: { node: string }; execution: { status?: string } }> })
+        .spans ?? []),
+    );
+    assert.equal(
+      spans.find((item) => item.span.node === "child-generation")?.execution.status,
+      undefined,
+      "ordinary child spans must not claim ownership of execution status",
+    );
+    assert.equal(
+      spans.find((item) => item.span.node === "pipeline")?.execution.status,
+      "completed",
+      "the explicit request boundary must carry terminal execution status",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+}
+
 async function main() {
+  await assertSdkExecutionBoundary();
   const db = getDb();
   const project = (
     await db
@@ -336,6 +394,7 @@ async function main() {
         concurrentGoldenVersionsSafe: true,
         staleApprovalBlocked: true,
         duplicateRunBlocked: duplicateBlocked,
+        sdkExecutionBoundarySafe: true,
         providerTokenCost: 0,
       }),
     );

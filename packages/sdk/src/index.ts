@@ -178,7 +178,10 @@ export class Blindspot {
           execution: {
             id: start.executionId,
             sessionId: start.sessionId,
-            status: end.executionStatus ?? "running",
+            // Child spans do not own the workflow lifecycle. Omitting status prevents a late
+            // best-effort node (for example, post-answer memory extraction) from reopening an
+            // execution that the real request boundary already marked completed.
+            status: end.executionStatus,
             startedAt: start.executionStartedAt?.toISOString(),
             endedAt: end.executionEndedAt?.toISOString(),
             metadata: start.executionMetadata,

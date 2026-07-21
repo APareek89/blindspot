@@ -1,19 +1,23 @@
 # Handoff.MD — Blindspot
-> last-synced: c32fb88 · FIRST reconcile `git log --oneline c32fb88..HEAD`, then read Loop.MD.
+> last-synced: fb4cfc2 · FIRST reconcile `git log --oneline fb4cfc2..HEAD`, then read Loop.MD.
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/Blindspot_v1` and begin**
 
 ## Current state
-- ✅ Shipped locally through agent-workspace **7A Connect + Observe, 7B Registry + Compatibility, 7C Budget-authorized Quality + Experiment**; see `Blindspot-PRD.md` and `docs/ARCHITECTURE_FLOW.md`.
-- ✅ 2026-07-18 Power Coding QA closed all P0s found: recommendations now require complete same-plan live/candidate evidence; unknown price cannot prove savings/auto-approve; approval/rejection and route changes are locked and stale baselines are rejected.
-- ✅ Golden versions serialize concurrent creation, workflow requirement merges lock against lost updates, and only a same-route trace can be promoted. A recommendation/inbox failure no longer rewrites a completed paid eval as failed.
-- ✅ Production dependency audit improved from 29 findings (2 critical/9 high) to **2 low**: Next 15.5.18, Drizzle 0.45.2, patched PostCSS/jsondiffpatch. Remaining AI SDK v4 advisories need a deliberate v5 adapter migration.
-- ✅ `pnpm typecheck`, zero-token `pnpm test:eval-plan`, production build, 9/9 Mermaid validation, full secret scan and localhost HTTP smoke pass. Integration coverage proves sampling/evidence/no silent swap/no replay plus legacy, candidate-only, stale-approval, cross-route and concurrency guards. Provider token cost: $0.
-- ✅ Gateway `http://localhost:8787/healthz` and freshly restarted dashboard `http://localhost:3001/login` return 200 in active Codex sessions. In-app browser bootstrap remains unavailable; compiled UI + HTTP are verified, click-through is not claimed.
+- ✅ Shipped locally through agent-workspace 7A–7C plus the 2026-07-18 evidence/concurrency/dependency QA; see git log, `Learning.MD` and `docs/ARCHITECTURE_FLOW.md`.
+- ✅ **gstpilot live 2026-07-21:** 3 real questions → selected `gstpilot@development`, 3 executions,
+  1 pipeline agent + 4 generation routes across Haiku/Sonnet. Example `f6036d1d-125a-4a47-a3ad-67129952d3bd` is `completed`, metadata-only, with tokens/latency and zero errors.
+- ✅ Observe-only bridge checkpointed in gstpilot at `02f8c81`; its local SDK sibling link, Langfuse
+  dual-write and terminal/non-blocking boundary do not reroute Claude calls.
+- ✅ Typechecks, zero-token eval-plan regression (including lifecycle ownership), 9/9 Mermaid validation,
+  secret scan and localhost HTTP checks pass. Gateway :8787, dashboard :3001 and gstpilot :3000 are live.
 
 ## FMEA / Sentinel outcome
-- ✅ Full 12-category scan at `c32fb88` + QA working tree: no P0 remains after fixes above; secret/supply-chain/tenant and approval boundaries checked.
-- ⚠️ Phase 8 P1s: inline eval crash/stale-plan recovery and long HTTP runs; project/provider rate limits; versioned pricing freshness/cost reconciliation; OTel/Sentry + dropped-trace/eval alerts and load tests.
-- ⚠️ P2: duplicate pending-Recommendation race, capture-mode downgrade does not purge older retained content, and two low AI SDK v4 advisories. No paid eval was run.
+- ✅ Full 12-category connector scan at `fb4cfc2` + working trees: no P0. Fixed child-span lifecycle
+  downgrade, blocking telemetry flush and tool/system compatibility under-reporting.
+- ⚠️ P1: local sibling SDK link is not deployable; captured spans lack calculated cost until pricing
+  reconciliation; Phase 8 still owns queue recovery, rate limits, pricing freshness, OTel/Sentry and load.
+- ⚠️ P2: long-thread compaction is not observed, fatal pipeline exits can remain running, gstpilot hides
+  its Supabase insert error, plus prior duplicate-rec/capture-purge/two-low-advisory debt. No eval was run.
 
 ## Decisions
 - 2026-07-18 — Eval spend remains an immutable single-use server authorization; incomplete or incomparable evidence cannot recommend or switch.
@@ -21,10 +25,15 @@
 - 2026-07-18 — Loop remains `off`; paid evals stay `ask`. Power Coding defaults added as `git checkpoints=auto`, `full FMEA=ask`, Sentinel/session pulse manual/off.
 
 ## Monday — pending
-- 🧑 USER: confirm or change the new Power Coding defaults above (they are ⚠️ unconfirmed), then sign into localhost with an existing `bs_live_` key or bootstrap one.
-- 🧑 USER: connect gstpilot, select its workflow and capture mode (`metadata` default; `inputs`/`full` opt-in), choose golden context, Sonnet/Haiku and the displayed eval cap before the first paid Claude run.
+- 🧑 USER: inspect the selected `gstpilot@development` workflow and its four generation routes in the
+  dashboard, then sync the Anthropic model catalogue in Settings (the registry was empty before this run).
+- 🧑 USER: keep or change capture mode (`metadata` current; `inputs`/`full` opt-in), choose golden
+  context, Sonnet/Haiku and the displayed eval cap before the first paid Claude evaluation.
+- 🤖 After user inspection: replace the temporary sibling-package link with the intended SDK
+  distribution shape; convert gstpilot's nested `evals/golden.json` into Blindspot's versioned examples.
 - 🧑 USER before Redis: rotate the previously exposed Upstash credential and update the git-ignored `.env`; never paste it in chat.
 - 🤖 Then: Phase 7D continuous selected-node monitoring/debug/simulation; Phase 8 queue handoff + recovery/rate limits/pricing/OTel/Sentry/k6; decide AI SDK v5 migration; Phase 9 Render deploy.
 
 ## Run
-Gateway `pnpm start:gateway` (:8787) · dashboard `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm test:eval-plan && pnpm build`.
+Blindspot: `pnpm start:gateway` (:8787) · `pnpm start:dashboard` (:3001) · verify `pnpm typecheck && pnpm test:eval-plan && pnpm build`.
+gstpilot (:3000): `NODE_EXTRA_CA_CERTS='/Users/anandpareek/Documents/SEO content Skill/scripts/system-ca-bundle.pem' pnpm dev` (the CA bundle is required for Supabase on this machine).
