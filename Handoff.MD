@@ -1,15 +1,15 @@
 # Handoff.MD — Blindspot
-> last-synced: d22d8b5
+> last-synced: b2a3bcf
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Shipped and live
-- ✅ Blindspot gateway/dashboard are live on Render at `3ea4505`; GSTPilot is live at `4b11365`.
+- ✅ Blindspot gateway/dashboard are live on Render at `b2a3bcf`; GSTPilot is live at `4b11365`.
 - ✅ GSTPilot is self-contained: vendored SDK 0.1.0, frozen pnpm build and five metadata/observe-only Render variables; no sibling checkout.
 - ✅ Hosted GSTPilot smoke passed: T1 response; production moved 1→2 executions and 1→3 nodes (`pipeline`, `intake`, `fill-slots:registration_threshold`), with Haiku identified and zero ingest errors.
 - ✅ Child-span bug fixed: conflict updates are non-empty and cannot reopen a completed root; zero-token regression covers root + ordinary child.
 - ✅ Invite beta: atomic project/key CLI, versioned SDK, fresh-connection banner, native project feedback, operator review CLI and onboarding guide.
 - ✅ Render has additive `beta_feedback`; submission is explicit/bounded, rejects obvious credentials, attaches no logs, and authenticated GET is 200.
-- ⏳ Dashboard session fix is locally verified: response-owned 30-day cookie, requested-tab return and nine protected routes; Render deploy/hosted proof next. Truthful eval evidence remains unchanged.
+- ✅ Dashboard session fix is live: response-owned 30-day cookie, requested-tab return and nine protected routes. Truthful eval evidence remains unchanged.
 
 ## Verification
 - `pnpm typecheck` — 8/8 pass.
@@ -17,9 +17,9 @@
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
 - Mermaid — 9/9 structural parse; HTML viewer rebuilt.
 - Hosted — health/features, feedback, login and SDK pass; GSTPilot project key returns `/v1/me` 200 and is sourced from GSTPilot, not Blindspot `.env`.
-- Auth regression — unauthenticated `/approvals` preserves `next`; login is 303 to `/approvals`; one cookie opens Overview plus all eight navigation tabs with HTTP 200.
+- Hosted auth — unauthenticated `/approvals` preserves `next`; login is 303 to `/approvals`; one cookie opens all nine protected destinations; logout removes it.
 
-## FMEA at `ade11e4` + beta worktree; auth delta at `d22d8b5` + worktree
+## FMEA at `ade11e4` + beta worktree; auth delta committed at `b2a3bcf`
 **Outcome:** 0 P0. Fixed during scan: private-GitHub feedback blocker, obvious credential submission,
 operator CLI hang, wrong-target database migration and stale connection confirmation.
 
