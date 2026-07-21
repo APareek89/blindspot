@@ -1,5 +1,5 @@
 %% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Phase 7C checkpoint: 356cef0; QA sync: fb4cfc2 + gstpilot live-connect 02f8c81.
+%% Records WHAT was chosen at each phase and WHY. Truthful-evidence + deployment sync: 2026-07-21.
 %% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
@@ -31,16 +31,16 @@ flowchart TD
 
   P4["Phase 4 · Recommendations + approvals — DONE"]:::done
   P4a["Policy = cheapest candidate with latest score >= bar AND cheaper than live; emits a<br/>Recommendation with evidence (scores + cost/latency deltas)<br/>WHY: PRD §3 — evidence-backed proposal, dedup pending recs per target"]:::why
-  P4b["Approve → routes.live_model switches; Reject → status + reason stored; auto_approve (default OFF)<br/>applies within-band+cheaper swaps automatically, still logged<br/>WHY: §3 non-negotiable — no silent swap; reason tunes future recs"]:::why
+  P4b["Approve applies only on managed connections; observe-only becomes awaiting rollout;<br/>Reject stores status + reason; auto_approve remains managed-only and default OFF<br/>WHY: Blindspot must not claim it changed a model still owned by the application"]:::why
   P4c["Phase 7C closed the evidence gap: every evaluated example stores candidate output,<br/>score, criteria, reasoning, issues, latency and candidate/judge cost<br/>WHY: Recommendations and route debugging must show the proof, not only an average"]:::done
 
   P3fix["🐞 FIX (found via live smoke test): eval scores were ~0.15 because the Golden Set Agent<br/>emitted BARE passages; runEval sent them with no instruction so candidates never did the task<br/>WHY the fix: golden inputs must be SELF-CONTAINED prompts (instruction embedded) — matches a<br/>real app call / promoted trace. After fix: 8B 0.16 → 0.89, and an approved swap flipped the live model"]:::why
 
   P5["Phase 5 · Drift + CI gate — DONE"]:::done
-  P5a["checkDrift: re-eval (or simulated version-bump score) vs prior; if below margin or bar →<br/>drift_event + recovery recommendation (mode=drift picks best passing, cost secondary)<br/>WHY: PRD §5 — quality regressions surface as approval-gated recs, never silent reverts"]:::why
+  P5a["Drift lanes: operational signals are collected (threshold alerts Phase 8), consented live semantic is planned,<br/>and comparable workflow-replay golden eval is active; simulations are quarantined<br/>WHY: synthetic demo numbers must never become customer decisions"]:::why
   P5b["Legacy paid drift + CI endpoints return 409 until Phase 8 can consume an approved queued plan<br/>WHY: a second endpoint must never bypass Phase 7C spend authorization"]:::why
 
-  DONE["✅ Backend loop VERIFIED LIVE end-to-end (Groq + live Postgres):<br/>connect → route → trace → golden(agent) → eval(judge) → recommend → approve → live swap;<br/>drift detected; gate blocked a sub-bar model with 422"]:::done
+  DONE["✅ Historical backend loop VERIFIED LIVE end-to-end; current evidence rules are stricter:<br/>model-only runs shortlist, while production Recommendations require complete protected workflow replay"]:::done
   P7["Phase 7 · Dashboard (Next.js §10) — DONE"]:::done
   P7A["Phase 7A · Connect + Observe — DONE"]:::done
   P7Aa["Observe-only TypeScript SDK + authenticated batch ingestion; metadata-only default<br/>WHY: connect an existing agent without forcing it through Blindspot routing or retaining content"]:::why
@@ -55,6 +55,7 @@ flowchart TD
   P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;<br/>per-example evidence is persisted immediately and incomplete runs cannot recommend<br/>WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
   P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,<br/>rate limits, observability and plan-aware CI/drift jobs<br/>WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
   QA["2026-07-18 · Power Coding QA hardening<br/>Recommendations now require complete same-plan live + candidate evidence; unknown price cannot auto-approve;<br/>critical/high dependency advisories removed without changing the approved stack"]:::done
+  P7D["Phase 7D · Truthful evidence loop — DONE LOCALLY 2026-07-21<br/>observe-only vs managed, protected replay, visible criterion mean, evidence table,<br/>consent-aware golden wizard, real drift lanes and revocable gateway keys"]:::done
 
   P0 --> P0c --> P0d --> P05
   P05 --> P05c --> P05d --> P05e --> P1
@@ -62,7 +63,7 @@ flowchart TD
   P2 --> P2a --> P2b --> P2c --> P3
   P3 --> P3a --> P3b --> P3fix --> P4
   P4 --> P4a --> P4b --> P4c --> P5
-  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc --> QA
+  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc --> QA --> P7D
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;

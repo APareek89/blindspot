@@ -55,7 +55,7 @@ export default async function OverviewPage() {
         <Kpi
           label="Saved (realized)"
           value={`${cents(ov.savedCentsPer1kRealized)}/1k`}
-          foot={`${cents(ov.savedCentsPer1kPending)}/1k pending approval`}
+          foot={`${cents(ov.savedCentsPer1kPending)}/1k pending approval · ${cents(ov.savedCentsPer1kAwaitingRollout)}/1k awaiting rollout`}
           accent="var(--pass)"
         />
         <Kpi

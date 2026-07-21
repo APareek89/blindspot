@@ -301,6 +301,9 @@ async function routeRequirements(projectId: string, routeId: string) {
         workflowId: workflows.id,
         workflowName: workflows.name,
         selected: workflows.selected,
+        integrationMode: workflows.integrationMode,
+        replayEnabled: workflows.replayEnabled,
+        replayConfigured: workflows.replayUrl,
       })
       .from(workflowNodes)
       .innerJoin(workflows, eq(workflowNodes.workflowId, workflows.id))
@@ -314,6 +317,8 @@ async function routeRequirements(projectId: string, routeId: string) {
           id: linked.workflowId,
           name: linked.workflowName,
           selected: linked.selected,
+          integrationMode: linked.integrationMode,
+          replayReady: Boolean(linked.replayEnabled && linked.replayConfigured),
           nodeId: linked.nodeId,
           nodeName: linked.nodeName,
         }

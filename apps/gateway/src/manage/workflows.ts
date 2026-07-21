@@ -5,14 +5,22 @@
 import { Hono } from "hono";
 import {
   getDataControls,
+  getOwnedRoute,
+  getRouteWorkflowContext,
   getWorkflowDetail,
   ingestWorkflowSpans,
   listWorkflows,
+  resolveWorkflowModel,
+  shareWorkflowContext,
   updateDataControls,
+  updateWorkflowReplayConfig,
   updateWorkflowSelection,
 } from "@blindspot/core";
 import {
   DataControlsPatchSchema,
+  WorkflowContextShareInputSchema,
+  WorkflowModelResolveInputSchema,
+  WorkflowReplayConfigInputSchema,
   WorkflowPatchSchema,
   WorkflowSpanBatchSchema,
 } from "@blindspot/shared";
@@ -57,6 +65,40 @@ workflowsRouter.post("/ingest/spans", async (c) => {
   }
 });
 
+workflowsRouter.post("/workflow-context", async (c) => {
+  const parsed = WorkflowContextShareInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return c.json({ error: { message: parsed.error.issues[0]?.message ?? "invalid context manifest" } }, 400);
+  }
+  return c.json({
+    workflow: await shareWorkflowContext(c.get("projectId"), parsed.data),
+  });
+});
+
+workflowsRouter.post("/workflows/resolve-model", async (c) => {
+  const parsed = WorkflowModelResolveInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return c.json({ error: { message: parsed.error.issues[0]?.message ?? "invalid model resolution" } }, 400);
+  }
+  try {
+    return c.json(await resolveWorkflowModel(c.get("projectId"), parsed.data));
+  } catch (error) {
+    return c.json({ error: { message: (error as Error).message } }, 409);
+  }
+});
+
+workflowsRouter.get("/routes/:name/workflow-context", async (c) => {
+  const route = await getOwnedRoute(c.get("projectId"), c.req.param("name"));
+  if (!route) return c.json({ error: { message: "route not found" } }, 404);
+  return c.json({
+    workflow_context: await getRouteWorkflowContext(c.get("projectId"), route.id),
+  });
+});
+
 workflowsRouter.get("/workflows", async (c) => {
   return c.json({ workflows: await listWorkflows(c.get("projectId")) });
 });
@@ -79,6 +121,26 @@ workflowsRouter.patch("/workflows/:id", async (c) => {
   );
   if (!workflow) return c.json({ error: { message: "workflow not found" } }, 404);
   return c.json({ workflow });
+});
+
+workflowsRouter.put("/workflows/:id/replay", async (c) => {
+  const parsed = WorkflowReplayConfigInputSchema.safeParse(
+    await c.req.json().catch(() => null),
+  );
+  if (!parsed.success) {
+    return c.json({ error: { message: parsed.error.issues[0]?.message ?? "invalid replay config" } }, 400);
+  }
+  try {
+    const workflow = await updateWorkflowReplayConfig(
+      c.get("projectId"),
+      c.req.param("id"),
+      parsed.data,
+    );
+    if (!workflow) return c.json({ error: { message: "workflow not found" } }, 404);
+    return c.json({ workflow });
+  } catch (error) {
+    return c.json({ error: { message: (error as Error).message } }, 409);
+  }
 });
 
 workflowsRouter.get("/data-controls", async (c) => {

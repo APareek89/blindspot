@@ -17,7 +17,7 @@ function bust(route: string) {
 
 export async function seedUpload(
   route: string,
-  format: "csv" | "jsonl",
+  format: "csv" | "json" | "jsonl",
   data: string,
 ): Promise<Result> {
   const client = await requireApi();

@@ -5,6 +5,7 @@ import { modelName } from "@/lib/format";
 import { requireApi } from "@/lib/session";
 import type { RouteStatus } from "@/lib/types";
 import { RouteDetailView } from "./RouteDetailView";
+import { RouteTabs } from "./RouteTabs";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,8 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ na
             Golden set →
           </Link>
         </div>
+
+        <RouteTabs route={name} active="experiment" />
 
         <RouteDetailView
           detail={detail}

@@ -10,6 +10,7 @@ import {
 } from "@blindspot/db";
 import { costPer1kCents } from "@blindspot/providers";
 import { clampPagination, type PageInput, type Policy } from "@blindspot/shared";
+import { getRouteControlState } from "../workflows";
 
 /** A route with its live model, its latest quality score, and a health verdict. */
 export interface RouteSummary {
@@ -105,14 +106,28 @@ export async function listRoutes(
   const candCount = new Map(cands.map((c) => [c.routeId, c.n]));
   const setCount = new Map(sets.map((s) => [s.routeId, s.n]));
   const pendingCount = new Map(pending.map((p) => [p.routeId, p.n]));
+  const controlStates = new Map(
+    await Promise.all(
+      rows.map(async (route) => [route.id, await getRouteControlState(route.id)] as const),
+    ),
+  );
 
   const summaries = rows.map((r): RouteSummary => {
+    const control = controlStates.get(r.id);
+    const liveModel =
+      control?.integrationMode === "observe_only"
+        ? control.observedModel ?? r.liveModel
+        : r.liveModel;
     const liveRuns = runs.filter(
       (run): run is (typeof runs)[number] & { avgScore: number } =>
         run.routeId === r.id &&
-        run.modelRef === r.liveModel &&
+        run.modelRef === liveModel &&
         run.status === "completed" &&
-        run.avgScore != null,
+        run.avgScore != null &&
+        run.planId != null &&
+        run.examplesPlanned > 0 &&
+        run.executionMode === "workflow_replay" &&
+        run.scoreMethod === "criteria_mean",
     );
     const quality = liveRuns[0]?.avgScore ?? null; // runs are newest-first
     const sparkline = liveRuns
@@ -124,17 +139,17 @@ export async function listRoutes(
     return {
       id: r.id,
       name: r.name,
-      liveModel: r.liveModel,
+      liveModel,
       policy: r.policyJson,
       autoApprove: r.autoApprove,
       createdAt: r.createdAt,
       quality,
-      costPer1kCents: r.liveModel ? costPer1kCents(r.liveModel) : null,
+      costPer1kCents: liveModel ? costPer1kCents(liveModel) : null,
       sparkline,
       candidateCount: candCount.get(r.id) ?? 0,
       hasGoldenSet,
       pendingRecs,
-      status: statusFor(r.liveModel, quality, r.policyJson.minScore, hasGoldenSet, pendingRecs),
+      status: statusFor(liveModel, quality, r.policyJson.minScore, hasGoldenSet, pendingRecs),
     };
   });
 
@@ -159,6 +174,11 @@ export async function getRouteDetail(projectId: string, name: string) {
   const db = getDb();
   const route = await getOwnedRoute(projectId, name);
   if (!route) return null;
+  const control = await getRouteControlState(route.id);
+  const effectiveLiveModel =
+    control.integrationMode === "observe_only"
+      ? control.observedModel ?? route.liveModel
+      : route.liveModel;
 
   const cands = await db
     .select()
@@ -184,7 +204,10 @@ export async function getRouteDetail(projectId: string, name: string) {
   // latest eval per model → candidate evidence
   const completedRuns = runs.filter(
     (run): run is (typeof runs)[number] & { avgScore: number } =>
-      run.status === "completed" && run.avgScore != null,
+      run.status === "completed" &&
+      run.avgScore != null &&
+      run.planId != null &&
+      run.examplesPlanned > 0,
   );
   const latest = new Map<string, (typeof completedRuns)[number]>();
   for (const r of completedRuns) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
@@ -196,7 +219,7 @@ export async function getRouteDetail(projectId: string, name: string) {
       modelRef: c.modelRef,
       source: c.source,
       enabled: c.enabled,
-      isLive: c.modelRef === route.liveModel,
+      isLive: c.modelRef === effectiveLiveModel,
       score: run?.avgScore ?? null,
       costPer1kCents: costPer1kCents(c.modelRef),
       latencyMs: run?.latencyMs ?? null,
@@ -205,9 +228,14 @@ export async function getRouteDetail(projectId: string, name: string) {
   });
 
   // score-over-time for the live model (oldest→newest) with golden-set version markers
-  const liveSeries = route.liveModel
+  const liveSeries = effectiveLiveModel
     ? completedRuns
-        .filter((r) => r.modelRef === route.liveModel)
+        .filter(
+          (r) =>
+            r.modelRef === effectiveLiveModel &&
+            r.executionMode === "workflow_replay" &&
+            r.scoreMethod === "criteria_mean",
+        )
         .map((r) => ({ score: r.avgScore, version: r.goldenSetVersion, at: r.createdAt }))
         .reverse()
     : [];
@@ -216,11 +244,13 @@ export async function getRouteDetail(projectId: string, name: string) {
     route: {
       id: route.id,
       name: route.name,
-      liveModel: route.liveModel,
+      liveModel: effectiveLiveModel,
       policy: route.policyJson,
       autoApprove: route.autoApprove,
       createdAt: route.createdAt,
-      costPer1kCents: route.liveModel ? costPer1kCents(route.liveModel) : null,
+      costPer1kCents: effectiveLiveModel ? costPer1kCents(effectiveLiveModel) : null,
+      integrationMode: control.integrationMode,
+      observedModel: control.observedModel,
     },
     candidates: candidateDetails,
     scoreSeries: liveSeries,
@@ -266,7 +296,12 @@ export async function removeCandidate(
   const db = getDb();
   const route = await getOwnedRoute(projectId, name);
   if (!route) return { ok: false, error: "route not found" };
-  if (route.liveModel === modelRef) {
+  const control = await getRouteControlState(route.id);
+  const effectiveLiveModel =
+    control.integrationMode === "observe_only"
+      ? control.observedModel ?? route.liveModel
+      : route.liveModel;
+  if (effectiveLiveModel === modelRef) {
     return { ok: false, error: "cannot remove the live model — approve another candidate first" };
   }
   await db

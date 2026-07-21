@@ -6,6 +6,40 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Screening, workflow evidence, drift and application state are different truths
+**What happened:** the user could not tell whether Routes included deterministic code, what the
+manual drift number meant, why a 72% score existed, why “explore cheaper models” produced no usable
+approval, or which golden input/output had actually been judged. Approving an observe-only
+Recommendation could also make the Blindspot route look switched even though GSTPilot still called
+its hard-coded model. **Why chain:** workflow nodes and model Routes shared vocabulary → direct model
+calls were presented like real app execution → a judge-owned overall number hid the visible criteria →
+simulation wrote eval-shaped data → recommendation/application state did not encode who controlled
+routing. Deepest cause: `design` — discovery, screening evidence, production evidence and rollout were
+collapsed into one optimistic happy path.
+**Action:** Workflow Map now shows every node kind while Routes contains generation nodes only;
+connections explicitly store observe-only vs managed; eval plans store model-only vs protected
+workflow replay; only complete replay evidence can recommend a switch; scores are the equal-weight
+mean of displayed criteria; every example is a table row with label/input/expected/output/score/issues;
+the golden flow is a four-step consent-aware wizard with CSV/JSON/JSONL plus Markdown/text context;
+drift has live operational, consented live semantic and golden-eval lanes, while simulations are
+quarantined from history/evals/Recommendations. Observe-only approval now means awaiting rollout.
+**Preventive action:** every evidence-producing feature must name (1) what actually executed, (2) what
+data consent applied, (3) how the number is calculated and (4) whether Blindspot or the application
+owns the final state transition. Demo/synthetic data must carry a source and never enter policy input.
+
+## 2026-07-21 — Shown-once project keys need a complete rotation path
+**What happened:** a local browser diagnostic exposed an active `bs_live_` project key. The database
+correctly stored only its hash, but Settings could mint/list keys without revoking one. **Why chain:** a
+shown-once credential still lived in the connected app environment → diagnostics crossed the secret
+boundary → the product lacked the final revocation operation. Deepest cause: `security lifecycle` — key
+creation existed without replacement verification and revocation.
+**Action:** added tenant-scoped key revocation, protects the final key from accidental lockout, exposed
+the action in Settings, minted and verified a replacement, updated the git-ignored GSTPilot environment
+without displaying it, and revoked the exposed key. Temporary browser auth state was scrubbed.
+**Preventive action:** never type or print bearer credentials through browser automation; use
+permission-restricted state only when unavoidable and scrub it immediately. Every credential feature
+must ship create/list/revoke together, and any diagnostic exposure triggers rotation before handoff.
+
 ## 2026-07-21 — Environment variables do not create observability by themselves
 **What happened:** the user asked questions in local gstpilot but Blindspot still showed zero workflows.
 The key authenticated, yet no application code called the SDK. The first bridge test then exposed three

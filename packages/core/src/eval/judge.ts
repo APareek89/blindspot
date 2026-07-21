@@ -50,8 +50,10 @@ export async function judgeOutputDetailed(opts: {
       (opts.referenceOutput ? `REFERENCE (ideal) OUTPUT:\n${opts.referenceOutput}\n\n` : "") +
       (opts.rubric ? `RUBRIC:\n${opts.rubric}\n\n` : "") +
       `CANDIDATE OUTPUT:\n${opts.output}\n\n` +
-      `Return an overall "score" from 0.0 to 1.0 for how well the candidate meets the ` +
-      `reference/rubric, a "perCriterion" breakdown, and a one-line "reasoning".`,
+      `Return 2-6 concrete "perCriterion" scores from 0.0 to 1.0 that cover the supplied ` +
+      `rubric/reference, a one-line "reasoning", and an overall "score" for backward ` +
+      `compatibility. Blindspot deterministically uses the equal-weight mean of perCriterion ` +
+      `as the displayed and policy score, so the breakdown must be complete.`,
   });
   const promptTokens = usage.promptTokens ?? 0;
   const completionTokens = usage.completionTokens ?? 0;

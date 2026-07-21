@@ -2,6 +2,7 @@
 // records. It is deliberately provider-agnostic: the SDK reports what happened, while this
 // service applies the project's content-retention choice and links model generations to Routes.
 
+import { createHash } from "node:crypto";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import {
   candidates,
@@ -17,15 +18,30 @@ import {
 import {
   CaptureModeSchema,
   DEFAULT_POLICY,
+  decryptSecret,
+  encryptSecret,
   NodeRequirementsSchema,
+  WorkflowContextManifestSchema,
   type CaptureMode,
   type NodeRequirements,
+  type WorkflowContextShareInput,
+  type WorkflowIntegrationMode,
+  type WorkflowModelResolveInput,
+  type WorkflowReplayConfigInput,
   type WorkflowSpanInput,
 } from "@blindspot/shared";
 
 const CAPTURE_RANK: Record<CaptureMode, number> = { metadata: 0, inputs: 1, full: 2 };
 const REDACTED = "[REDACTED]";
 const SENSITIVE_KEY = /(^|[_-])(api[_-]?key|authorization|secret|password|access[_-]?token|refresh[_-]?token|cookie)$/i;
+
+function safeWorkflow<T extends typeof workflows.$inferSelect>(workflow: T) {
+  const { replaySecretEncrypted: _secret, ...safe } = workflow;
+  return {
+    ...safe,
+    replayConfigured: Boolean(workflow.replayUrl && workflow.replaySecretEncrypted),
+  };
+}
 
 /** The server never stores more content than both the project and the emitting SDK allowed. */
 function effectiveCapture(project: CaptureMode, sdk: CaptureMode): CaptureMode {
@@ -104,6 +120,7 @@ async function routeForObservedNode(
   environment: string,
   nodeName: string,
   modelRef: string | null,
+  integrationMode: WorkflowIntegrationMode,
 ): Promise<string | null> {
   if (!modelRef?.includes(":")) return null;
   const name = `${workflowName}@${environment}:${nodeName}`;
@@ -122,6 +139,11 @@ async function routeForObservedNode(
         .limit(1)
     )[0]?.id;
   if (!routeId) throw new Error("observed route could not be resolved");
+  if (integrationMode === "observe_only") {
+    // In observe-only mode the application is the source of truth. A Blindspot approval cannot
+    // claim to have changed it; the next real call reconciles the displayed live model.
+    await tx.update(routes).set({ liveModel: modelRef }).where(eq(routes.id, routeId));
+  }
   await tx
     .insert(candidates)
     .values({ routeId, modelRef, source: "api", enabled: true })
@@ -147,6 +169,7 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
       const now = new Date();
       const workflowUpdate = {
         lastSeenAt: now,
+        integrationMode: item.workflow.integrationMode,
         ...(item.workflow.framework ? { framework: item.workflow.framework } : {}),
         ...(item.workflow.language ? { language: item.workflow.language } : {}),
       };
@@ -172,6 +195,7 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
               workflow.environment,
               item.span.node,
               modelRef,
+              workflow.integrationMode,
             )
           : null;
 
@@ -403,7 +427,7 @@ export async function listWorkflows(projectId: string) {
   const nodesByWorkflow = new Map(nodeCounts.map((row) => [row.workflowId, row.count]));
   const executionsByWorkflow = new Map(executionCounts.map((row) => [row.workflowId, row.count]));
   return rows.map((row) => ({
-    ...row,
+    ...safeWorkflow(row),
     nodeCount: nodesByWorkflow.get(row.id) ?? 0,
     executionCount: executionsByWorkflow.get(row.id) ?? 0,
   }));
@@ -440,7 +464,16 @@ export async function getWorkflowDetail(projectId: string, workflowId: string) {
     .where(eq(workflowNodes.workflowId, workflow.id))
     .groupBy(workflowNodes.id)
     .orderBy(desc(workflowNodes.lastSeenAt));
-  return { workflow, nodes };
+  const executionCount = (
+    await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflow.id))
+  )[0]?.count ?? 0;
+  return {
+    workflow: { ...safeWorkflow(workflow), nodeCount: nodes.length, executionCount },
+    nodes,
+  };
 }
 
 export async function updateWorkflowSelection(
@@ -476,4 +509,211 @@ export async function updateDataControls(projectId: string, captureMode: Capture
       .where(eq(projects.id, projectId))
       .returning({ captureMode: projects.captureMode })
   )[0] ?? null;
+}
+
+export async function getRouteControlState(routeId: string): Promise<{
+  integrationMode: WorkflowIntegrationMode;
+  observedModel: string | null;
+}> {
+  const linked = (
+    await getDb()
+      .select({
+        integrationMode: workflows.integrationMode,
+        observedModel: workflowNodes.latestModel,
+      })
+      .from(workflowNodes)
+      .innerJoin(workflows, eq(workflowNodes.workflowId, workflows.id))
+      .where(eq(workflowNodes.routeId, routeId))
+      .limit(1)
+  )[0];
+  // Routes created through the OpenAI-compatible gateway are managed by definition.
+  return linked ?? { integrationMode: "managed", observedModel: null };
+}
+
+export async function getRouteControlMode(routeId: string): Promise<WorkflowIntegrationMode> {
+  return (await getRouteControlState(routeId)).integrationMode;
+}
+
+/** Store only a manifest the application explicitly submits with consent=true. */
+export async function shareWorkflowContext(
+  projectId: string,
+  input: WorkflowContextShareInput,
+) {
+  const manifest = WorkflowContextManifestSchema.parse(input.manifest);
+  const contextHash = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
+  const now = new Date();
+  return (
+    await getDb()
+      .insert(workflows)
+      .values({
+        projectId,
+        name: input.workflow.name,
+        environment: input.workflow.environment,
+        contextManifestJson: manifest,
+        contextHash,
+        contextSharedAt: now,
+        firstSeenAt: now,
+        lastSeenAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [workflows.projectId, workflows.name, workflows.environment],
+        set: { contextManifestJson: manifest, contextHash, contextSharedAt: now },
+      })
+      .returning({
+        id: workflows.id,
+        name: workflows.name,
+        environment: workflows.environment,
+        contextHash: workflows.contextHash,
+        contextSharedAt: workflows.contextSharedAt,
+      })
+  )[0]!;
+}
+
+export async function getRouteWorkflowContext(projectId: string, routeId: string) {
+  const row = (
+    await getDb()
+      .select({
+        workflowId: workflows.id,
+        workflowName: workflows.name,
+        environment: workflows.environment,
+        context: workflows.contextManifestJson,
+        contextHash: workflows.contextHash,
+        contextSharedAt: workflows.contextSharedAt,
+      })
+      .from(workflowNodes)
+      .innerJoin(workflows, eq(workflowNodes.workflowId, workflows.id))
+      .where(and(eq(workflowNodes.routeId, routeId), eq(workflows.projectId, projectId)))
+      .limit(1)
+  )[0];
+  return row ?? null;
+}
+
+/** Resolve an SDK-managed generation node to its currently approved concrete model. */
+export async function resolveWorkflowModel(projectId: string, input: WorkflowModelResolveInput) {
+  const fallback = canonicalObservedModel(input.fallbackModel) ?? input.fallbackModel;
+  if (!fallback.includes(":")) {
+    throw new Error("fallbackModel must identify a provider, for example anthropic:claude-…");
+  }
+  return getDb().transaction(async (tx) => {
+    const now = new Date();
+    const workflow = (
+      await tx
+        .insert(workflows)
+        .values({
+          projectId,
+          name: input.workflow,
+          environment: input.environment,
+          integrationMode: "managed",
+          firstSeenAt: now,
+          lastSeenAt: now,
+        })
+        .onConflictDoUpdate({
+          target: [workflows.projectId, workflows.name, workflows.environment],
+          set: { integrationMode: "managed", lastSeenAt: now },
+        })
+        .returning()
+    )[0]!;
+    const routeId = await routeForObservedNode(
+      tx,
+      projectId,
+      workflow.name,
+      workflow.environment,
+      input.node,
+      fallback,
+      "managed",
+    );
+    if (!routeId) throw new Error("managed route could not be resolved");
+    await tx
+      .insert(workflowNodes)
+      .values({
+        workflowId: workflow.id,
+        routeId,
+        name: input.node,
+        kind: "generation",
+        latestModel: fallback,
+        requirementsJson: NodeRequirementsSchema.parse({}),
+        firstSeenAt: now,
+        lastSeenAt: now,
+      })
+      .onConflictDoUpdate({
+        target: [workflowNodes.workflowId, workflowNodes.name],
+        set: { routeId, kind: "generation", lastSeenAt: now },
+      });
+    const route = (
+      await tx.select().from(routes).where(eq(routes.id, routeId)).limit(1)
+    )[0]!;
+    return {
+      routeName: route.name,
+      modelRef: route.liveModel ?? fallback,
+      integrationMode: "managed" as const,
+    };
+  });
+}
+
+export async function updateWorkflowReplayConfig(
+  projectId: string,
+  workflowId: string,
+  input: WorkflowReplayConfigInput,
+) {
+  const existing = (
+    await getDb()
+      .select()
+      .from(workflows)
+      .where(and(eq(workflows.id, workflowId), eq(workflows.projectId, projectId)))
+      .limit(1)
+  )[0];
+  if (!existing) return null;
+  if (input.enabled && !input.secret && !existing.replaySecretEncrypted) {
+    throw new Error("A replay secret is required before workflow replay can be enabled");
+  }
+  const updated = (
+    await getDb()
+      .update(workflows)
+      .set({
+        replayUrl: input.url,
+        replayEnabled: input.enabled,
+        ...(input.secret ? { replaySecretEncrypted: encryptSecret(input.secret) } : {}),
+      })
+      .where(and(eq(workflows.id, workflowId), eq(workflows.projectId, projectId)))
+      .returning()
+  )[0];
+  return updated ? safeWorkflow(updated) : null;
+}
+
+/** Internal-only replay target. The decrypted secret never crosses a management API response. */
+export async function getRouteReplayTarget(projectId: string, routeId: string) {
+  const row = (
+    await getDb()
+      .select({
+        workflowId: workflows.id,
+        workflowName: workflows.name,
+        environment: workflows.environment,
+        nodeName: workflowNodes.name,
+        routeName: routes.name,
+        replayUrl: workflows.replayUrl,
+        replaySecretEncrypted: workflows.replaySecretEncrypted,
+        replayEnabled: workflows.replayEnabled,
+      })
+      .from(workflowNodes)
+      .innerJoin(workflows, eq(workflowNodes.workflowId, workflows.id))
+      .innerJoin(routes, eq(workflowNodes.routeId, routes.id))
+      .where(
+        and(
+          eq(workflowNodes.routeId, routeId),
+          eq(workflows.projectId, projectId),
+          eq(routes.projectId, projectId),
+        ),
+      )
+      .limit(1)
+  )[0];
+  if (!row?.replayEnabled || !row.replayUrl || !row.replaySecretEncrypted) return null;
+  return {
+    workflowId: row.workflowId,
+    workflowName: row.workflowName,
+    environment: row.environment,
+    nodeName: row.nodeName,
+    routeName: row.routeName,
+    url: row.replayUrl,
+    secret: decryptSecret(row.replaySecretEncrypted),
+  };
 }

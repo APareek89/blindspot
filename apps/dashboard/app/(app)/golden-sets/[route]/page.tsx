@@ -19,7 +19,11 @@ export default async function RouteGoldenPage({
 
   const client = await requireApi();
   try {
-    const [detail, settings] = await Promise.all([client.getRoute(route), client.settings()]);
+    const [detail, settings, contextResponse] = await Promise.all([
+      client.getRoute(route),
+      client.settings(),
+      client.getRouteWorkflowContext(route),
+    ]);
     const sets = detail.goldenSets;
     const selected = v
       ? sets.find((s) => String(s.version) === v) ?? sets[0]
@@ -61,6 +65,7 @@ export default async function RouteGoldenPage({
           selectedId={selected?.id ?? null}
           examples={examples}
           traces={traces}
+          workflowContext={contextResponse.workflow_context}
         />
       </>
     );

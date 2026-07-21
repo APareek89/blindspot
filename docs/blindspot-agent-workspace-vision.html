@@ -1,0 +1,752 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blindspot — Agent Improvement Workspace</title>
+  <style>
+    :root {
+      --bg: #0a0c0f;
+      --side: #0d1014;
+      --panel: #12161b;
+      --panel-2: #171c23;
+      --panel-3: #1c222b;
+      --line: #252c36;
+      --line-2: #343d49;
+      --text: #edf0f5;
+      --muted: #929ba8;
+      --muted-2: #697483;
+      --accent: #7068ff;
+      --accent-soft: rgba(112, 104, 255, 0.15);
+      --cyan: #48bfd0;
+      --cyan-soft: rgba(72, 191, 208, 0.13);
+      --green: #35c779;
+      --green-soft: rgba(53, 199, 121, 0.13);
+      --amber: #e5a83b;
+      --amber-soft: rgba(229, 168, 59, 0.14);
+      --red: #ef5d63;
+      --red-soft: rgba(239, 93, 99, 0.14);
+      --radius: 12px;
+      --shadow: 0 18px 60px rgba(0, 0, 0, 0.3);
+      --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 72% -12%, rgba(112, 104, 255, 0.12), transparent 34%),
+        var(--bg);
+      color: var(--text);
+      font: 14px/1.5 var(--sans);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input, select, textarea { font: inherit; }
+    button { color: inherit; }
+    a { color: inherit; text-decoration: none; }
+    .app { display: grid; grid-template-columns: 246px minmax(0, 1fr); min-height: 100vh; }
+    .sidebar {
+      position: sticky; top: 0; height: 100vh; z-index: 10;
+      display: flex; flex-direction: column; padding: 18px 14px;
+      background: rgba(13, 16, 20, 0.96); border-right: 1px solid var(--line);
+      backdrop-filter: blur(16px);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 5px 8px 17px; font-weight: 700; letter-spacing: -0.02em; }
+    .brand-mark { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--cyan)); box-shadow: 0 0 22px rgba(112,104,255,.32); }
+    .concept { margin-left: auto; color: var(--muted); font-size: 10px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 6px; text-transform: uppercase; letter-spacing: .06em; }
+    .nav-label { padding: 12px 10px 6px; color: var(--muted-2); font-size: 10px; text-transform: uppercase; letter-spacing: .09em; font-weight: 700; }
+    .nav { display: grid; gap: 3px; }
+    .nav button {
+      width: 100%; display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+      background: transparent; border: 0; border-radius: 8px; color: var(--muted); cursor: pointer; text-align: left;
+    }
+    .nav button:hover { background: var(--panel); color: var(--text); }
+    .nav button.active { color: #d9d6ff; background: var(--accent-soft); }
+    .nav-icon { width: 18px; text-align: center; font-size: 12px; }
+    .nav-badge { margin-left: auto; min-width: 18px; padding: 1px 6px; border-radius: 999px; text-align: center; background: var(--red); color: #fff; font-size: 10px; font-weight: 700; }
+    .sidebar-card { margin-top: auto; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+    .sidebar-card strong { display: block; font-size: 12.5px; margin: 3px 0; }
+    .tiny { color: var(--muted); font-size: 11.5px; }
+    .live-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); margin-right: 5px; }
+
+    main { min-width: 0; padding: 22px 30px 80px; max-width: 1480px; }
+    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+    h1, h2, h3, p { margin-top: 0; }
+    h1 { margin-bottom: 4px; font-size: 23px; letter-spacing: -0.03em; }
+    h2 { font-size: 17px; letter-spacing: -0.02em; }
+    h3 { font-size: 13px; }
+    .subtitle { color: var(--muted); max-width: 760px; font-size: 13px; }
+    .top-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    .status-pill, .badge { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; white-space: nowrap; font-weight: 650; }
+    .status-pill { padding: 7px 11px; border: 1px solid var(--line); background: var(--panel); font-size: 11.5px; }
+    .badge { padding: 3px 8px; font-size: 10.5px; border: 1px solid transparent; }
+    .badge.green { color: var(--green); background: var(--green-soft); }
+    .badge.amber { color: var(--amber); background: var(--amber-soft); }
+    .badge.red { color: var(--red); background: var(--red-soft); }
+    .badge.purple { color: #b5b0ff; background: var(--accent-soft); }
+    .badge.cyan { color: var(--cyan); background: var(--cyan-soft); }
+    .badge.gray { color: var(--muted); background: #20262e; }
+    .btn { border: 1px solid var(--line-2); background: var(--panel-2); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 650; font-size: 12.5px; transition: .15s ease; }
+    .btn:hover { border-color: #4a5564; transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); border-color: var(--accent); color: white; }
+    .btn.green { background: var(--green); border-color: var(--green); color: #04160d; }
+    .btn.danger { color: var(--red); background: var(--red-soft); border-color: rgba(239,93,99,.22); }
+    .btn.small { padding: 5px 9px; font-size: 11.5px; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+    .view { display: none; animation: fade .2s ease; }
+    .view.active { display: block; }
+    @keyframes fade { from { opacity: .35; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .card { background: linear-gradient(180deg, rgba(23,28,35,.84), rgba(18,22,27,.95)); border: 1px solid var(--line); border-radius: var(--radius); padding: 17px; box-shadow: 0 1px 0 rgba(255,255,255,.015); }
+    .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+    .card-title { font-weight: 700; font-size: 13px; }
+    .card-sub { color: var(--muted); font-size: 12px; margin-top: 3px; }
+    .grid { display: grid; gap: 14px; }
+    .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .stack { display: grid; gap: 14px; }
+    .row { display: flex; align-items: center; gap: 9px; }
+    .between { justify-content: space-between; }
+    .wrap { flex-wrap: wrap; }
+    .muted { color: var(--muted); }
+    .mono { font-family: var(--mono); }
+    .callout { padding: 13px 15px; border-radius: 10px; border: 1px solid rgba(112,104,255,.3); background: linear-gradient(90deg, var(--accent-soft), rgba(72,191,208,.04)); margin-bottom: 15px; }
+    .callout strong { color: #d5d2ff; }
+    .kpi { padding: 15px; }
+    .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; }
+    .kpi-value { font-size: 24px; font-weight: 750; margin: 8px 0 3px; letter-spacing: -.03em; }
+    .divider { height: 1px; background: var(--line); margin: 14px 0; }
+
+    .journey { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; position: relative; }
+    .journey::before { content: ""; position: absolute; top: 26px; left: 9%; right: 9%; height: 1px; background: linear-gradient(90deg, var(--accent), var(--cyan)); opacity: .45; }
+    .journey-step { position: relative; padding: 13px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+    .step-num { position: relative; z-index: 1; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; margin-bottom: 10px; background: var(--accent); color: white; font-size: 11px; font-weight: 800; box-shadow: 0 0 0 5px var(--panel); }
+    .journey-step b { display: block; margin-bottom: 5px; }
+    .journey-step p { margin: 0; color: var(--muted); font-size: 12px; }
+    .truth-table { width: 100%; border-collapse: collapse; }
+    .truth-table th, .truth-table td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+    .truth-table th { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+    .truth-table td { font-size: 12.5px; }
+    .truth-table tr:last-child td { border-bottom: 0; }
+
+    .stepper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 14px; }
+    .stepper button { border: 1px solid var(--line); background: var(--panel); color: var(--muted); padding: 10px; border-radius: 9px; cursor: pointer; text-align: left; }
+    .stepper button.active { color: var(--text); border-color: rgba(112,104,255,.55); background: var(--accent-soft); }
+    .stepper small { display: block; color: var(--muted-2); margin-top: 2px; }
+    .connect-stage { display: none; }
+    .connect-stage.active { display: block; }
+    .code { position: relative; background: #0b0e12; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; color: #d8dee8; font: 12px/1.65 var(--mono); overflow: auto; white-space: pre; }
+    .code .c { color: #677282; }
+    .code .v { color: #98d890; }
+    .code .k { color: #b5afff; }
+    .source-card, .option-card { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: var(--panel); cursor: pointer; transition: .15s ease; }
+    .source-card:hover, .option-card:hover { border-color: #414b59; }
+    .source-card.selected, .option-card.selected { border-color: rgba(112,104,255,.7); background: var(--accent-soft); }
+    .source-card .check { width: 18px; height: 18px; border: 1px solid var(--line-2); border-radius: 5px; display: grid; place-items: center; margin-left: auto; color: transparent; }
+    .source-card.selected .check { color: #fff; background: var(--accent); border-color: var(--accent); }
+    .progress { height: 7px; border-radius: 999px; background: #232a33; overflow: hidden; }
+    .progress > span { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--cyan)); transition: width .45s ease; }
+    .discovery-result { display: none; }
+    .discovery-result.show { display: grid; }
+
+    .agent-canvas { min-height: 420px; position: relative; overflow: hidden; background:
+      linear-gradient(rgba(255,255,255,.018) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px), var(--panel);
+      background-size: 24px 24px; border: 1px solid var(--line); border-radius: 12px; padding: 25px;
+    }
+    .agent-flow { height: 365px; display: grid; grid-template-columns: 1fr 38px 1fr 38px 1fr; align-items: center; position: relative; z-index: 2; }
+    .node-col { display: grid; gap: 16px; }
+    .flow-arrow { color: var(--muted-2); text-align: center; font-size: 22px; }
+    .agent-node { border: 1px solid var(--line-2); border-radius: 10px; padding: 13px; background: rgba(18,22,27,.96); cursor: pointer; transition: .15s ease; box-shadow: 0 8px 20px rgba(0,0,0,.18); }
+    .agent-node:hover { transform: translateY(-2px); border-color: #536071; }
+    .agent-node.active { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+    .agent-node.issue { border-left: 3px solid var(--amber); }
+    .node-name { font-weight: 700; font-size: 12.5px; }
+    .node-meta { margin-top: 7px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .node-detail { min-height: 420px; }
+    .metric-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 9px; }
+    .metric-box { padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+    .metric-box b { display: block; margin-top: 4px; font-size: 15px; }
+    .issue-item { padding: 11px; border: 1px solid var(--line); border-left: 3px solid var(--amber); border-radius: 8px; background: var(--panel); }
+    .trace-row { display: grid; grid-template-columns: 64px 1fr 80px 72px; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 11.5px; }
+
+    .field { display: grid; gap: 6px; }
+    .field label { color: var(--muted); font-size: 11px; font-weight: 650; }
+    .input, .select, .textarea { width: 100%; color: var(--text); background: #0d1116; border: 1px solid var(--line-2); border-radius: 8px; padding: 9px 10px; outline: none; }
+    .textarea { min-height: 86px; resize: vertical; }
+    .input:focus, .select:focus, .textarea:focus { border-color: var(--accent); }
+    .switch { width: 36px; height: 20px; flex: 0 0 auto; border-radius: 999px; background: #323a45; position: relative; cursor: pointer; transition: .15s; }
+    .switch::after { content: ""; position: absolute; width: 16px; height: 16px; top: 2px; left: 2px; background: #fff; border-radius: 50%; transition: .15s; }
+    .switch.on { background: var(--accent); }
+    .switch.on::after { left: 18px; }
+    .consent { border: 1px solid rgba(229,168,59,.3); background: var(--amber-soft); border-radius: 10px; padding: 12px; }
+    .golden-table { width: 100%; border-collapse: collapse; }
+    .golden-table th, .golden-table td { padding: 10px 8px; text-align: left; border-bottom: 1px solid var(--line); font-size: 11.5px; vertical-align: top; }
+    .golden-table th { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+    .golden-table tr:last-child td { border-bottom: 0; }
+
+    .model-card { border: 1px solid var(--line); border-radius: 10px; padding: 13px; background: var(--panel); cursor: pointer; }
+    .model-card.selected { border-color: var(--accent); background: var(--accent-soft); }
+    .model-card .model-check { float: right; color: var(--muted-2); }
+    .model-card.selected .model-check { color: var(--green); }
+    .run-overlay { display: none; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); margin-top: 14px; }
+    .run-overlay.show { display: block; }
+    .results { display: none; }
+    .results.show { display: block; }
+    .scorebar { height: 7px; background: #252c35; border-radius: 999px; overflow: hidden; margin-top: 7px; }
+    .scorebar span { display: block; height: 100%; background: var(--green); border-radius: inherit; }
+    .insight { border: 1px solid var(--line); border-left: 3px solid var(--cyan); background: var(--panel); border-radius: 9px; padding: 12px; }
+    .compare-table { width: 100%; border-collapse: collapse; }
+    .compare-table th, .compare-table td { padding: 10px; border-bottom: 1px solid var(--line); text-align: left; font-size: 11.5px; }
+    .compare-table th { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+
+    .loop-line { position: relative; display: grid; gap: 0; margin-left: 9px; }
+    .loop-event { position: relative; padding: 0 0 18px 25px; border-left: 1px solid var(--line-2); }
+    .loop-event::before { content: ""; position: absolute; width: 9px; height: 9px; left: -5px; top: 4px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 5px var(--accent-soft); }
+    .loop-event:last-child { border-left-color: transparent; }
+    .loop-event b { font-size: 12px; }
+    .loop-event p { color: var(--muted); font-size: 11.5px; margin: 3px 0 0; }
+    .simulation-alert { display: none; border: 1px solid rgba(239,93,99,.32); background: var(--red-soft); border-radius: 10px; padding: 13px; margin-bottom: 14px; }
+    .simulation-alert.show { display: block; animation: pulse .35s ease; }
+    @keyframes pulse { 50% { transform: scale(1.01); } }
+
+    .approval-card { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+    .approval-main { padding: 16px; }
+    .approval-evidence { display: none; padding: 16px; border-top: 1px solid var(--line); background: #0f1318; }
+    .approval-evidence.show { display: block; }
+    .sample-compare { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .sample { border: 1px solid var(--line); border-radius: 9px; padding: 11px; background: var(--panel); font-size: 11.5px; }
+    .sample strong { display: block; margin-bottom: 6px; }
+    .decision-state { display: none; padding: 12px; margin-top: 12px; border-radius: 9px; }
+    .decision-state.show { display: block; }
+
+    .tourbar { display: none; position: fixed; left: 276px; right: 30px; bottom: 22px; z-index: 40; align-items: center; gap: 14px; padding: 13px 15px; border: 1px solid rgba(112,104,255,.55); border-radius: 12px; background: rgba(18,22,27,.96); box-shadow: var(--shadow); backdrop-filter: blur(16px); }
+    .tourbar.show { display: flex; }
+    .tour-copy { flex: 1; }
+    .tour-copy b { display: block; font-size: 12.5px; }
+    .tour-copy span { color: var(--muted); font-size: 11.5px; }
+    .toast { position: fixed; right: 24px; top: 22px; z-index: 60; transform: translateY(-20px); opacity: 0; pointer-events: none; padding: 10px 13px; border: 1px solid var(--line-2); border-radius: 9px; background: var(--panel-3); box-shadow: var(--shadow); transition: .2s ease; font-size: 12px; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 1050px) {
+      .grid.four { grid-template-columns: repeat(2, 1fr); }
+      .grid.three { grid-template-columns: 1fr 1fr; }
+      .journey { grid-template-columns: 1fr 1fr; }
+      .journey::before { display: none; }
+      .agent-flow { grid-template-columns: 1fr 24px 1fr; height: auto; gap: 8px; }
+      .agent-flow .node-col:nth-of-type(3), .agent-flow .flow-arrow:nth-of-type(4) { grid-column: 1 / -1; }
+    }
+    @media (max-width: 760px) {
+      .app { grid-template-columns: 1fr; }
+      .sidebar { position: static; height: auto; }
+      .nav { grid-template-columns: 1fr 1fr; }
+      .sidebar-card { margin-top: 12px; }
+      main { padding: 20px 15px 90px; }
+      .topbar, .card-head { flex-direction: column; }
+      .top-actions { justify-content: flex-start; }
+      .grid.two, .grid.three, .grid.four, .journey, .stepper, .sample-compare { grid-template-columns: 1fr; }
+      .tourbar { left: 15px; right: 15px; bottom: 12px; }
+      .agent-flow { display: grid; grid-template-columns: 1fr; }
+      .flow-arrow { transform: rotate(90deg); }
+      .trace-row { grid-template-columns: 55px 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">◇</span> Blindspot <span class="concept">vision</span></div>
+      <div class="nav-label">Agent workspace</div>
+      <nav class="nav" id="nav">
+        <button class="active" data-view="vision"><span class="nav-icon">◎</span> Vision map</button>
+        <button data-view="connect"><span class="nav-icon">↗</span> Connect &amp; discover</button>
+        <button data-view="observe"><span class="nav-icon">⌘</span> Observability</button>
+        <button data-view="quality"><span class="nav-icon">✓</span> Quality setup</button>
+        <button data-view="lab"><span class="nav-icon">△</span> Experiment lab</button>
+        <button data-view="loop"><span class="nav-icon">∞</span> Continuous loop</button>
+        <button data-view="approvals"><span class="nav-icon">◫</span> Approvals <span class="nav-badge">1</span></button>
+      </nav>
+      <div class="sidebar-card">
+        <div class="tiny">Workspace</div>
+        <strong>Acme support agent</strong>
+        <div class="tiny"><span class="live-dot"></span>Production connected · 5 nodes</div>
+        <div class="divider"></div>
+        <div class="tiny">Concept prototype · sample data only</div>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <h1 id="page-title">From shipped agent to improving agent</h1>
+          <div class="subtitle" id="page-subtitle">A proposed product flow for observing, evaluating, experimenting with, and safely improving an existing agentic application.</div>
+        </div>
+        <div class="top-actions">
+          <span class="status-pill"><span class="live-dot"></span> SDK healthy</span>
+          <span class="status-pill">Last ingest · 2m ago</span>
+          <button class="btn" id="tour-start">Start guided tour</button>
+        </div>
+      </header>
+
+      <section class="view active" data-view="vision">
+        <div class="callout"><strong>Proposed product thesis:</strong> Blindspot becomes the control room teams open after their first agent version works—so they can understand it, define “good,” diagnose weaknesses, test improvements, and safely keep it healthy.</div>
+        <div class="journey">
+          <div class="journey-step"><span class="step-num">1</span><b>Connect &amp; discover</b><p>Instrument the app, discover nodes and models, then import product context with explicit permission.</p></div>
+          <div class="journey-step"><span class="step-num">2</span><b>Define quality</b><p>Upload, generate, curate, and approve living golden datasets for each workflow or node.</p></div>
+          <div class="journey-step"><span class="step-num">3</span><b>Diagnose &amp; experiment</b><p>See traces and issues, compare models/prompts, and understand what to fix before switching.</p></div>
+          <div class="journey-step"><span class="step-num">4</span><b>Continuously improve</b><p>Run evals on changes and drift, then approve evidence-backed model or workflow recommendations.</p></div>
+        </div>
+
+        <div class="grid four" style="margin-top:14px">
+          <div class="card kpi"><div class="kpi-label">Agent nodes discovered</div><div class="kpi-value">5</div><div class="tiny">3 model calls · 2 functions</div></div>
+          <div class="card kpi"><div class="kpi-label">Production traces</div><div class="kpi-value">18.4k</div><div class="tiny">7 days · PII redaction on</div></div>
+          <div class="card kpi"><div class="kpi-label">Quality coverage</div><div class="kpi-value">72%</div><div class="tiny">3/5 nodes have golden sets</div></div>
+          <div class="card kpi"><div class="kpi-label">Open improvement</div><div class="kpi-value" style="color:var(--amber)">1</div><div class="tiny">Evidence ready for approval</div></div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <div class="card-head"><div><div class="card-title">Your assumptions—validated and corrected</div><div class="card-sub">These are the product rules I recommend carrying into the PRD.</div></div><span class="badge amber">Pending your approval</span></div>
+          <table class="truth-table">
+            <thead><tr><th>Your assumption</th><th>Verdict</th><th>Recommended product truth</th></tr></thead>
+            <tbody>
+              <tr><td>Connect like Langfuse using an environment variable.</td><td><span class="badge green">Yes, with SDK</span></td><td>Environment variables authenticate. An SDK, callback, or OTel integration emits traces and node metadata. Proxy-only mode remains available for model routing.</td></tr>
+              <tr><td>Blindspot reads README/design docs and agent architecture.</td><td><span class="badge amber">Explicit consent</span></td><td>A local CLI or Git integration uploads selected files. A server cannot infer or secretly read the user’s repository from an environment variable.</td></tr>
+              <tr><td>Generate golden data from product context and live users.</td><td><span class="badge green">Core flow</span></td><td>Use product docs/prompts to draft; use redacted live traces to propose additions. Humans approve production-derived examples before they enter the golden set.</td></tr>
+              <tr><td>Use Blindspot to fine-tune the agent.</td><td><span class="badge cyan">Diagnose first</span></td><td>V1 recommends model, prompt, routing, tool, or flow changes. Provider model fine-tuning stays a later execution capability, not an implied automatic action.</td></tr>
+              <tr><td>Continuous loop can switch models in real time.</td><td><span class="badge purple">Approval-gated</span></td><td>Blindspot can continuously evaluate and simulate. Live changes remain recommendations unless a route explicitly opts into narrow auto-approval.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="view" data-view="connect">
+        <div class="callout"><strong>Connection has two layers:</strong> instrumentation sends runtime truth; context import explains product intent. Users choose both explicitly.</div>
+        <div class="stepper" id="connect-stepper">
+          <button class="active" data-stage="privacy"><b>1 · Set data rules</b><small>Metadata-only by default</small></button>
+          <button data-stage="install"><b>2 · Instrument</b><small>SDK, OTel, or gateway</small></button>
+          <button data-stage="context"><b>3 · Share context</b><small>Files and prompts</small></button>
+          <button data-stage="discover"><b>4 · Discover</b><small>Map nodes and models</small></button>
+        </div>
+
+        <div class="connect-stage" data-stage="install">
+          <div class="grid two">
+            <div class="card">
+              <div class="card-head"><div><div class="card-title">SDK mode</div><div class="card-sub">Recommended for agent graph visibility and Langfuse-style tracing.</div></div><span class="badge green">Recommended</span></div>
+              <div class="code"><span class="c"># .env — authenticates the app</span>
+<span class="v">BLINDSPOT_API_KEY</span>=bs_live_...
+<span class="v">BLINDSPOT_PROJECT</span>=acme-support
+
+<span class="c"># application startup — emits traces + node metadata</span>
+<span class="k">from</span> blindspot <span class="k">import</span> observe
+
+observe.init()
+
+<span class="k">with</span> observe.node(<span class="v">"reply_drafter"</span>):
+    response = agent.invoke(input)</div>
+            </div>
+            <div class="card">
+              <div class="card-head"><div><div class="card-title">Gateway mode</div><div class="card-sub">Fastest route/model control; sees calls but not the full graph unless metadata is attached.</div></div><span class="badge gray">Existing product</span></div>
+              <div class="code"><span class="c"># point an OpenAI-compatible client at Blindspot</span>
+client = OpenAI(
+  base_url=<span class="v">"https://gw.blindspot.dev/v1"</span>,
+  api_key=os.getenv(<span class="v">"BLINDSPOT_API_KEY"</span>)
+)
+
+response = client.chat.completions.create(
+  model=<span class="v">"route:reply-drafter"</span>,
+  messages=messages,
+  extra_headers={<span class="v">"x-bs-node"</span>: <span class="v">"reply_drafter"</span>}
+)</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="connect-stage" data-stage="context">
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Choose what Blindspot may understand</div><div class="card-sub">Selected files are uploaded by a local CLI or Git integration. Nothing is read implicitly.</div></div><span class="badge purple" id="source-count">3 selected</span></div>
+            <div class="grid three" id="source-grid">
+              <div class="source-card selected" data-source><div class="row"><span class="badge cyan">DOC</span><b>README.md</b><span class="check">✓</span></div><p class="tiny">Product purpose, setup and expected user flow.</p></div>
+              <div class="source-card selected" data-source><div class="row"><span class="badge cyan">DOC</span><b>design.md / PRD</b><span class="check">✓</span></div><p class="tiny">Quality expectations, boundaries and architecture.</p></div>
+              <div class="source-card selected" data-source><div class="row"><span class="badge purple">PROMPT</span><b>System prompts</b><span class="check">✓</span></div><p class="tiny">What each model node is instructed to do.</p></div>
+              <div class="source-card" data-source><div class="row"><span class="badge gray">CODE</span><b>Agent graph</b><span class="check">✓</span></div><p class="tiny">Static graph/config to seed node relationships.</p></div>
+              <div class="source-card" data-source><div class="row"><span class="badge gray">SCHEMA</span><b>Tool schemas</b><span class="check">✓</span></div><p class="tiny">Inputs, outputs and tool-contract expectations.</p></div>
+              <div class="source-card" data-source><div class="row"><span class="badge gray">GIT</span><b>Git metadata</b><span class="check">✓</span></div><p class="tiny">Associate prompt/flow versions with eval results.</p></div>
+            </div>
+            <div class="divider"></div>
+            <div class="row between wrap"><span class="tiny">A local preview and secret scan run before any selected source is uploaded.</span><button class="btn primary" data-demo="Context preview opened — exact files and detected sensitive strings are reviewed before upload.">Review &amp; authorize selected sources</button></div>
+          </div>
+        </div>
+
+        <div class="connect-stage active" data-stage="privacy">
+          <div class="grid two">
+            <div class="card stack">
+              <div><div class="card-title">Production data policy</div><div class="card-sub">The SDK starts metadata-only. Customer content is not captured until this policy is saved.</div></div>
+              <div class="row between"><div><b>Capture inputs and outputs</b><div class="tiny">OFF by default. Needed for replay and dataset proposals.</div></div><div class="switch" id="capture-content" data-toggle></div></div>
+              <div class="row between"><div><b>Redact common PII</b><div class="tiny">Emails, phone numbers, cards and configured fields.</div></div><div class="switch on" id="pii-redaction" data-toggle></div></div>
+              <div class="row between"><div><b>Use traces for golden-set proposals</b><div class="tiny">Suggestions only—never silently promoted.</div></div><div class="switch" id="trace-proposals"></div></div>
+              <div class="field"><label>Trace retention</label><select class="select"><option>7 days</option><option>30 days</option><option>90 days</option></select></div>
+              <button class="btn primary" id="save-data-policy">Save data policy</button>
+            </div>
+            <div class="card">
+              <div class="consent"><b>Approval boundary</b><p class="tiny" style="margin:5px 0 0">Blindspot may analyze redacted traces after consent. A human must approve every production-derived example before it becomes evaluation truth.</p></div>
+              <div class="divider"></div>
+              <div class="card-title">What Blindspot stores</div>
+              <ul class="tiny"><li>Trace and span metadata</li><li>Selected inputs/outputs under retention rules</li><li>Prompt/graph version identifiers</li><li>Golden-set acceptance audit log</li></ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="connect-stage" data-stage="discover">
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Discover this agent</div><div class="card-sub">Combine runtime spans with the selected product context.</div></div><button class="btn primary" id="discover-btn">Run discovery</button></div>
+            <div class="progress"><span id="discover-progress"></span></div>
+            <div class="grid four discovery-result" id="discovery-result" style="margin-top:14px">
+              <div class="metric-box"><span class="tiny">Agent nodes</span><b>5</b></div>
+              <div class="metric-box"><span class="tiny">Models in production</span><b>3</b></div>
+              <div class="metric-box"><span class="tiny">Prompts linked</span><b>3</b></div>
+              <div class="metric-box"><span class="tiny">Context files</span><b>3</b></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="observe">
+        <div class="callout"><strong>Observability is graph-aware:</strong> users see the workflow, which nodes call models, what each node costs, and where quality or latency is breaking down. Click a node.</div>
+        <div class="grid two" style="grid-template-columns:minmax(0,1.55fr) minmax(310px,.75fr)">
+          <div class="agent-canvas">
+            <div class="row between"><div class="card-title">Production agent map</div><span class="badge green">18.4k traces · 7d</span></div>
+            <div class="agent-flow">
+              <div class="node-col">
+                <div class="agent-node active" data-node="classifier"><div class="row between"><span class="node-name">Intent classifier</span><span class="badge green">healthy</span></div><div class="node-meta"><span class="badge gray">gemini-flash</span><span class="badge gray">$12 / 1k</span></div></div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="node-col">
+                <div class="agent-node" data-node="retriever"><div class="row between"><span class="node-name">Knowledge retrieval</span><span class="badge green">healthy</span></div><div class="node-meta"><span class="badge gray">tool</span><span class="badge gray">380ms</span></div></div>
+                <div class="agent-node issue" data-node="summarizer"><div class="row between"><span class="node-name">Context summarizer</span><span class="badge amber">issue</span></div><div class="node-meta"><span class="badge gray">gpt-4o-mini</span><span class="badge gray">1.9s</span></div></div>
+              </div>
+              <div class="flow-arrow">→</div>
+              <div class="node-col">
+                <div class="agent-node issue" data-node="drafter"><div class="row between"><span class="node-name">Reply drafter</span><span class="badge amber">issue</span></div><div class="node-meta"><span class="badge gray">claude-sonnet</span><span class="badge gray">$94 / 1k</span></div></div>
+                <div class="agent-node" data-node="guardrail"><div class="row between"><span class="node-name">Policy guardrail</span><span class="badge green">healthy</span></div><div class="node-meta"><span class="badge gray">function</span><span class="badge gray">12ms</span></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="card node-detail" id="node-detail"></div>
+        </div>
+      </section>
+
+      <section class="view" data-view="quality">
+        <div class="callout"><strong>Quality Setup replaces “upload a file and hope”:</strong> users define evaluation truth from three sources, curate it, then version and approve it.</div>
+        <div class="grid two" style="grid-template-columns:.75fr 1.45fr">
+          <div class="stack">
+            <div class="card">
+              <div class="card-title">Configure evals for</div>
+              <div class="field" style="margin-top:10px"><select class="select"><option>Reply drafter</option><option>Context summarizer</option><option>Intent classifier</option></select></div>
+              <div class="divider"></div>
+              <div class="stack" id="quality-options">
+                <div class="option-card selected" data-quality="upload"><div class="row between"><b>Upload dataset</b><span class="badge gray">CSV / JSONL</span></div><p class="tiny">Bring an existing benchmark or human-labeled examples.</p></div>
+                <div class="option-card" data-quality="generate"><div class="row between"><b>Generate from context</b><span class="badge purple">Agent draft</span></div><p class="tiny">Use product brief, prompts, graph, and existing examples.</p></div>
+                <div class="option-card" data-quality="live"><div class="row between"><b>Propose from live traces</b><span class="badge amber">Approval required</span></div><p class="tiny">Find uncertain, diverse, failed, or high-value customer cases.</p></div>
+              </div>
+            </div>
+            <div class="card" id="quality-action"></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">reply-drafter · golden set v3</div><div class="card-sub">42 active examples · last approved by Anand · 2 days ago</div></div><div class="row"><span class="badge green">Quality gate ready</span><button class="btn small" id="add-example">+ Add example</button></div></div>
+            <table class="golden-table" id="golden-table">
+              <thead><tr><th>Input</th><th>Expected / rubric</th><th>Source</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td>Refund requested after delivery delay…</td><td>Empathize, confirm eligibility, no invented policy.</td><td><span class="badge gray">uploaded</span></td><td><span class="badge green">approved</span></td></tr>
+                <tr><td>Customer threatens chargeback and churn…</td><td>De-escalate, escalate to human, do not promise credit.</td><td><span class="badge purple">agent</span></td><td><span class="badge green">approved</span></td></tr>
+                <tr><td>Mixed Hindi/English ticket with missing order ID…</td><td>Ask one concise clarifying question.</td><td><span class="badge amber">production</span></td><td><span class="badge amber">review</span></td></tr>
+              </tbody>
+            </table>
+            <div class="divider"></div>
+            <div class="row between wrap"><span class="tiny">Versioning rule: approved versions are immutable; edits create a draft v4.</span><button class="btn primary" id="approve-dataset">Review 12 suggested examples</button></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="lab">
+        <div class="callout"><strong>Experiment Lab:</strong> pick a node and compare models or prompt versions on the same golden set. Blindspot explains failure patterns—it does not reduce the decision to one average score.</div>
+        <div class="grid two" style="grid-template-columns:.78fr 1.35fr">
+          <div class="stack">
+            <div class="card">
+              <div class="field"><label>Workflow node</label><select class="select"><option>Reply drafter</option><option>Context summarizer</option><option>Intent classifier</option></select></div>
+              <div class="divider"></div>
+              <div class="card-title">Compare candidates</div>
+              <div class="stack" id="model-options" style="margin-top:10px">
+                <div class="model-card selected" data-model><span class="model-check">✓</span><b>Claude Sonnet</b><div class="tiny">Current production baseline</div></div>
+                <div class="model-card selected" data-model><span class="model-check">✓</span><b>Gemini Flash</b><div class="tiny">Lower-cost candidate</div></div>
+                <div class="model-card selected" data-model><span class="model-check">✓</span><b>Llama 3.3 70B</b><div class="tiny">Fast open-model candidate</div></div>
+              </div>
+              <div class="divider"></div>
+              <div class="field"><label>Prompt version</label><select class="select"><option>production · v12</option><option>draft · empathy-first v13</option></select></div>
+              <div class="tiny" style="margin-top:12px">Estimated maximum: 126 candidate + judge calls · $1.20 cost cap</div>
+              <button class="btn primary" id="run-experiment" style="width:100%;margin-top:8px">Review cost &amp; run simulation</button>
+              <div class="run-overlay" id="run-overlay"><div class="row between"><span class="tiny" id="run-status">Preparing isolated runs…</span><span class="tiny" id="run-pct">0%</span></div><div class="progress" style="margin-top:8px"><span id="run-progress"></span></div></div>
+            </div>
+            <div class="card"><div class="card-title">What this lab should diagnose</div><ul class="tiny"><li>Model weakness vs prompt weakness</li><li>Failures concentrated in a segment</li><li>Tool/graph context being lost</li><li>Cost and latency regressions</li><li>Whether fine-tuning is justified</li></ul></div>
+          </div>
+          <div class="stack">
+            <div class="card results" id="experiment-results">
+              <div class="card-head"><div><div class="card-title">Simulation results</div><div class="card-sub">Same golden set · same judge · same prompt v12</div></div><span class="badge green">42/42 scored</span></div>
+              <table class="compare-table">
+                <thead><tr><th>Model</th><th>Quality</th><th>Cost / 1k</th><th>Latency</th><th>Verdict</th></tr></thead>
+                <tbody>
+                  <tr><td><b>Claude Sonnet</b><div class="tiny">current</div></td><td>0.91<div class="scorebar"><span style="width:91%"></span></div></td><td>$94</td><td>1.8s</td><td><span class="badge gray">baseline</span></td></tr>
+                  <tr><td><b>Gemini Flash</b></td><td>0.89<div class="scorebar"><span style="width:89%"></span></div></td><td>$18</td><td>1.1s</td><td><span class="badge green">recommended</span></td></tr>
+                  <tr><td><b>Llama 3.3 70B</b></td><td>0.83<div class="scorebar"><span style="width:83%;background:var(--red)"></span></div></td><td>$14</td><td>0.7s</td><td><span class="badge red">below bar</span></td></tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="grid two results" id="insight-results">
+              <div class="insight"><div class="row between"><b>Issue · policy hallucination</b><span class="badge amber">8 examples</span></div><p class="tiny">Llama invents refund eligibility when order context is incomplete. This is a model + missing-tool-context issue.</p><button class="btn small" data-demo="Failure explorer opened with the eight affected examples and their shared context gap.">Inspect failures</button></div>
+              <div class="insight"><div class="row between"><b>Issue · mixed-language tone</b><span class="badge amber">5 examples</span></div><p class="tiny">All models become too formal on Hinglish tickets. Improve the prompt or add examples before considering fine-tuning.</p><button class="btn small" data-demo="Draft prompt experiment created from the five mixed-language failures.">Create prompt experiment</button></div>
+              <div class="insight"><div class="row between"><b>Opportunity · model switch</b><span class="badge green">−81% cost</span></div><p class="tiny">Gemini stays above the 0.87 quality bar with a small, explainable drop and better latency.</p><button class="btn small" data-go="approvals">Create recommendation</button></div>
+              <div class="insight"><div class="row between"><b>Fine-tuning signal</b><span class="badge gray">Not yet</span></div><p class="tiny">Failures cluster around prompt coverage and missing context. Fix those first; collect residual failures before fine-tuning.</p><button class="btn small" data-demo="Diagnosis saved to this node's experiment history.">Save diagnosis</button></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="loop">
+        <div class="callout"><strong>Continuous Loop:</strong> evaluation is automatic; production changes are not. The loop watches selected nodes and creates evidence-backed actions when quality, cost, latency, prompt versions, or provider behavior change.</div>
+        <div class="simulation-alert" id="simulation-alert"><div class="row between wrap"><div><b>Drift detected · Reply drafter</b><div class="tiny">Claude Sonnet quality moved 0.91 → 0.82 after a simulated provider change.</div></div><button class="btn danger" data-go="approvals">Review recommendation</button></div></div>
+        <div class="grid two" style="grid-template-columns:.85fr 1.25fr">
+          <div class="stack">
+            <div class="card stack">
+              <div class="card-head"><div><div class="card-title">Loop policy</div><div class="card-sub">reply-drafter · quality bar 0.87</div></div><span class="badge green">On</span></div>
+              <div class="row between"><div><b>Evaluate production model</b><div class="tiny">Daily and on prompt/model version changes.</div></div><div class="switch on" data-toggle></div></div>
+              <div class="row between"><div><b>Simulate candidate models</b><div class="tiny">Weekly against the latest approved golden set.</div></div><div class="switch on" data-toggle></div></div>
+              <div class="row between"><div><b>Mine uncertain live traces</b><div class="tiny">Create review suggestions, never auto-label.</div></div><div class="switch on" data-toggle></div></div>
+              <div class="row between"><div><b>Auto-apply live changes</b><div class="tiny">Locked OFF. Configure only a narrow within-band + cheaper policy after review.</div></div><div class="switch" data-lock-toggle title="Locked until a constrained policy is configured"></div></div>
+              <div class="grid two"><div class="field"><label>Alert below</label><input class="input mono" value="0.87" /></div><div class="field"><label>Eval cadence</label><select class="select"><option>Daily</option><option>Weekly</option><option>On change only</option></select></div></div>
+              <button class="btn primary" id="simulate-drift">Simulate provider regression</button>
+            </div>
+            <div class="card"><div class="consent"><b>Non-negotiable</b><p class="tiny" style="margin:5px 0 0">Blindspot may run and compare continuously. It cannot silently switch the live model unless the user explicitly enables a narrow, auditable auto-approve policy for that node.</p></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head"><div><div class="card-title">Live improvement timeline</div><div class="card-sub">Evaluation, diagnosis, and action remain separate audit events.</div></div><span class="badge purple">Last 7 days</span></div>
+            <div class="loop-line" id="loop-timeline">
+              <div class="loop-event"><b>Production eval passed · 0.91</b><p>42 golden examples · Claude Sonnet · prompt v12 · today 09:30</p></div>
+              <div class="loop-event"><b>Candidate simulation completed</b><p>Gemini Flash passed at 0.89 with 81% estimated cost reduction.</p></div>
+              <div class="loop-event"><b>6 live traces proposed for review</b><p>Diverse, low-confidence customer cases · PII removed · awaiting curator.</p></div>
+              <div class="loop-event"><b>Prompt v12 linked to production</b><p>Git SHA and system-prompt fingerprint captured for reproducibility.</p></div>
+              <div class="loop-event"><b>Golden set v3 approved</b><p>12 additions accepted, 3 rejected, full audit preserved.</p></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="view" data-view="approvals">
+        <div class="callout"><strong>Approvals are the execution boundary:</strong> diagnosis and simulation can run continuously, but a production change arrives here with evidence, affected segments, rollback context, and an explicit human decision.</div>
+        <div class="approval-card">
+          <div class="approval-main">
+            <div class="card-head">
+              <div><div class="row wrap"><span class="badge amber">Pending</span><span class="badge purple">reply-drafter</span><span class="tiny">Created by weekly candidate simulation</span></div><h2 style="margin:12px 0 4px">Switch Claude Sonnet → Gemini Flash</h2><div class="muted">Quality stays above the 0.87 bar while estimated model cost falls 81%.</div></div>
+              <div class="row"><button class="btn" id="toggle-evidence">View evidence</button><button class="btn danger" id="reject-change">Reject</button><button class="btn green" id="approve-change">Approve switch</button></div>
+            </div>
+            <div class="grid four">
+              <div class="metric-box"><span class="tiny">Quality</span><b>0.91 → 0.89</b></div>
+              <div class="metric-box"><span class="tiny">Cost</span><b style="color:var(--green)">−81%</b></div>
+              <div class="metric-box"><span class="tiny">Latency</span><b style="color:var(--green)">−0.7s</b></div>
+              <div class="metric-box"><span class="tiny">Coverage</span><b>42 / 42</b></div>
+            </div>
+            <div class="decision-state" id="decision-state"></div>
+          </div>
+          <div class="approval-evidence" id="approval-evidence">
+            <div class="grid two">
+              <div>
+                <div class="card-title" style="margin-bottom:9px">Criterion scores</div>
+                <div class="stack">
+                  <div><div class="row between tiny"><span>Policy accuracy</span><b>0.94 → 0.93</b></div><div class="scorebar"><span style="width:93%"></span></div></div>
+                  <div><div class="row between tiny"><span>Empathy &amp; tone</span><b>0.91 → 0.88</b></div><div class="scorebar"><span style="width:88%"></span></div></div>
+                  <div><div class="row between tiny"><span>Groundedness</span><b>0.90 → 0.89</b></div><div class="scorebar"><span style="width:89%"></span></div></div>
+                  <div><div class="row between tiny"><span>Escalation safety</span><b>0.89 → 0.89</b></div><div class="scorebar"><span style="width:89%"></span></div></div>
+                </div>
+              </div>
+              <div>
+                <div class="card-title" style="margin-bottom:9px">Representative output</div>
+                <div class="sample-compare"><div class="sample"><strong>Claude Sonnet · current</strong>I’m sorry this delay has been frustrating. I can check the refund eligibility once you share the order number.</div><div class="sample"><strong>Gemini Flash · candidate</strong>I’m sorry about the delay. Please share the order number so I can check refund eligibility for you.</div></div>
+                <p class="tiny" style="margin:9px 0 0">No protected segment regressed below the criterion floor. Rollback target: Claude Sonnet + prompt v12.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="tourbar" id="tourbar">
+    <span class="badge purple" id="tour-count">1 / 7</span>
+    <div class="tour-copy"><b id="tour-title">Vision map</b><span id="tour-copy">Start with the full improvement journey and the assumptions that need approval.</span></div>
+    <button class="btn small" id="tour-prev">Back</button>
+    <button class="btn primary small" id="tour-next">Next</button>
+    <button class="btn small" id="tour-close">Close</button>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    const pageMeta = {
+      vision: ["From shipped agent to improving agent", "A proposed product flow for observing, evaluating, experimenting with, and safely improving an existing agentic application."],
+      connect: ["Connect & discover", "Instrument runtime behavior, then import selected product context with explicit permission."],
+      observe: ["Observability", "Understand the real agent graph, model usage, cost, latency, failures, and affected customer segments."],
+      quality: ["Quality setup", "Create and govern the living evaluation truth for every workflow or model node."],
+      lab: ["Experiment lab", "Compare models and prompt versions, then diagnose what should actually change."],
+      loop: ["Continuous loop", "Monitor selected nodes, simulate alternatives, and surface drift without silent production changes."],
+      approvals: ["Approvals", "Review complete evidence before any recommended model or workflow change reaches production."]
+    };
+    const tour = [
+      ["vision", "Vision map", "Start with the full improvement journey and the assumptions that need approval."],
+      ["connect", "Connect & discover", "An environment variable authenticates; instrumentation and explicit context consent provide the useful data."],
+      ["observe", "Observability", "The workflow graph connects traces and model usage to the node where a problem actually lives."],
+      ["quality", "Quality setup", "Evaluation truth can come from uploads, product context, or human-approved production traces."],
+      ["lab", "Experiment lab", "Users compare models and prompts, inspect failure clusters, and receive diagnosis—not only a leaderboard."],
+      ["loop", "Continuous loop", "Blindspot evaluates and simulates continuously while production action stays gated."],
+      ["approvals", "Approvals", "Every production change carries evidence, segment impact, and rollback context for a human decision."]
+    ];
+    let tourIndex = 0;
+    const $ = (s, root = document) => root.querySelector(s);
+    const $$ = (s, root = document) => [...root.querySelectorAll(s)];
+    const toast = (msg) => {
+      const el = $("#toast"); el.textContent = msg; el.classList.add("show");
+      clearTimeout(window.__toast); window.__toast = setTimeout(() => el.classList.remove("show"), 2200);
+    };
+    document.addEventListener("click", e => {
+      const demo = e.target.closest("[data-demo]");
+      if (demo) toast(demo.dataset.demo);
+    });
+    function showView(view) {
+      $$(".view").forEach(el => el.classList.toggle("active", el.dataset.view === view));
+      $$("#nav button").forEach(el => el.classList.toggle("active", el.dataset.view === view));
+      $("#page-title").textContent = pageMeta[view][0];
+      $("#page-subtitle").textContent = pageMeta[view][1];
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    $("#nav").addEventListener("click", e => { const b = e.target.closest("button[data-view]"); if (b) showView(b.dataset.view); });
+    $$('[data-go]').forEach(b => b.addEventListener('click', () => showView(b.dataset.go)));
+
+    // Guided alignment tour.
+    function renderTour() {
+      const [view, title, copy] = tour[tourIndex]; showView(view);
+      $("#tour-count").textContent = `${tourIndex + 1} / ${tour.length}`;
+      $("#tour-title").textContent = title; $("#tour-copy").textContent = copy;
+      $("#tour-prev").disabled = tourIndex === 0;
+      $("#tour-next").textContent = tourIndex === tour.length - 1 ? "Finish" : "Next";
+    }
+    $("#tour-start").addEventListener("click", () => { tourIndex = 0; $("#tourbar").classList.add("show"); renderTour(); });
+    $("#tour-prev").addEventListener("click", () => { if (tourIndex > 0) { tourIndex--; renderTour(); } });
+    $("#tour-next").addEventListener("click", () => { if (tourIndex < tour.length - 1) { tourIndex++; renderTour(); } else { $("#tourbar").classList.remove("show"); toast("Tour complete — review the assumptions on the Vision map."); showView("vision"); } });
+    $("#tour-close").addEventListener("click", () => $("#tourbar").classList.remove("show"));
+
+    // Connect stepper and context consent.
+    $("#connect-stepper").addEventListener("click", e => {
+      const b = e.target.closest("button[data-stage]"); if (!b) return;
+      $$("#connect-stepper button").forEach(x => x.classList.toggle("active", x === b));
+      $$(".connect-stage").forEach(x => x.classList.toggle("active", x.dataset.stage === b.dataset.stage));
+    });
+    $("#source-grid").addEventListener("click", e => {
+      const card = e.target.closest("[data-source]"); if (!card) return;
+      card.classList.toggle("selected");
+      $("#source-count").textContent = `${$$('[data-source].selected').length} selected`;
+    });
+    $$('[data-toggle]').forEach(t => t.addEventListener('click', () => t.classList.toggle('on')));
+    $("#trace-proposals").addEventListener("click", () => {
+      if (!$("#capture-content").classList.contains("on")) return toast("Enable content capture before production traces can become dataset suggestions.");
+      $("#trace-proposals").classList.toggle("on");
+    });
+    $("#save-data-policy").addEventListener("click", () => {
+      const capture = $("#capture-content").classList.contains("on");
+      const proposals = $("#trace-proposals").classList.contains("on");
+      toast(capture ? `Data policy saved: redacted content capture ON${proposals ? " · trace suggestions ON" : ""}.` : "Data policy saved: metadata-only capture.");
+    });
+    $$('[data-lock-toggle]').forEach(t => t.addEventListener('click', () => toast("Auto-apply is locked until a constrained within-band + cheaper policy is reviewed.")));
+    $("#discover-btn").addEventListener("click", () => {
+      const btn = $("#discover-btn"), bar = $("#discover-progress"), result = $("#discovery-result");
+      btn.disabled = true; result.classList.remove("show"); bar.style.width = "24%"; btn.textContent = "Reading runtime map…";
+      setTimeout(() => { bar.style.width = "64%"; btn.textContent = "Linking prompts…"; }, 450);
+      setTimeout(() => { bar.style.width = "100%"; result.classList.add("show"); btn.textContent = "Discovery complete"; toast("5 nodes and 3 model calls discovered."); }, 1050);
+    });
+
+    // Observability node details.
+    const nodes = {
+      classifier: { name:"Intent classifier", type:"Model node", model:"gemini-flash", quality:"0.94", latency:"420ms", cost:"$12", status:"Healthy", issue:"No material issue. 99.2% of traces follow the expected routing schema.", traces:[["15:42","refund request → billing","0.95","390ms"],["15:41","delivery delay → logistics","0.94","441ms"],["15:39","chargeback → escalation","0.96","408ms"]] },
+      retriever: { name:"Knowledge retrieval", type:"Tool node", model:"vector search", quality:"98.7%", latency:"380ms", cost:"—", status:"Healthy", issue:"12 traces returned no supporting document; fallback behavior worked.", traces:[["15:42","policy/refunds/v4","hit","372ms"],["15:41","orders/ETA","hit","402ms"],["15:39","billing/chargeback","hit","367ms"]] },
+      summarizer: { name:"Context summarizer", type:"Model node", model:"gpt-4o-mini", quality:"0.84", latency:"1.9s", cost:"$31", status:"Needs attention", issue:"Long tickets lose the latest customer constraint. Failures cluster above 12 messages; likely context/prompt issue before model switching.", traces:[["15:42","18-message refund thread","0.78","2.4s"],["15:41","6-message delay thread","0.90","1.2s"],["15:39","14-message billing thread","0.79","2.1s"]] },
+      drafter: { name:"Reply drafter", type:"Model node", model:"claude-sonnet", quality:"0.91", latency:"1.8s", cost:"$94", status:"Opportunity", issue:"Quality is healthy, but this node drives 62% of model spend. Gemini Flash scored 0.89 and is an evidence-backed cost candidate.", traces:[["15:42","refund response drafted","0.93","1.7s"],["15:41","delivery apology drafted","0.90","1.9s"],["15:39","chargeback escalated","0.91","1.8s"]] },
+      guardrail: { name:"Policy guardrail", type:"Function node", model:"deterministic", quality:"99.8%", latency:"12ms", cost:"—", status:"Healthy", issue:"Two blocked replies attempted to promise unsupported credits. Guardrail prevented both from reaching users.", traces:[["15:42","reply allowed","pass","11ms"],["15:41","reply allowed","pass","12ms"],["15:39","credit promise blocked","block","14ms"]] }
+    };
+    function renderNode(key) {
+      const n = nodes[key];
+      $("#node-detail").innerHTML = `<div class="card-head"><div><span class="badge ${n.status==='Healthy'?'green':'amber'}">${n.status}</span><h2 style="margin:10px 0 3px">${n.name}</h2><div class="card-sub">${n.type} · <span class="mono">${n.model}</span></div></div><button class="btn small" data-lab>Open in lab</button></div>
+        <div class="metric-row"><div class="metric-box"><span class="tiny">Quality</span><b>${n.quality}</b></div><div class="metric-box"><span class="tiny">P50 latency</span><b>${n.latency}</b></div><div class="metric-box"><span class="tiny">Cost / 1k</span><b>${n.cost}</b></div></div>
+        <div class="divider"></div><div class="card-title">Blindspot diagnosis</div><div class="issue-item" style="margin-top:9px">${n.issue}</div>
+        <div class="divider"></div><div class="row between"><div class="card-title">Recent traces</div><span class="tiny">sample</span></div>
+        <div>${n.traces.map(t=>`<div class="trace-row"><span class="muted">${t[0]}</span><span>${t[1]}</span><span>${t[2]}</span><span class="muted">${t[3]}</span></div>`).join('')}</div>`;
+      $("#node-detail [data-lab]").addEventListener("click", () => showView("lab"));
+    }
+    $$(".agent-node").forEach(node => node.addEventListener("click", () => { $$(".agent-node").forEach(n=>n.classList.remove("active")); node.classList.add("active"); renderNode(node.dataset.node); }));
+    renderNode("classifier");
+
+    // Quality setup modes.
+    const qualityContent = {
+      upload: `<div class="card-title">Upload an existing dataset</div><p class="tiny">CSV or JSONL with input, expected output, rubric, segment, and optional labels.</p><div class="field"><label>Dataset file</label><div class="input muted">Choose file…</div></div><button class="btn primary" data-demo="Dataset schema validated — preview and row-level issues would appear here." style="width:100%;margin-top:10px">Validate & preview</button>`,
+      generate: `<div class="card-title">Agent-generated draft</div><p class="tiny">Generate representative cases from the selected product brief, system prompt, graph, and examples. Nothing becomes approved truth automatically.</p><div class="field"><label>Draft size</label><select class="select"><option>20 examples</option><option>50 examples</option></select></div><button class="btn primary" id="generate-draft" style="width:100%;margin-top:10px">Generate review draft</button>`,
+      live: `<div class="card-title">Production-derived suggestions</div><div class="consent" style="margin-top:9px"><b>Human-curated only</b><p class="tiny" style="margin:4px 0 0">Blindspot proposes redacted, diverse, uncertain, or failed traces. A curator accepts, edits, or rejects every example.</p></div><button class="btn primary" id="find-live" style="width:100%;margin-top:10px">Find candidate traces</button>`
+    };
+    function renderQuality(mode) {
+      $("#quality-action").innerHTML = qualityContent[mode];
+      $("#generate-draft")?.addEventListener("click", () => toast("Drafting 20 examples from approved context…"));
+      $("#find-live")?.addEventListener("click", () => toast("Found 12 diverse redacted traces for review."));
+    }
+    $("#quality-options").addEventListener("click", e => { const card=e.target.closest("[data-quality]"); if(!card)return; $$("[data-quality]").forEach(c=>c.classList.toggle("selected",c===card)); renderQuality(card.dataset.quality); });
+    renderQuality("upload");
+    $("#add-example").addEventListener("click", () => { $("#golden-table tbody").insertAdjacentHTML("beforeend", `<tr><td contenteditable="true">Click to edit new input…</td><td contenteditable="true">Add expected behavior or rubric…</td><td><span class="badge cyan">manual</span></td><td><span class="badge gray">draft</span></td></tr>`); toast("Draft example added. Approved v3 remains unchanged."); });
+    $("#approve-dataset").addEventListener("click", () => { toast("Opening review queue for 12 production suggestions."); $$("[data-quality]").forEach(c=>c.classList.toggle("selected",c.dataset.quality==="live")); renderQuality("live"); });
+
+    // Experiment simulation.
+    $$("[data-model]").forEach(card => card.addEventListener("click", () => card.classList.toggle("selected")));
+    let experimentArmed = false;
+    $("#run-experiment").addEventListener("click", () => {
+      const selected = $$("[data-model].selected").length; if (selected < 2) return toast("Select at least two models to compare.");
+      const overlay=$("#run-overlay"), bar=$("#run-progress"), pct=$("#run-pct"), status=$("#run-status"), btn=$("#run-experiment");
+      if (!experimentArmed) {
+        experimentArmed = true;
+        btn.textContent = "Confirm run · maximum $1.20";
+        overlay.classList.add("show"); status.textContent = "Review: 42 examples · 3 models · candidate + judge calls"; pct.textContent = "Cost capped";
+        toast("Cost review ready. Confirm once more to run the sample simulation.");
+        return;
+      }
+      experimentArmed = false;
+      overlay.classList.add("show"); btn.disabled=true; bar.style.width="12%"; pct.textContent="12%"; status.textContent="Running isolated candidates…";
+      setTimeout(()=>{bar.style.width="48%";pct.textContent="48%";status.textContent="Scoring outputs against v3…";},450);
+      setTimeout(()=>{bar.style.width="82%";pct.textContent="82%";status.textContent="Clustering failure patterns…";},950);
+      setTimeout(()=>{bar.style.width="100%";pct.textContent="100%";status.textContent="Complete · 42/42 scored";btn.disabled=false;btn.textContent="Review cost & run simulation";$("#experiment-results").classList.add("show");$("#insight-results").classList.add("show");toast("Simulation complete — one model opportunity and two issues found.");},1500);
+    });
+
+    // Continuous loop drift simulation.
+    $("#simulate-drift").addEventListener("click", () => {
+      if ($("#simulation-alert").classList.contains("show")) return toast("This simulated drift event is already open for review.");
+      $("#simulation-alert").classList.add("show");
+      $("#loop-timeline").insertAdjacentHTML("afterbegin", `<div class="loop-event"><b style="color:var(--red)">Drift detected · 0.91 → 0.82</b><p>Simulated provider version change · recommendation created · live model unchanged.</p></div>`);
+      toast("Drift caught. The production model has not changed.");
+    });
+
+    // Approval evidence and decisions.
+    $("#toggle-evidence").addEventListener("click", () => { const e=$("#approval-evidence");e.classList.toggle("show");$("#toggle-evidence").textContent=e.classList.contains("show")?"Hide evidence":"View evidence"; });
+    function decision(kind) {
+      const state=$("#decision-state");state.className=`decision-state show ${kind==='approved'?'consent':''}`;
+      if(kind==='approved'){state.style.background="var(--green-soft)";state.style.border="1px solid rgba(53,199,121,.3)";state.innerHTML="<b>Approved in prototype</b><div class='tiny'>The real product would atomically switch the route, record the audit event, and keep the rollback target. No real model changed here.</div>";}
+      else {state.style.background="var(--red-soft)";state.style.border="1px solid rgba(239,93,99,.3)";state.innerHTML="<b>Rejected in prototype</b><div class='tiny'>The live model remains Claude Sonnet. A reason would be stored to improve future recommendations.</div>";}
+      $("#approve-change").disabled = true;
+      $("#reject-change").disabled = true;
+      toast(kind==='approved'?"Prototype approval recorded — no live system changed.":"Prototype rejection recorded.");
+    }
+    $("#approve-change").addEventListener("click",()=>decision("approved"));
+    $("#reject-change").addEventListener("click",()=>decision("rejected"));
+  </script>
+</body>
+</html>

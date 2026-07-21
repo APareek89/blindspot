@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireApi } from "@/lib/session";
-import type { EvalPlan } from "@/lib/types";
+import type { EvalExecutionMode, EvalPlan } from "@/lib/types";
 
 export type Result = { ok: true } | { ok: false; error: string };
 
@@ -60,10 +60,11 @@ export async function estimateEvalA(
   route: string,
   modelRefs: string[],
   budgetUsd: number,
+  executionMode: EvalExecutionMode,
 ): Promise<{ ok: true; plan: EvalPlan } | { ok: false; error: string }> {
   const client = await requireApi();
   try {
-    const { plan } = await client.createEvalPlan(route, { modelRefs, budgetUsd });
+    const { plan } = await client.createEvalPlan(route, { modelRefs, budgetUsd, executionMode });
     return { ok: true, plan };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "estimate failed" };

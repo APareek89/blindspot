@@ -21,6 +21,8 @@ import type {
   Settings,
   Trace,
   CaptureMode,
+  EvalExecutionMode,
+  RouteWorkflowContext,
   WorkflowDetail,
   WorkflowSummary,
 } from "./types";
@@ -132,9 +134,18 @@ export function api(key: string) {
     getWorkflow: (id: string) => get<WorkflowDetail>(`/v1/workflows/${id}`),
     selectWorkflow: (id: string, selected: boolean) =>
       send<{ workflow: WorkflowSummary }>("PATCH", `/v1/workflows/${id}`, { selected }),
+    configureWorkflowReplay: (
+      id: string,
+      body: { url: string; secret?: string; enabled: boolean },
+    ) =>
+      send<{ workflow: WorkflowSummary }>("PUT", `/v1/workflows/${id}/replay`, body),
     getDataControls: () => get<{ captureMode: CaptureMode }>("/v1/data-controls"),
     setDataControls: (captureMode: CaptureMode) =>
       send<{ captureMode: CaptureMode }>("PATCH", "/v1/data-controls", { captureMode }),
+    getRouteWorkflowContext: (name: string) =>
+      get<{ workflow_context: RouteWorkflowContext | null }>(
+        `/v1/routes/${encodeURIComponent(name)}/workflow-context`,
+      ),
 
     // approvals
     listRecommendations: (p: Page & { status?: string } = {}) =>
@@ -154,7 +165,10 @@ export function api(key: string) {
       }),
 
     // budget-authorized evals
-    createEvalPlan: (name: string, body: { modelRefs: string[]; budgetUsd: number }) =>
+    createEvalPlan: (
+      name: string,
+      body: { modelRefs: string[]; budgetUsd: number; executionMode?: EvalExecutionMode },
+    ) =>
       send<{ plan: EvalPlan }>(
         "POST",
         `/v1/routes/${encodeURIComponent(name)}/eval-plans`,
@@ -184,7 +198,7 @@ export function api(key: string) {
       get<{ golden_sets: GoldenSet[] }>(`/v1/routes/${encodeURIComponent(name)}/golden-sets`),
     listExamples: (setId: string) =>
       get<{ examples: GoldenExample[] }>(`/v1/golden-sets/${setId}/examples`),
-    uploadGolden: (name: string, body: { format: "csv" | "jsonl"; data: string }) =>
+    uploadGolden: (name: string, body: { format: "csv" | "json" | "jsonl"; data: string }) =>
       send<{ golden_set: GoldenSet; count: number }>(
         "POST",
         `/v1/routes/${encodeURIComponent(name)}/golden-sets/upload`,
@@ -223,6 +237,7 @@ export function api(key: string) {
     // keys
     listGatewayKeys: () => get<{ keys: GatewayKey[] }>("/v1/keys"),
     createGatewayKey: () => send<{ key: MintedKey }>("POST", "/v1/keys"),
+    deleteGatewayKey: (id: string) => send<{ ok: true }>("DELETE", `/v1/keys/${id}`),
     listProviderKeys: () => get<{ provider_keys: ProviderKey[] }>("/v1/provider-keys"),
     setProviderKey: (provider: string, value: string) =>
       send<{ provider_key: ProviderKey }>("PUT", `/v1/provider-keys/${provider}`, { value }),

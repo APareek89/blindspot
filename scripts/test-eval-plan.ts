@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
   candidates,
+  driftEvents,
   evalExampleResults,
   evalPlans,
   evalRuns,
@@ -16,6 +17,7 @@ import {
   workflows,
 } from "@blindspot/db";
 import {
+  checkDrift,
   createEvalPlan,
   createGoldenSet,
   generateRecommendation,
@@ -23,6 +25,7 @@ import {
   promoteTrace,
   runAuthorizedEvalPlan,
   setProviderKey,
+  updateWorkflowReplayConfig,
   type EvalRuntime,
 } from "@blindspot/core";
 import { Blindspot } from "@blindspot/sdk";
@@ -141,7 +144,13 @@ async function main() {
     const workflow = (
       await db
         .insert(workflows)
-        .values({ projectId: project.id, name: "gstpilot-test", environment: "local", selected: true })
+        .values({
+          projectId: project.id,
+          name: "gstpilot-test",
+          environment: "local",
+          selected: true,
+          integrationMode: "managed",
+        })
         .returning()
     )[0]!;
     const route = (
@@ -170,6 +179,11 @@ async function main() {
         streaming: false,
         systemMessages: false,
       },
+    });
+    await updateWorkflowReplayConfig(project.id, workflow.id, {
+      url: "http://localhost:3999/api/blindspot/replay",
+      secret: "test-only-replay-secret",
+      enabled: true,
     });
     await db.insert(candidates).values([
       { routeId: route.id, modelRef: SONNET, source: "api", enabled: true },
@@ -263,6 +277,7 @@ async function main() {
     const full = await createEvalPlan(project.id, route.name, {
       modelRefs: [SONNET, HAIKU],
       budgetUsd: 1,
+      executionMode: "workflow_replay",
     });
     const sampledBudgetCents = Math.max(
       full.disclosure.minimumBudgetCents,
@@ -271,6 +286,7 @@ async function main() {
     const sampled = await createEvalPlan(project.id, route.name, {
       modelRefs: [SONNET, HAIKU],
       budgetUsd: sampledBudgetCents / 100,
+      executionMode: "workflow_replay",
     });
     assert.equal(sampled.disclosure.mode, "sampled");
     assert.ok(sampled.disclosure.selectedExampleIds.length >= 1);
@@ -293,7 +309,7 @@ async function main() {
         const score = activeCandidate === HAIKU ? 0.9 : 0.93;
         return {
           verdict: {
-            score,
+            score: 0.1,
             perCriterion: [
               { criterion: "accuracy", score },
               { criterion: "clarity", score: score - 0.01 },
@@ -312,6 +328,7 @@ async function main() {
     const candidateOnly = await createEvalPlan(project.id, route.name, {
       modelRefs: [HAIKU],
       budgetUsd: 1,
+      executionMode: "workflow_replay",
     });
     const candidateOnlyResult = await runAuthorizedEvalPlan(
       project.id,
@@ -343,6 +360,10 @@ async function main() {
       .from(evalExampleResults)
       .where(eq(evalExampleResults.evalRunId, result.runs[0]!.evalRunId));
     assert.equal(storedEvidence.length, sampled.disclosure.selectedExampleIds.length);
+    assert.ok(
+      storedEvidence.every((row) => (row.score ?? 0) > 0.85),
+      "persisted scores must be the visible criterion mean, not a free-form judge overall",
+    );
     const planRows = await db.select().from(evalPlans).where(eq(evalPlans.id, sampled.id));
     assert.equal(planRows[0]?.status, "completed");
     const recRows = await db
@@ -358,6 +379,139 @@ async function main() {
       "stale recommendation evidence must not overwrite a newer live-model decision",
     );
     await db.update(routes).set({ liveModel: SONNET }).where(eq(routes.id, route.id));
+
+    const realDriftsBeforeScreening = await db
+      .select({ id: driftEvents.id })
+      .from(driftEvents)
+      .where(eq(driftEvents.routeId, route.id));
+    const screeningPlan = await createEvalPlan(project.id, route.name, {
+      modelRefs: [SONNET],
+      budgetUsd: 1,
+      executionMode: "model_only",
+    });
+    const lowScreeningRuntime: EvalRuntime = {
+      async runCandidate({ input }) {
+        return {
+          text: `Screening output: ${input}`,
+          promptTokens: 10,
+          completionTokens: 10,
+          latencyMs: 20,
+          costCents: 0.01,
+        };
+      },
+      async judge() {
+        return {
+          verdict: {
+            score: 0.2,
+            perCriterion: [{ criterion: "accuracy", score: 0.2 }],
+            reasoning: "Low screening-only score",
+          },
+          promptTokens: 10,
+          completionTokens: 10,
+          costCents: 0.005,
+        };
+      },
+    };
+    const screeningResult = await runAuthorizedEvalPlan(
+      project.id,
+      screeningPlan.id,
+      true,
+      lowScreeningRuntime,
+    );
+    const realDriftsAfterScreening = await db
+      .select({ id: driftEvents.id })
+      .from(driftEvents)
+      .where(eq(driftEvents.routeId, route.id));
+    assert.equal(screeningResult.drift, null, "model-only screening must not become live drift evidence");
+    assert.equal(
+      realDriftsAfterScreening.length,
+      realDriftsBeforeScreening.length,
+      "model-only screening must not create a golden-eval drift event",
+    );
+
+    const runsBeforeSimulation = await db
+      .select({ id: evalRuns.id })
+      .from(evalRuns)
+      .where(eq(evalRuns.routeId, route.id));
+    const simulation = await checkDrift({ routeId: route.id, simulateNewScore: 0.1 });
+    const runsAfterSimulation = await db
+      .select({ id: evalRuns.id })
+      .from(evalRuns)
+      .where(eq(evalRuns.routeId, route.id));
+    assert.equal(
+      runsAfterSimulation.length,
+      runsBeforeSimulation.length,
+      "a drift simulation must never create eval evidence",
+    );
+    assert.equal(simulation.recommendation, null, "a simulation must never create an approval");
+
+    const observedWorkflow = (
+      await db
+        .insert(workflows)
+        .values({
+          projectId: project.id,
+          name: "observe-only-test",
+          environment: "local",
+          integrationMode: "observe_only",
+        })
+        .returning()
+    )[0]!;
+    const observedRoute = (
+      await db
+        .insert(routes)
+        .values({
+          projectId: project.id,
+          name: "observe-only-test@local:answer",
+          liveModel: SONNET,
+          policyJson: { type: "cheapest_passing", minScore: 0.85 },
+        })
+        .returning()
+    )[0]!;
+    await db.insert(workflowNodes).values({
+      workflowId: observedWorkflow.id,
+      routeId: observedRoute.id,
+      name: "answer",
+      kind: "generation",
+      latestModel: SONNET,
+      requirementsJson: {
+        inputModalities: ["text"],
+        outputModalities: ["text"],
+        toolCalling: false,
+        structuredOutput: false,
+        streaming: false,
+        systemMessages: false,
+      },
+    });
+    const observeRecommendation = (
+      await db
+        .insert(recommendations)
+        .values({
+          routeId: observedRoute.id,
+          fromModel: SONNET,
+          toModel: HAIKU,
+          evidenceJson: {
+            fromModel: SONNET,
+            toModel: HAIKU,
+            fromScore: 0.9,
+            toScore: 0.9,
+            costDeltaPct: -50,
+            latencyDeltaMs: -10,
+            perCriterion: [{ criterion: "accuracy", from: 0.9, to: 0.9 }],
+            samples: [{ input: "test", fromOutput: "a", toOutput: "b" }],
+          },
+        })
+        .returning()
+    )[0]!;
+    const observedApproval = await approveRecommendation(observeRecommendation.id, project.id);
+    const observedRouteAfter = (
+      await db.select().from(routes).where(eq(routes.id, observedRoute.id)).limit(1)
+    )[0]!;
+    assert.equal(observedApproval.applicationStatus, "awaiting_rollout");
+    assert.equal(
+      observedRouteAfter.liveModel,
+      SONNET,
+      "observe-only approval must not pretend it changed the connected app",
+    );
 
     let duplicateBlocked = false;
     try {
@@ -395,6 +549,10 @@ async function main() {
         staleApprovalBlocked: true,
         duplicateRunBlocked: duplicateBlocked,
         sdkExecutionBoundarySafe: true,
+        deterministicCriteriaScore: true,
+        modelOnlyDriftBlocked: true,
+        driftSimulationQuarantined: true,
+        observeOnlyApprovalAwaitsRollout: true,
         providerTokenCost: 0,
       }),
     );

@@ -1,30 +1,33 @@
-%% Blindspot — Connect + Observe workflow discovery (Phase 7A; FMEA concurrency sync 2026-07-18)
+%% Blindspot — explicit observe-only or managed connection, consented context, and node discovery (FMEA synced 2026-07-21)
 %% files: packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx
 %% granularity: full
 flowchart TD
-  APP["Existing agent model call<br/>FUNCTION<br/>in: application request · out: model result"]:::term
-  SDK["Blindspot SDK wrapper<br/>FUNCTION · project-key/capture envs, 900 KB cap, bounded one retry<br/>child spans omit lifecycle status; terminal status emitted only at the real request boundary<br/>in: node, model, usage, optional content · out: queued span or metadata fallback"]:::fn
+  APP["Existing agent receives a request<br/>FUNCTION<br/>in: user input · out: application response"]:::term
+  MODE{"BLINDSPOT_ROUTING?<br/>USER · observe_only default or managed"}:::dec
+  KEEP["Application keeps its configured model<br/>FUNCTION · observe-only never asks Blindspot to route"]:::fn
+  RESOLVE["Resolve node model with safe fallback<br/>FUNCTION · POST /v1/workflows/resolve-model<br/>in: workflow, node, fallback · out: approved provider:model"]:::fn
+  RUN["Run application workflow<br/>AGENT + FUNCTION nodes<br/>out: answers, tool results and deterministic decisions"]:::agent
+  SDK["Queue bounded best-effort telemetry<br/>FUNCTION · 900KB cap, one retry, terminal flush at request boundary"]:::fn
   CAP{"Effective capture mode<br/>FUNCTION · stricter of SDK and project<br/>metadata, inputs, or full"}:::dec
-  API["POST /v1/ingest/spans<br/>FUNCTION · auth, 1 MB cap, Zod batch max 100<br/>in: spans + bs_live key · out: accepted ids"]:::fn
-  REDACT["Credential-field redaction<br/>FUNCTION<br/>in: permitted payload · out: safe payload"]:::fn
-  WF["Upsert workflow and execution<br/>DATA · workflows + workflow_executions<br/>out: discovered workflow"]:::data
-  NODE["Upsert node and strictest observed requirements<br/>DATA · workflow_nodes<br/>out: node + capability requirements"]:::data
-  GEN{"Generation node with provider:model?<br/>FUNCTION"}:::dec
-  ROUTE["Link first-seen generation to environment-scoped Route<br/>FUNCTION + DATA · routes + candidates<br/>existing live model never changed"]:::fn
-  SPAN["Store node observation<br/>DATA · workflow_spans<br/>tokens, cost, latency, error, permitted content"]:::data
-  TRACE["Mirror generation into eval trace<br/>DATA · traces<br/>out: promote/eval-compatible trace"]:::data
-  UI["Workflows dashboard<br/>FUNCTION<br/>in: discovered nodes · out: observable flow and metrics"]:::fn
-  SELECT{"User selects workflow for optimization?<br/>USER · default observe-only"}:::ask
-  READY["Selected workflow becomes eligible for model experiments<br/>DATA · workflows.selected = true"]:::term
-  NEXT["Connect guidance continues to Golden Set → estimate → confirm → Approvals<br/>FUNCTION · no experiment spend or live-model change before user authorization"]:::fn
-  OBSERVE["Remain observe-only<br/>DATA · no model or route changes"]:::term
+  API["Ingest authenticated span batch<br/>FUNCTION · 1MB request cap, max 100 spans, Zod validation"]:::fn
+  REDACT["Redact credential-shaped fields<br/>FUNCTION · out: consent-bounded safe payload"]:::fn
+  MAP["Upsert workflow, execution and every node kind<br/>DATA · agent, generation, retrieval, tool and deterministic function nodes"]:::data
+  GEN{"Node is a model generation?<br/>FUNCTION"}:::dec
+  ROUTE["Create/link environment-scoped Route<br/>FUNCTION · observed model is truth in observe-only<br/>managed route changes only after approval"]:::fn
+  UI["Workflows dashboard<br/>FUNCTION · map shows all nodes; Routes & Models shows generation nodes only"]:::fn
+  SHARE{"Share product context now?<br/>USER · explicit action only"}:::ask
+  MANIFEST["Store versioned context manifest and hash<br/>DATA · README/design/prompt/architecture selected by app owner"]:::data
+  NONE["No repository content leaves the app<br/>DATA"]:::term
 
-  APP --> SDK --> CAP --> API --> REDACT --> WF --> NODE --> GEN
-  GEN -- "yes" --> ROUTE --> SPAN --> TRACE --> UI
-  GEN -- "no" --> SPAN
-  SPAN --> UI --> SELECT
-  SELECT -- "yes" --> READY --> NEXT
-  SELECT -- "no" --> OBSERVE
+  APP --> MODE
+  MODE -- "observe-only" --> KEEP --> RUN
+  MODE -- "managed" --> RESOLVE --> RUN
+  RUN --> SDK --> CAP --> API --> REDACT --> MAP --> GEN
+  GEN -- "yes" --> ROUTE --> UI
+  GEN -- "no" --> UI
+  UI --> SHARE
+  SHARE -- "consent" --> MANIFEST
+  SHARE -- "not now" --> NONE
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;

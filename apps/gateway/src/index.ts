@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { bodyLimit } from "hono/body-limit";
 import { getDb, traces } from "@blindspot/db";
 import { checkModelKeyConfig } from "@blindspot/core";
 import { parseModelRef, runChat } from "@blindspot/providers";
@@ -38,6 +39,13 @@ const app = new Hono<Env>();
 app.get("/healthz", (c) => c.json({ ok: true, service: "gateway" }));
 
 // Everything under /v1 requires a project key.
+app.use(
+  "/v1/*",
+  bodyLimit({
+    maxSize: 6 * 1024 * 1024,
+    onError: (c) => c.json({ error: { message: "request body exceeds the 6 MB limit" } }, 413),
+  }),
+);
 app.use("/v1/*", requireProject);
 
 // Management surface (routes, golden sets, candidates + evals, approvals, keys, …).

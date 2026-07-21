@@ -3,6 +3,7 @@
 // to metadata-only capture. Apps can call flush() at a request boundary for delivery certainty.
 
 export type CaptureMode = "metadata" | "inputs" | "full";
+export type IntegrationMode = "observe_only" | "managed";
 export type NodeKind = "agent" | "generation" | "tool" | "retrieval" | "function";
 
 export interface NodeRequirements {
@@ -24,8 +25,20 @@ export interface BlindspotConfig {
   language?: string;
   environment?: string;
   captureMode?: CaptureMode;
+  integrationMode?: IntegrationMode;
   flushIntervalMs?: number;
   onError?: (error: Error) => void;
+}
+
+export interface WorkflowContextManifest {
+  version: string;
+  productBrief?: string;
+  architecture?: string;
+  documents?: Array<{
+    name: string;
+    kind: "readme" | "design" | "prompt" | "architecture" | "other";
+    content: string;
+  }>;
 }
 
 export interface SpanStart {
@@ -65,6 +78,7 @@ interface WireSpan {
     framework?: string;
     language?: string;
     environment: string;
+    integrationMode: IntegrationMode;
   };
   execution: {
     id: string;
@@ -115,6 +129,12 @@ function endpoint(baseUrl: string): string {
   return `${clean}/v1/ingest/spans`;
 }
 
+function apiEndpoint(baseUrl: string, path: string): string {
+  const clean = baseUrl.replace(/\/+$/, "");
+  const root = clean.endsWith("/v1") ? clean : `${clean}/v1`;
+  return `${root}${path}`;
+}
+
 function envCapture(value: string | undefined): CaptureMode {
   return value === "inputs" || value === "full" ? value : "metadata";
 }
@@ -122,9 +142,15 @@ function envCapture(value: string | undefined): CaptureMode {
 export class Blindspot {
   readonly enabled: boolean;
   private readonly config: Required<
-    Pick<BlindspotConfig, "workflow" | "environment" | "captureMode" | "flushIntervalMs">
+    Pick<
+      BlindspotConfig,
+      "workflow" | "environment" | "captureMode" | "integrationMode" | "flushIntervalMs"
+    >
   > &
-    Omit<BlindspotConfig, "workflow" | "environment" | "captureMode" | "flushIntervalMs">;
+    Omit<
+      BlindspotConfig,
+      "workflow" | "environment" | "captureMode" | "integrationMode" | "flushIntervalMs"
+    >;
   private queue: QueuedSpan[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
   private sending: Promise<void> | null = null;
@@ -134,6 +160,7 @@ export class Blindspot {
       ...config,
       environment: config.environment ?? "production",
       captureMode: config.captureMode ?? "metadata",
+      integrationMode: config.integrationMode ?? "observe_only",
       flushIntervalMs: config.flushIntervalMs ?? 100,
     };
     this.enabled = Boolean(config.apiKey && config.baseUrl);
@@ -156,6 +183,7 @@ export class Blindspot {
       baseUrl: process.env.BLINDSPOT_BASE_URL,
       environment: process.env.BLINDSPOT_ENVIRONMENT ?? process.env.NODE_ENV ?? "production",
       captureMode: envCapture(process.env.BLINDSPOT_CAPTURE),
+      integrationMode: process.env.BLINDSPOT_ROUTING === "managed" ? "managed" : "observe_only",
     });
   }
 
@@ -174,6 +202,7 @@ export class Blindspot {
             framework: this.config.framework,
             language: this.config.language,
             environment: this.config.environment,
+            integrationMode: this.config.integrationMode,
           },
           execution: {
             id: start.executionId,
@@ -227,6 +256,77 @@ export class Blindspot {
     } catch (error) {
       span.end({ status: "error", error: error instanceof Error ? error.message : "unknown error" });
       throw error;
+    }
+  }
+
+  /**
+   * Resolve a node's approved model only when BLINDSPOT_ROUTING=managed. Observe-only apps keep
+   * their fallback and approvals remain "awaiting rollout" instead of pretending to be applied.
+   */
+  async resolveModel(node: string, fallbackModel: string): Promise<string> {
+    if (!this.enabled || this.config.integrationMode !== "managed") return fallbackModel;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 3_000);
+    timeout.unref?.();
+    try {
+      const response = await fetch(apiEndpoint(this.config.baseUrl!, "/workflows/resolve-model"), {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.config.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workflow: this.config.workflow,
+          environment: this.config.environment,
+          node,
+          fallbackModel,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Blindspot model resolution returned ${response.status}`);
+      const body = (await response.json()) as { modelRef?: string };
+      if (!body.modelRef) throw new Error("Blindspot model resolution returned no model");
+      return body.modelRef;
+    } catch (error) {
+      this.report(
+        error instanceof Error ? error : new Error("Blindspot model resolution failed"),
+      );
+      return fallbackModel;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  /** Explicit, revocable application action; Blindspot never reads repository files itself. */
+  async shareContext(manifest: WorkflowContextManifest): Promise<boolean> {
+    if (!this.enabled) return false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    timeout.unref?.();
+    try {
+      const response = await fetch(apiEndpoint(this.config.baseUrl!, "/workflow-context"), {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.config.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workflow: {
+            name: this.config.workflow,
+            environment: this.config.environment,
+          },
+          consent: true,
+          manifest,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Blindspot context sharing returned ${response.status}`);
+      return true;
+    } catch (error) {
+      this.report(error instanceof Error ? error : new Error("Blindspot context sharing failed"));
+      return false;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

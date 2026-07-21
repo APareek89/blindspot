@@ -15,11 +15,11 @@ export function DriftSimulator({ routes }: { routes: RouteSummary[] }) {
   return (
     <div className="card">
       <div className="card-title" style={{ marginBottom: 4 }}>
-        Simulate a version bump
+        Developer-only drift simulator
       </div>
       <div className="card-sub" style={{ marginBottom: 12 }}>
-        Inject a post-bump score for a route’s live model. If it drops out of band, a drift event
-        and an approval-gated recommendation are created — never an auto-revert.
+        Inject a demonstration score. It is tagged simulation and never enters eval evidence,
+        route health, or the Approvals inbox.
       </div>
 
       {evaluable.length === 0 ? (

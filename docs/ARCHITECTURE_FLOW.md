@@ -1,81 +1,64 @@
 # Blindspot — Architecture Flow
 
-> **Status: Phases 0–7 verified live; Phases 7A–7C built and QA-hardened 2026-07-18.** The original
-> loop + dashboard run against Groq + Supabase; the SDK/ingestion/workflow path plus the
-> account-scoped model registry, node compatibility gate, immutable eval plans, deterministic
-> budget sampling and per-example evidence are implemented and await the first gstpilot connection.
-> Pending: Phase 7D (continuous loop) and Phase 8 (queue scale, crash recovery, observability,
-> rate limits). These diagrams describe the *real* runtime; update the `.mmd` in the same
-> session as any structural change — the git diff of the `.mmd` IS the change highlight.
-> Regenerate the standalone viewer with:
-> `node /Users/anandpareek/.codex/skills/power-coding/scripts/build-html.mjs docs/mermaid docs/architecture-flow.html`
+> **Status: local prototype verified through the truthful-evidence UX correction on 2026-07-21.**
+> The SDK discovers real workflows, the dashboard separates every workflow node from model-only
+> Routes, golden sets are versioned and consent-aware, budgeted evals persist per-example evidence,
+> and production model recommendations require real workflow replay. Redis/worker durability,
+> scheduled live semantic judging, the suggested-additions queue, OTel/Sentry and load hardening
+> remain Phase 8 work.
 >
-> **Diagrams:** `00` master loop · `01` build decisions · `02` golden sets · `03` eval→recommend ·
-> `04` drift→gate · `05` dashboard + management API · `06` Connect + Observe ·
-> `07` Model Registry + Compatibility · **`08` Budgeted Eval Authorization**.
+> The canonical diagrams are `docs/mermaid/*.mmd`; the standalone all-diagram viewer is
+> `docs/architecture-flow.html`.
 
-## Legend
-| Label | Meaning |
+## What each object means
+
+| Object | Runtime truth |
 |---|---|
-| **AGENT · model** | an LLM makes the decision/generation (model named) |
-| **FUNCTION** | deterministic code, no model |
-| **LIBRARY · name** | an external library does the heavy lifting |
-| **DATA · store** | a table/store being read or written |
-| **USER** | a decision only the human can make (approve/reject) |
+| Workflow | The whole application flow: agent, generation, retrieval, tool and deterministic function nodes. |
+| Route | One **generation node** where a model is used and can be compared or managed. Deterministic code is never mislabeled as a model route. |
+| Observe-only | Blindspot records the model the app actually used. Approval means “awaiting app rollout”; Blindspot does not claim it switched the app. |
+| Managed | The app asks Blindspot to resolve a node model. Only an approved Recommendation can change that route; fallback keeps the app available. |
+| Model-only eval | Direct candidate call for a fast shortlist. It does not run retrieval, tools or deterministic gates and cannot justify a production swap. |
+| Workflow-replay eval | A protected callback runs the real app with a temporary target-node model override. This is production-grade evidence. |
+| Golden set | A versioned, user-owned asset seeded by structured upload or agent generation from consented documents/context/traces, then curated through CRUD and trace promotion. |
+| Drift | Live operational telemetry is collected (automatic thresholds remain Phase 8), live semantic judging needs consent/budget, and golden-eval comparison is active. Developer simulations are quarantined. |
 
-## Gates at a glance
-| Gate | Enforcer | Threshold / rule |
-|---|---|---|
-| Policy (recommend) | FUNCTION | complete same-plan live/candidate evidence; cheapest candidate with score **≥ 0.85** and comparable price |
-| Drift detection | FUNCTION | new score **below** route band (old − margin) → drift event |
-| Approval | USER | lock Route + Recommendation; reject stale `from_model`; no change without approve unless `auto_approve` = ON |
-| Auto-approve (opt-in) | FUNCTION | within quality band **AND** cost decreases (default OFF) |
-| CI Gate | FUNCTION | legacy paid endpoint is closed; plan-aware queued CI gate returns in Phase 8 |
-| Content retention | USER + FUNCTION | effective mode is the stricter of SDK and project (`metadata` default) |
-| Workflow selection | USER | discovery is observe-only until `workflows.selected = true` |
-| Provider availability | FUNCTION | read-only account catalog sync; no inference/token spend |
-| Technical compatibility | FUNCTION | key/access plus modality, tool, schema, streaming, system and context requirements |
-| Eval spend | USER + FUNCTION | immutable estimate → exact disclosed sample → explicit confirmation → single-use plan; legacy paid paths return 409 |
+## Master flow
 
-## Master flow — Observe → Eval → Recommend → Approve → Route → Gate
 ```mermaid
 flowchart TD
-  A["User agent call<br/>ENTRY · base_url points to gateway, model = route:name"]:::term
-  B["Resolve route to approved live_model<br/>FUNCTION<br/>in: route:name · out: concrete model_ref"]:::fn
-  C{"Route exists?<br/>FUNCTION"}:::dec
-  D["Auto-create route with default policy<br/>FUNCTION · out: routes row"]:::fn
-  E["Decrypt user provider key<br/>FUNCTION · AES-256-GCM<br/>in: provider_keys.encrypted_key · out: in-memory key"]:::fn
-  F["Live LLM call through user key<br/>LIBRARY · Vercel AI SDK adapter<br/>in: prompt + model_ref · out: completion"]:::data
-  G["Write trace<br/>DATA · traces · cost, latency, output"]:::data
-  EST["Calculate full cost and deterministic sample<br/>FUNCTION · no provider calls<br/>DATA · eval_plans status = draft"]:::fn
-  CONF{"User confirms disclosed cap and exact cases?<br/>USER"}:::ask
-  H["Lock single-use plan and run inline locally<br/>FUNCTION · Phase 8 queues the same authorization"]:::data
-  I["Judge scores golden set<br/>AGENT · JUDGE_MODEL<br/>in: outputs vs golden_examples · out: per-criterion scores"]:::agent
-  J["Aggregate avg_score, cost, latency<br/>FUNCTION · writes DATA · eval_runs"]:::fn
-  K{"Drift? new score below route band<br/>FUNCTION · new below old minus margin"}:::dec
-  L{"Policy: cheaper candidate at or above bar?<br/>FUNCTION · cheapest with score at or above 0.85"}:::dec
-  M["Create Recommendation with evidence<br/>FUNCTION · per-criterion scores, cost and latency delta, 3 side-by-side samples<br/>DATA · recommendations status = pending"]:::fn
-  N["Approvals inbox<br/>DATA · recommendations"]:::data
-  O{"User decision<br/>USER · approve or reject"}:::ask
-  P["Lock decision + Route; reject stale from_model; update live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
-  Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
-  R["CI Gate paid endpoint<br/>FUNCTION · closed with 409 until Phase 8 consumes an approved plan"]:::term
+  A["Existing agent handles a user request<br/>ENTRY · app keeps its prompts, tools and deterministic code"]:::term
+  MODE{"Connection mode?<br/>USER · observe-only is default"}:::dec
+  OBS["Observe existing calls and all node kinds<br/>FUNCTION · consent-bounded spans<br/>out: workflow map + generation Routes"]:::fn
+  MAN["Resolve generation node to approved model<br/>FUNCTION · managed SDK or gateway<br/>out: provider:model"]:::fn
+  LIVE["Run the real application workflow<br/>AGENT + FUNCTION nodes<br/>out: answer, spans, usage, errors and latency"]:::agent
+  GOLD["Create versioned golden set<br/>USER · upload, documents, explicitly shared context, or consented traces"]:::ask
+  EST["Choose compatible models + eval grade; calculate budget<br/>FUNCTION · exact full/sample disclosure · no provider calls"]:::fn
+  CONF{"Confirm exact paid plan?<br/>USER"}:::ask
+  EVAL["Execute authorized examples and judge visible criteria<br/>AGENT · candidate + JUDGE_MODEL<br/>DATA · per-example evidence + criterion mean"]:::agent
+  GRADE{"Workflow replay?<br/>FUNCTION"}:::dec
+  SCREEN["Screening shortlist and issues only<br/>DATA · no production Recommendation"]:::term
+  POLICY{"Complete comparable evidence; candidate passes bar and proves benefit?<br/>FUNCTION"}:::dec
+  REC["Evidence-backed Recommendation<br/>DATA · Approvals inbox · app unchanged"]:::data
+  DECIDE{"Approve or reject?<br/>USER"}:::ask
+  APPLY{"Managed connection?<br/>FUNCTION"}:::dec
+  SWITCH["Apply route model with stale-baseline check<br/>FUNCTION · audited"]:::fn
+  WAIT["Approved · awaiting app rollout<br/>DATA · observe-only route unchanged"]:::term
 
-  A --> B --> C
-  C -- "no" --> D --> E
-  C -- "yes" --> E
-  E --> F --> G
-  F --> EST --> CONF
-  CONF -- "confirm" --> H --> I --> J
-  CONF -- "change budget/models" --> EST
-  J --> K
-  J --> L
-  K -- "yes, quality dropped" --> M
-  L -- "yes, cheaper passes" --> M
-  M --> N --> O
-  O -- "approve" --> P
-  O -- "reject" --> Q
-  R -.-> L
+  A --> MODE
+  MODE -- "observe-only" --> OBS --> LIVE
+  MODE -- "managed" --> MAN --> LIVE
+  LIVE --> GOLD --> EST --> CONF
+  CONF -- "revise" --> EST
+  CONF -- "confirm" --> EVAL --> GRADE
+  GRADE -- "no" --> SCREEN
+  GRADE -- "yes" --> POLICY
+  POLICY -- "yes" --> REC --> DECIDE
+  POLICY -- "no" --> SCREEN
+  DECIDE -- "reject" --> SCREEN
+  DECIDE -- "approve" --> APPLY
+  APPLY -- "yes" --> SWITCH
+  APPLY -- "no" --> WAIT
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
@@ -85,90 +68,64 @@ flowchart TD
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
 ```
 
-## Connect + Observe — discover first, optimize only after selection
-
-```mermaid
-flowchart TD
-  APP["Existing agent model call<br/>FUNCTION<br/>in: application request · out: model result"]:::term
-  SDK["Blindspot SDK wrapper<br/>FUNCTION · project-key/capture envs, 900 KB cap, bounded one retry<br/>terminal status emitted at the real request boundary<br/>in: node, model, usage, optional content · out: queued span or metadata fallback"]:::fn
-  CAP{"Effective capture mode<br/>FUNCTION · stricter of SDK and project<br/>metadata, inputs, or full"}:::dec
-  API["POST /v1/ingest/spans<br/>FUNCTION · auth, 1 MB cap, Zod batch max 100<br/>in: spans + bs_live key · out: accepted ids"]:::fn
-  REDACT["Credential-field redaction<br/>FUNCTION<br/>in: permitted payload · out: safe payload"]:::fn
-  WF["Upsert workflow and execution<br/>DATA · workflows + workflow_executions<br/>out: discovered workflow"]:::data
-  NODE["Upsert node and strictest observed requirements<br/>DATA · workflow_nodes<br/>out: node + capability requirements"]:::data
-  GEN{"Generation node with provider:model?<br/>FUNCTION"}:::dec
-  ROUTE["Link first-seen generation to environment-scoped Route<br/>FUNCTION + DATA · routes + candidates<br/>existing live model never changed"]:::fn
-  SPAN["Store node observation<br/>DATA · workflow_spans<br/>tokens, cost, latency, error, permitted content"]:::data
-  TRACE["Mirror generation into eval trace<br/>DATA · traces<br/>out: promote/eval-compatible trace"]:::data
-  UI["Workflows dashboard<br/>FUNCTION<br/>in: discovered nodes · out: observable flow and metrics"]:::fn
-  SELECT{"User selects workflow for optimization?<br/>USER · default observe-only"}:::ask
-  READY["Selected workflow becomes eligible for model experiments<br/>DATA · workflows.selected = true"]:::term
-  OBSERVE["Remain observe-only<br/>DATA · no model or route changes"]:::term
-
-  APP --> SDK --> CAP --> API --> REDACT --> WF --> NODE --> GEN
-  GEN -- "yes" --> ROUTE --> SPAN --> TRACE --> UI
-  GEN -- "no" --> SPAN
-  SPAN --> UI --> SELECT
-  SELECT -- "yes" --> READY
-  SELECT -- "no" --> OBSERVE
-
-  classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
-  classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
-  classDef dec fill:#f3e8ff,stroke:#9333ea,color:#2a0a4a;
-  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
-  classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
-  classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
-```
-
-## Registry + compatibility — show only technically viable choices
-
-Provider onboarding is project-scoped and BYO-key based. Settings calls the provider's read-only
-model-list endpoint, validates the bounded response, normalizes its capability facts, and stores
-account availability in `model_registry`. The first prototype deliberately exposes only Claude
-Sonnet 4.6 and Haiku 4.5; Hugging Face and Fireworks use the same adapter contract but remain out
-of the experiment picker until their capability evidence is strong enough.
-
-For a route linked to an observed agent node, Blindspot compares each exposed model with the
-strictest requirements seen for that node. A model is eligible only when provider access is
-verified and every known requirement fits. Unknown facts are shown as “needs verification,” and
-hard mismatches are excluded with the exact reason. The same check runs again server-side when a
-candidate is added. Candidate creation spends no eval budget and never changes `live_model`.
-
-Phase 7C then computes a free conservative estimate for the chosen compatible candidates and the
-configured judge. A below-full cap produces a deterministic stratified sample, with selected and
-omitted cases, strata, seed, calls, cost and confidence disclosed before confirmation. Confirmation
-atomically consumes the 30-minute plan once. Candidate and judge results are stored per example;
-only complete live-and-candidate evidence from that same plan can create a Recommendation. Missing
-pricing cannot prove a saving or trigger auto-approval. `live_model` remains unchanged unless the
-existing approval rule (or explicit per-route auto-approve opt-in) applies, and approval rejects a
-Recommendation if its `from_model` is no longer live.
+## Evals: what is actually scored
 
 ```mermaid
 flowchart LR
-  SYNC["USER · Sync provider"]:::ask --> LIST["FUNCTION · list models<br/>zero inference tokens"]:::fn
-  LIST --> REG["DATA · model_registry<br/>availability + capabilities"]:::data
-  REQ["DATA · observed node requirements"]:::data --> MATCH{"FUNCTION · technical match?"}:::dec
-  REG --> MATCH
-  MATCH -- "yes" --> ELIGIBLE["Eligible experiment model"]:::data
-  MATCH -- "no / unknown" --> EXCLUDED["Excluded + reasons"]:::data
-  ELIGIBLE --> ADD["USER · add candidate"]:::ask --> GUARD["FUNCTION · server re-check"]:::fn
-  GUARD --> SAFE["DATA · candidate only<br/>no eval spend · live unchanged"]:::data
+  P["Immutable paid plan<br/>DATA · models, exact examples, mode and cap"]:::data
+  M{"Execution mode?<br/>FUNCTION"}:::dec
+  D["Direct candidate call<br/>AGENT · model-only"]:::agent
+  R["Protected app callback<br/>FUNCTION · real workflow + temporary model override"]:::fn
+  J["Per-criterion judge<br/>AGENT · JUDGE_MODEL"]:::agent
+  S["Equal-weight criterion mean<br/>FUNCTION · visible formula"]:::fn
+  T["Evidence table<br/>DATA · label, input, expected, output, score and issues"]:::data
+  G{"Replay-grade and complete?<br/>FUNCTION"}:::dec
+  N["Recommendation policy<br/>FUNCTION"]:::fn
+  X["Shortlist only<br/>DATA"]:::term
 
+  P --> M
+  M -- "model-only" --> D --> J
+  M -- "workflow replay" --> R --> J
+  J --> S --> T --> G
+  G -- "yes" --> N
+  G -- "no" --> X
+
+  classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef dec fill:#f3e8ff,stroke:#9333ea,color:#2a0a4a;
+  classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
-  classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
 ```
 
-## File index (stage → file)
-| Stage | Diagram file |
+## Gates at a glance
+
+| Gate | Enforcer | Rule |
+|---|---|---|
+| Data retention | USER + FUNCTION | Effective capture is the stricter of project and SDK; metadata is default. Context and live-trace use each need explicit consent. |
+| Technical compatibility | FUNCTION | Provider access plus observed modality, tool, schema, streaming, system-message and context requirements. |
+| Eval spend | USER + FUNCTION | Immutable estimate → disclosed full/sample cases → explicit confirmation → single-use plan. |
+| Score | FUNCTION | Equal-weight mean of visible criteria; legacy judge overall only when no criteria exist. |
+| Production recommendation | FUNCTION | Complete same-plan **workflow-replay** evidence for live and candidate; candidate meets bar and proves the policy claim. |
+| Approval | USER | No live change before approve. Managed applies; observe-only becomes awaiting rollout. Auto-approve remains per-route opt-in and off by default. |
+| Replay network | FUNCTION | HTTPS public destination, no credentials/fragments/redirects, DNS private-range block, 90-second timeout and 2MB response cap. |
+| Drift | FUNCTION | Comparable workflow-replay golden eval is active; operational telemetry is collected but automatic thresholds remain Phase 8; live semantic needs content/budget consent. Simulation is excluded from history, evidence and Recommendations. |
+
+## Diagram index
+
+| Stage | Diagram |
 |---|---|
-| Master flow | [`docs/mermaid/00-master-flow.mmd`](./mermaid/00-master-flow.mmd) |
-| Build decisions | [`docs/mermaid/01-build-decisions.mmd`](./mermaid/01-build-decisions.mmd) |
-| Golden-set lifecycle | [`docs/mermaid/02-golden-sets.mmd`](./mermaid/02-golden-sets.mmd) |
-| Eval + recommendation | [`docs/mermaid/03-eval-recommend.mmd`](./mermaid/03-eval-recommend.mmd) |
-| Drift + CI gate | [`docs/mermaid/04-drift-gate.mmd`](./mermaid/04-drift-gate.mmd) |
-| Dashboard + management | [`docs/mermaid/05-dashboard-mgmt.mmd`](./mermaid/05-dashboard-mgmt.mmd) |
-| Connect + Observe | [`docs/mermaid/06-connect-observe.mmd`](./mermaid/06-connect-observe.mmd) |
-| Model Registry + Compatibility | [`docs/mermaid/07-model-registry-compatibility.mmd`](./mermaid/07-model-registry-compatibility.mmd) |
-| Budgeted Eval Authorization | [`docs/mermaid/08-budgeted-eval-authorization.mmd`](./mermaid/08-budgeted-eval-authorization.mmd) |
+| Master | [`00-master-flow.mmd`](./mermaid/00-master-flow.mmd) |
+| Approved build decisions | [`01-build-decisions.mmd`](./mermaid/01-build-decisions.mmd) |
+| Golden-set lifecycle | [`02-golden-sets.mmd`](./mermaid/02-golden-sets.mmd) |
+| Eval + Recommendation | [`03-eval-recommend.mmd`](./mermaid/03-eval-recommend.mmd) |
+| Drift lanes | [`04-drift-gate.mmd`](./mermaid/04-drift-gate.mmd) |
+| Dashboard + management API | [`05-dashboard-mgmt.mmd`](./mermaid/05-dashboard-mgmt.mmd) |
+| Connect + Observe/Managed | [`06-connect-observe.mmd`](./mermaid/06-connect-observe.mmd) |
+| Registry + compatibility | [`07-model-registry-compatibility.mmd`](./mermaid/07-model-registry-compatibility.mmd) |
+| Budget authorization | [`08-budgeted-eval-authorization.mmd`](./mermaid/08-budgeted-eval-authorization.mmd) |
+
+Regenerate the standalone viewer after diagram changes:
+
+```bash
+node /Users/anandpareek/.codex/skills/power-coding/scripts/build-html.mjs docs/mermaid docs/architecture-flow.html
+```

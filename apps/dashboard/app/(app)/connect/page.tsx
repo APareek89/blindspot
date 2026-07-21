@@ -72,7 +72,45 @@ await blindspot.flush();           // request/process boundary`;
 const ENV = `BLINDSPOT_API_KEY=bs_live_…
 BLINDSPOT_BASE_URL=${GATEWAY_URL}
 BLINDSPOT_ENVIRONMENT=development
-BLINDSPOT_CAPTURE=metadata         # metadata | inputs | full`;
+BLINDSPOT_CAPTURE=metadata         # metadata | inputs | full
+BLINDSPOT_ROUTING=observe_only     # observe_only | managed`;
+
+const MANAGED = `// Native-provider apps explicitly ask Blindspot for the approved model.
+// Keep observe_only until every wrapped call uses this resolver.
+const modelRef = await blindspot.resolveModel(
+  "answer-writer",
+  "anthropic:claude-sonnet-4-6",
+);
+const [provider, model] = modelRef.split(":", 2);
+if (provider !== "anthropic") throw new Error("This call site supports Anthropic only");
+
+const response = await anthropic.messages.create({ ...request, model });`;
+
+const CONTEXT = `// Call only after the app owner explicitly approves what is shared.
+await blindspot.shareContext({
+  version: process.env.APP_VERSION ?? "v1",
+  productBrief: "What the product does and who it serves",
+  architecture: "router -> retrieval -> answer -> verification",
+  documents: [
+    { name: "answer prompt", kind: "prompt", content: ANSWER_SYSTEM_PROMPT },
+  ],
+});`;
+
+const REPLAY = `POST /api/blindspot/replay
+Authorization: Bearer $BLINDSPOT_REPLAY_SECRET
+
+Request:  { workflow, route, node, modelRef, input }
+Response: {
+  output: string,
+  promptTokens: number,
+  completionTokens: number,
+  latencyMs: number,
+  costCents?: number,
+  targetNodeExecuted: true
+}
+
+The handler must execute the real node/workflow with a request-scoped model override.
+Do not record replay calls as live customer traffic.`;
 
 const CAPTURE: { mode: CaptureMode; title: string; body: string; retained: string }[] = [
   {
@@ -99,22 +137,22 @@ const STEPS = [
   {
     n: 1,
     title: "Routes appear",
-    body: "Every distinct route:<name> you call shows up under Routes & Models with live cost and quality — auto-created on first traffic.",
+    body: "The Workflow Map shows all observed node kinds. Routes & Models lists only generation nodes where a model can change.",
   },
   {
     n: 2,
     title: "Give a route a golden set",
-    body: "Upload a CSV/JSONL, or let the Golden Set Agent write one from the task. This defines “good” for that route.",
+    body: "Upload CSV/JSON/JSONL, use approved documents/app context, or explicitly opt into retained live inputs.",
   },
   {
     n: 3,
     title: "Estimate, confirm, then evaluate",
-    body: "Adding a compatible candidate spends nothing. Choose models and a budget, review the exact full or sampled plan, then explicitly confirm the paid run.",
+    body: "Use model-only screening to shortlist. Use actual workflow replay for switch-grade evidence, after reviewing the exact cost and sample.",
   },
   {
     n: 4,
     title: "You approve — never a silent switch",
-    body: "A complete passing eval creates evidence in Approvals. Approve there to update the live model; rejection or no action leaves it unchanged.",
+    body: "Managed routing applies an approved model. Observe-only approval is marked awaiting rollout until the app is observed using it.",
   },
 ];
 
@@ -171,6 +209,13 @@ export default async function ConnectPage() {
         <CodeCard title="Environment" code={ENV} />
         <CodeCard title="TypeScript SDK" code={SDK} />
       </div>
+
+      <div className="grid cols-2" style={{ marginBottom: 14 }}>
+        <CodeCard title="Optional managed model resolution" code={MANAGED} />
+        <CodeCard title="Optional consented app context" code={CONTEXT} />
+      </div>
+
+      <CodeCard title="Workflow replay callback contract" code={REPLAY} />
 
       <h2 style={{ margin: "26px 0 6px", fontSize: 16 }}>Data controls</h2>
       <p className="muted small" style={{ marginBottom: 14 }}>

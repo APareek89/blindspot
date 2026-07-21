@@ -17,9 +17,11 @@ import {
   type EvalPlannedExample,
   type EvalSampleStratum,
 } from "@blindspot/shared";
+import { detectGoldenEvalDrift } from "../drift";
 import { getRouteModelCompatibility } from "../model-registry";
 import { generateRecommendation } from "../recommend";
 import { getOwnedRoute } from "../routes/service";
+import { getRouteControlState, getRouteReplayTarget } from "../workflows";
 import { evalExecutionMode } from "./queue";
 import {
   EVAL_ESTIMATE_SAFETY_METHOD,
@@ -178,8 +180,12 @@ export async function createEvalPlan(
   routeName: string,
   input: EvalPlanCreateInput,
 ) {
+  const executionMode = input.executionMode ?? "model_only";
   const modelRefs = [...new Set(input.modelRefs)].sort();
   const route = await assertModelsEligible(projectId, routeName, modelRefs);
+  if (executionMode === "workflow_replay" && !(await getRouteReplayTarget(projectId, route.id))) {
+    throw new Error("Configure and enable workflow replay before requesting replay evidence");
+  }
   const goldenSet = (
     await getDb()
       .select()
@@ -253,6 +259,7 @@ export async function createEvalPlan(
   const selectedIds = new Set(chosen.selected.map((example) => example.id));
 
   const disclosure = EvalPlanDisclosureSchema.parse({
+    executionMode,
     mode: fullRun ? "full" : "sampled",
     models: modelRefs,
     judgeModel,
@@ -311,6 +318,7 @@ export async function createEvalPlan(
         projectId,
         routeId: route.id,
         goldenSetId: goldenSet.id,
+        executionMode,
         modelRefsJson: modelRefs,
         judgeModel,
         budgetCents,
@@ -434,6 +442,7 @@ export async function runAuthorizedEvalPlan(
           estimatedCostCentsByExample:
             existing.disclosureJson.perModelExampleCostCents[modelRef] ?? {},
           sampleSeed: existing.sampleSeed,
+          executionMode: existing.executionMode,
         },
         runtime,
       );
@@ -453,10 +462,25 @@ export async function runAuthorizedEvalPlan(
         result.examples === existing.disclosureJson.selectedExampleIds.length,
     );
     let recommendation = null;
+    let drift = null;
     let recommendationWarning: string | null = null;
     if (allEvidenceComplete) {
       try {
-        recommendation = await generateRecommendation(started.routeId, { planId: started.id });
+        const control = await getRouteControlState(route.id);
+        const liveModel =
+          control.integrationMode === "observe_only"
+            ? control.observedModel ?? route.liveModel
+            : route.liveModel;
+        const liveResult = results.find((result) => result.modelRef === liveModel);
+        drift = liveResult
+          ? await detectGoldenEvalDrift({
+              routeId: started.routeId,
+              evalRunId: liveResult.evalRunId,
+            })
+          : null;
+        recommendation =
+          drift?.recommendation ??
+          (await generateRecommendation(started.routeId, { planId: started.id }));
       } catch (error) {
         // The paid work is already complete and durably evidenced. A downstream policy/inbox
         // failure must not rewrite that truthful state to "failed" or invite an accidental rerun.
@@ -468,6 +492,7 @@ export async function runAuthorizedEvalPlan(
     return {
       plan: { ...completed, disclosure: completed.disclosureJson },
       runs: results,
+      drift,
       recommendation,
       recommendationWarning,
     };

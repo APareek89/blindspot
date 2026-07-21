@@ -36,7 +36,8 @@ export default async function ApprovalsPage({
           <h1>Approvals</h1>
           <p>
             Every better/cheaper candidate — and every drift — arrives here as an evidence-backed
-            recommendation. Nothing switches until you approve it.
+            recommendation. Managed routes apply only after approval; observe-only routes remain
+            marked awaiting rollout until the connected app actually uses the target model.
           </p>
         </div>
       </div>

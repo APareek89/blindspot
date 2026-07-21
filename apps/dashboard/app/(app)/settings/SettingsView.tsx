@@ -13,6 +13,7 @@ import {
 import {
   deleteProviderKeyA,
   mintKeyA,
+  revokeKeyA,
   setProviderKeyA,
   syncModelRegistryA,
 } from "./actions";
@@ -212,6 +213,7 @@ export function SettingsView({
               <tr>
                 <th>Key</th>
                 <th>Created</th>
+                <th />
               </tr>
             </thead>
             <tbody>
@@ -219,6 +221,20 @@ export function SettingsView({
                 <tr key={k.id}>
                   <td className="mono">{k.prefix}…</td>
                   <td className="muted small">{dateTime(k.createdAt)}</td>
+                  <td className="num">
+                    <button
+                      className="btn sm danger"
+                      disabled={pending || gatewayKeys.length === 1}
+                      title={gatewayKeys.length === 1 ? "Mint a replacement before revoking the final key" : "Revoke this key immediately"}
+                      onClick={() => {
+                        if (window.confirm(`Revoke gateway key ${k.prefix}…? Apps using it will stop connecting immediately.`)) {
+                          run(() => revokeKeyA(k.id));
+                        }
+                      }}
+                    >
+                      Revoke
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

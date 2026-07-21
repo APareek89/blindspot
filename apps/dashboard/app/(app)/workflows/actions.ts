@@ -16,3 +16,15 @@ export async function setWorkflowSelected(
   revalidatePath("/workflows");
   revalidatePath("/routes");
 }
+
+export async function configureWorkflowReplay(id: string, formData: FormData): Promise<void> {
+  const client = await requireApi();
+  const secret = String(formData.get("secret") ?? "").trim();
+  await client.configureWorkflowReplay(id, {
+    url: String(formData.get("url") ?? "").trim(),
+    ...(secret ? { secret } : {}),
+    enabled: formData.get("enabled") === "on",
+  });
+  revalidatePath("/workflows");
+  revalidatePath("/routes");
+}

@@ -1,5 +1,7 @@
-%% Blindspot — dashboard + management API (Phase 7). BUILT & verified live 2026-07-16.
+%% Blindspot — dashboard + management API. Truthful-evidence UX + key rotation synced 2026-07-21.
 %% The Next.js dashboard is a pure HTTP client of /v1; the bs_live_ key never leaves the server.
+%% files: apps/dashboard/lib/api.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts
+%% granularity: full
 flowchart TD
   U["Browser (client components)<br/>ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?<br/>FUNCTION · httpOnly cookie bs_key present"}:::dec
@@ -13,10 +15,11 @@ flowchart TD
     RT["routes: GET/PATCH /routes[/:name]<br/>FUNCTION · policy + auto_approve, candidate pool"]:::fn
     TR["traces: GET /traces<br/>FUNCTION · paginated, tenant-scoped"]:::fn
     DR["drift: GET /drift-events<br/>FUNCTION · timeline linked to recs"]:::fn
-    KG["keys: POST/GET /keys<br/>FUNCTION · mint bs_live_ (shown once) + list prefixes"]:::fn
+    KG["keys: POST/GET/DELETE /keys<br/>FUNCTION · mint shown-once, list prefixes, revoke<br/>final key protected from lockout"]:::fn
     KP["provider-keys: GET/PUT/DELETE<br/>FUNCTION · AES-256-GCM · value NEVER returned"]:::fn
     EV["eval-plans: estimate / inspect / confirm<br/>FUNCTION · paid legacy endpoint closed"]:::fn
     EE["eval-evidence<br/>FUNCTION · per-example outputs, criteria, issues and reported cost"]:::fn
+    WF["workflows/context/replay<br/>FUNCTION · all node kinds, explicit context consent, encrypted callback secret"]:::fn
   end
 
   CORE["@blindspot/core services<br/>FUNCTION · every query scoped by project_id (tenant guard)"]:::fn
@@ -36,6 +39,7 @@ flowchart TD
   MW --> KP
   MW --> EV
   MW --> EE
+  MW --> WF
   MW --> REUSE
   ME --> CORE
   RT --> CORE
@@ -45,6 +49,7 @@ flowchart TD
   KP --> CORE
   EV --> CORE
   EE --> CORE
+  WF --> CORE
   REUSE --> CORE
   CORE --> DB
   U -.-> DEC

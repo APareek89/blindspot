@@ -8,6 +8,7 @@ import {
   routes,
 } from "@blindspot/db";
 import { costPer1kCents } from "@blindspot/providers";
+import { getRouteControlState } from "./workflows";
 
 export interface OverviewActivity {
   kind: "recommendation" | "drift";
@@ -37,6 +38,7 @@ export async function getOverview(projectId: string) {
       avgQuality: null as number | null,
       savedCentsPer1kRealized: 0,
       savedCentsPer1kPending: 0,
+      savedCentsPer1kAwaitingRollout: 0,
       pendingApprovals: 0,
       driftAlerts: 0,
       routesHealthy: 0,
@@ -70,17 +72,36 @@ export async function getOverview(projectId: string) {
 
   const routeName = new Map(projectRoutes.map((r) => [r.id, r.name]));
   const hasGolden = new Set(sets.map((s) => s.routeId));
+  const realDrifts = drifts.filter((drift) => drift.source !== "simulation");
+  const effectiveModels = new Map(
+    await Promise.all(
+      projectRoutes.map(async (route) => {
+        const control = await getRouteControlState(route.id);
+        return [
+          route.id,
+          control.integrationMode === "observe_only"
+            ? control.observedModel ?? route.liveModel
+            : route.liveModel,
+        ] as const;
+      }),
+    ),
+  );
 
   // latest live-model score per route
   const liveScore = new Map<string, number>();
   for (const r of projectRoutes) {
-    if (!r.liveModel) continue;
+    const liveModel = effectiveModels.get(r.id) ?? null;
+    if (!liveModel) continue;
     const run = runs.find(
       (x) =>
         x.routeId === r.id &&
-        x.modelRef === r.liveModel &&
+        x.modelRef === liveModel &&
         x.status === "completed" &&
-        x.avgScore != null,
+        x.avgScore != null &&
+        x.planId != null &&
+        x.examplesPlanned > 0 &&
+        x.executionMode === "workflow_replay" &&
+        x.scoreMethod === "criteria_mean",
     );
     if (run?.avgScore != null) liveScore.set(r.id, run.avgScore);
   }
@@ -100,9 +121,10 @@ export async function getOverview(projectId: string) {
   }
   const costVsQuality = projectRoutes.map((r) => {
     const q = liveScore.get(r.id) ?? null;
+    const liveModel = effectiveModels.get(r.id) ?? null;
     const pending = pendingByRoute.get(r.id) ?? 0;
     let status: "healthy" | "at_risk" | "unevaluated";
-    if (!r.liveModel || !hasGolden.has(r.id) || q == null) {
+    if (!liveModel || !hasGolden.has(r.id) || q == null) {
       status = "unevaluated";
       unevaluated += 1;
     } else if (q < r.policyJson.minScore || pending > 0) {
@@ -114,7 +136,7 @@ export async function getOverview(projectId: string) {
     }
     return {
       routeName: r.name,
-      costPer1kCents: r.liveModel ? costPer1kCents(r.liveModel) : null,
+      costPer1kCents: liveModel ? costPer1kCents(liveModel) : null,
       quality: q,
       status,
     };
@@ -130,9 +152,17 @@ export async function getOverview(projectId: string) {
   };
   let realized = 0;
   let pending = 0;
+  let awaitingRollout = 0;
+  const approvedRoutes = new Set<string>();
   for (const rec of recs) {
-    if (rec.status === "approved") realized += savings(rec.fromModel, rec.toModel);
-    else if (rec.status === "pending") pending += savings(rec.fromModel, rec.toModel);
+    if (rec.status === "pending") {
+      pending += savings(rec.fromModel, rec.toModel);
+    } else if (rec.status === "approved" && !approvedRoutes.has(rec.routeId)) {
+      approvedRoutes.add(rec.routeId);
+      const amount = savings(rec.fromModel, rec.toModel);
+      if (effectiveModels.get(rec.routeId) === rec.toModel) realized += amount;
+      else awaitingRollout += amount;
+    }
   }
 
   const activity: OverviewActivity[] = [
@@ -143,7 +173,7 @@ export async function getOverview(projectId: string) {
       detail: `${r.fromModel ?? "—"} → ${r.toModel}`,
       status: r.status,
     })),
-    ...drifts.slice(0, 20).map((d): OverviewActivity => ({
+    ...realDrifts.slice(0, 20).map((d): OverviewActivity => ({
       kind: "drift",
       routeName: routeName.get(d.routeId) ?? "?",
       at: d.createdAt,
@@ -158,8 +188,9 @@ export async function getOverview(projectId: string) {
     avgQuality,
     savedCentsPer1kRealized: realized,
     savedCentsPer1kPending: pending,
+    savedCentsPer1kAwaitingRollout: awaitingRollout,
     pendingApprovals: recs.filter((r) => r.status === "pending").length,
-    driftAlerts: drifts.length,
+    driftAlerts: realDrifts.length,
     routesHealthy: healthy,
     routesAtRisk: atRisk,
     routesUnevaluated: unevaluated,

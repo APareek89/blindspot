@@ -19,6 +19,27 @@ export type Provider = (typeof PROVIDERS)[number];
 export const CaptureModeSchema = z.enum(["metadata", "inputs", "full"]);
 export type CaptureMode = z.infer<typeof CaptureModeSchema>;
 
+/** Whether Blindspot only observes a workflow or is allowed to resolve its live model. */
+export const WorkflowIntegrationModeSchema = z.enum(["observe_only", "managed"]);
+export type WorkflowIntegrationMode = z.infer<typeof WorkflowIntegrationModeSchema>;
+
+/** What executed a golden example. Model-only is screening; replay is switch-grade evidence. */
+export const EvalExecutionModeSchema = z.enum(["model_only", "workflow_replay"]);
+export type EvalExecutionMode = z.infer<typeof EvalExecutionModeSchema>;
+
+/** How a persisted example score was calculated. */
+export const EvalScoreMethodSchema = z.enum(["criteria_mean", "legacy_judge_overall"]);
+export type EvalScoreMethod = z.infer<typeof EvalScoreMethodSchema>;
+
+/** The signal that produced a drift event. Simulations are never eval evidence. */
+export const DriftSourceSchema = z.enum([
+  "golden_eval",
+  "live_traffic",
+  "provider_version",
+  "simulation",
+]);
+export type DriftSource = z.infer<typeof DriftSourceSchema>;
+
 /** The kinds of steps that can appear in an agentic workflow trace. */
 export const WorkflowNodeKindSchema = z.enum([
   "agent",
@@ -124,6 +145,7 @@ const EvalPlanListedExampleSchema = EvalPlannedExampleSchema.pick({
 });
 
 export const EvalPlanDisclosureSchema = z.object({
+  executionMode: EvalExecutionModeSchema,
   mode: z.enum(["full", "sampled"]),
   models: z.array(z.string()).min(1),
   judgeModel: z.string(),
@@ -151,6 +173,7 @@ export type EvalPlanDisclosure = z.infer<typeof EvalPlanDisclosureSchema>;
 export const EvalPlanCreateInputSchema = z.object({
   modelRefs: z.array(z.string().trim().min(3).max(300)).min(1).max(4),
   budgetUsd: z.number().positive().max(100),
+  executionMode: EvalExecutionModeSchema.default("model_only"),
 });
 export type EvalPlanCreateInput = z.infer<typeof EvalPlanCreateInputSchema>;
 
@@ -175,6 +198,7 @@ export const WorkflowSpanInputSchema = z.object({
     framework: z.string().trim().max(80).optional(),
     language: z.string().trim().max(40).optional(),
     environment: z.string().trim().min(1).max(40).default("production"),
+    integrationMode: WorkflowIntegrationModeSchema.default("observe_only"),
   }),
   execution: z.object({
     id: z.string().trim().min(1).max(200),
@@ -219,6 +243,88 @@ export type DataControlsPatch = z.infer<typeof DataControlsPatchSchema>;
 
 export const WorkflowPatchSchema = z.object({ selected: z.boolean() });
 export type WorkflowPatch = z.infer<typeof WorkflowPatchSchema>;
+
+const WorkflowContextDocumentSchema = z.object({
+  name: z.string().trim().min(1).max(200),
+  kind: z.enum(["readme", "design", "prompt", "architecture", "other"]),
+  content: z.string().max(50_000),
+});
+
+/** Explicitly shared app context. The SDK never crawls a repository or reads files itself. */
+export const WorkflowContextManifestSchema = z
+  .object({
+    version: z.string().trim().min(1).max(100),
+    productBrief: z.string().max(50_000).optional(),
+    architecture: z.string().max(50_000).optional(),
+    documents: z.array(WorkflowContextDocumentSchema).max(20).default([]),
+  })
+  .superRefine((manifest, ctx) => {
+    const characters =
+      (manifest.productBrief?.length ?? 0) +
+      (manifest.architecture?.length ?? 0) +
+      manifest.documents.reduce((sum, document) => sum + document.content.length, 0);
+    if (characters > 150_000) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "shared context is too large (150,000 character maximum)",
+      });
+    }
+  });
+export type WorkflowContextManifest = z.infer<typeof WorkflowContextManifestSchema>;
+
+export const WorkflowContextShareInputSchema = z.object({
+  workflow: z.object({
+    name: z.string().trim().min(1).max(120),
+    environment: z.string().trim().min(1).max(40).default("production"),
+  }),
+  consent: z.literal(true),
+  manifest: WorkflowContextManifestSchema,
+});
+export type WorkflowContextShareInput = z.infer<typeof WorkflowContextShareInputSchema>;
+
+export const WorkflowModelResolveInputSchema = z.object({
+  workflow: z.string().trim().min(1).max(120),
+  environment: z.string().trim().min(1).max(40).default("production"),
+  node: z.string().trim().min(1).max(160),
+  fallbackModel: z.string().trim().min(3).max(300),
+});
+export type WorkflowModelResolveInput = z.infer<typeof WorkflowModelResolveInputSchema>;
+
+export const WorkflowReplayConfigInputSchema = z
+  .object({
+    url: z.string().trim().url().max(2_000),
+    secret: z.string().min(16).max(512).optional(),
+    enabled: z.boolean(),
+  })
+  .superRefine((value, ctx) => {
+    const parsed = new URL(value.url);
+    const local = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+    if (parsed.username || parsed.password || parsed.hash) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["url"],
+        message: "workflow replay URL cannot contain credentials or a fragment",
+      });
+    }
+    if (parsed.protocol !== "https:" && !local) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["url"],
+        message: "workflow replay URL must use HTTPS (localhost is allowed in development)",
+      });
+    }
+  });
+export type WorkflowReplayConfigInput = z.infer<typeof WorkflowReplayConfigInputSchema>;
+
+export const WorkflowReplayResponseSchema = z.object({
+  output: z.string(),
+  promptTokens: z.number().int().nonnegative().default(0),
+  completionTokens: z.number().int().nonnegative().default(0),
+  latencyMs: z.number().int().nonnegative().optional(),
+  costCents: z.number().nonnegative().nullable().optional(),
+  targetNodeExecuted: z.literal(true),
+});
+export type WorkflowReplayResponse = z.infer<typeof WorkflowReplayResponseSchema>;
 
 /**
  * Policy — the rule for the *ideal* model (PRD §2). v1 = cheapest candidate whose

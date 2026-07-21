@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import {
   createGatewayKey,
+  deleteGatewayKey,
   deleteProviderKey,
   isProvider,
   listGatewayKeys,
@@ -8,6 +9,7 @@ import {
   setProviderKey,
 } from "@blindspot/core";
 import { ProviderKeyInputSchema } from "@blindspot/shared";
+import { z } from "zod";
 import type { Env } from "../types";
 
 /**
@@ -25,6 +27,17 @@ keysRouter.post("/keys", async (c) => {
   // the raw key is returned exactly once, here — it's never stored in plaintext
   const key = await createGatewayKey(c.get("projectId"));
   return c.json({ key }, 201);
+});
+
+keysRouter.delete("/keys/:id", async (c) => {
+  const id = z.string().uuid().safeParse(c.req.param("id"));
+  if (!id.success) return c.json({ error: { message: "invalid gateway key id" } }, 400);
+  const result = await deleteGatewayKey(c.get("projectId"), id.data);
+  if (result === "not_found") return c.json({ error: { message: "gateway key not found" } }, 404);
+  if (result === "last_key") {
+    return c.json({ error: { message: "mint and verify a replacement before revoking the final key" } }, 409);
+  }
+  return c.json({ ok: true });
 });
 
 // --- BYO provider keys (encrypted) ---------------------------------------

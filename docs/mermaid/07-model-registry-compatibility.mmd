@@ -1,4 +1,4 @@
-%% Blindspot — provider registry + node compatibility gate (Phase 7B)
+%% Blindspot — provider registry + node compatibility gate (Phase 7B; reviewed 2026-07-21)
 %% files: packages/providers/src/registry.ts, packages/core/src/model-registry.ts, apps/gateway/src/manage/model-registry.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
 %% granularity: full
 flowchart TD
@@ -20,7 +20,7 @@ flowchart TD
   GUARD["Re-run server-side compatibility gate<br/>FUNCTION · arbitrary raw refs rejected"]:::fn
   POOL["Candidate stored; back-test not started<br/>DATA · candidates<br/>zero eval spend · live_model unchanged"]:::data
   QUALITY["Phase 7C BUILT: estimate + exact disclosed sample + confirmation<br/>then per-example golden-set quality evidence"]:::term
-  APPROVAL["Evidence-backed Recommendation<br/>USER approves before any live swap<br/>Phase 7D adds continuous monitoring"]:::term
+  APPROVAL["Workflow-replay Recommendation only<br/>USER approves; managed applies, observe-only awaits rollout"]:::term
   OBSERVE["Remain observe-only<br/>DATA · no experiment or route change"]:::term
   FAIL["Return sanitized sync error<br/>FUNCTION · no secret/provider body exposed"]:::term
 

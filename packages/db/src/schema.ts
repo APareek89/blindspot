@@ -12,16 +12,21 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   CaptureMode,
+  DriftSource,
   Evidence,
   EvalCriterionScore,
+  EvalExecutionMode,
   EvalPlanDisclosure,
   EvalPlanStatus,
+  EvalScoreMethod,
   ModelAvailability,
   ModelCapabilities,
   ModelProbeStatus,
   ModelRegistrySource,
   NodeRequirements,
   Policy,
+  WorkflowContextManifest,
+  WorkflowIntegrationMode,
 } from "@blindspot/shared";
 
 // Blindspot lives in its own Postgres schema so it never collides with (or introspects)
@@ -231,6 +236,10 @@ export const evalPlans = bs.table(
       .notNull()
       .references(() => goldenSets.id, { onDelete: "cascade" }),
     status: text("status").$type<EvalPlanStatus>().notNull().default("draft"),
+    executionMode: text("execution_mode")
+      .$type<EvalExecutionMode>()
+      .notNull()
+      .default("model_only"),
     modelRefsJson: jsonb("model_refs_json").$type<string[]>().notNull(),
     judgeModel: text("judge_model").notNull(),
     budgetCents: real("budget_cents").notNull(),
@@ -264,6 +273,14 @@ export const evalRuns = bs.table(
     modelRef: text("model_ref").notNull(),
     goldenSetVersion: integer("golden_set_version").notNull(),
     status: text("status").$type<"running" | "completed" | "failed">().notNull().default("completed"),
+    executionMode: text("execution_mode")
+      .$type<EvalExecutionMode>()
+      .notNull()
+      .default("model_only"),
+    scoreMethod: text("score_method")
+      .$type<EvalScoreMethod>()
+      .notNull()
+      .default("legacy_judge_overall"),
     avgScore: real("avg_score"),
     /** USD cents per 1k tokens (all money is cents). */
     costPer1k: real("cost_per_1k"),
@@ -336,6 +353,7 @@ export const driftEvents = bs.table("drift_events", {
   oldScore: real("old_score"),
   newScore: real("new_score").notNull(),
   action: driftAction("action").notNull().default("recommended"),
+  source: text("source").$type<DriftSource>().notNull().default("simulation"),
   createdAt: createdAt(),
 });
 
@@ -370,8 +388,18 @@ export const workflows = bs.table(
     framework: text("framework"),
     language: text("language"),
     environment: text("environment").notNull().default("production"),
+    integrationMode: text("integration_mode")
+      .$type<WorkflowIntegrationMode>()
+      .notNull()
+      .default("observe_only"),
     /** Discovered workflows are inert until the user selects them for optimization. */
     selected: boolean("selected").notNull().default(false),
+    contextManifestJson: jsonb("context_manifest_json").$type<WorkflowContextManifest>(),
+    contextHash: text("context_hash"),
+    contextSharedAt: timestamp("context_shared_at", { withTimezone: true }),
+    replayUrl: text("replay_url"),
+    replaySecretEncrypted: text("replay_secret_encrypted"),
+    replayEnabled: boolean("replay_enabled").notNull().default(false),
     firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   },

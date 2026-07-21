@@ -4,7 +4,7 @@ import { PageError } from "@/components/PageError";
 import { modelName } from "@/lib/format";
 import { requireApi } from "@/lib/session";
 import type { WorkflowDetail } from "@/lib/types";
-import { setWorkflowSelected } from "./actions";
+import { configureWorkflowReplay, setWorkflowSelected } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +35,8 @@ export default async function WorkflowsPage() {
         <div>
           <h1>Workflows</h1>
           <p>
-            Blindspot discovers agent flows and their model-powered nodes from telemetry. Select
-            the workflows you want to evaluate; discovery alone never changes the live app.
+            Workflow Map includes agent, generation, retrieval, tool and deterministic function
+            nodes. Routes &amp; Models contains only generation nodes where a model can be evaluated.
           </p>
         </div>
         <Link href="/connect" className="btn">
@@ -64,8 +64,12 @@ export default async function WorkflowsPage() {
                     <div className="row wrap" style={{ marginBottom: 5 }}>
                       <h2 style={{ fontSize: 17 }}>{workflow.name}</h2>
                       <span className={`badge ${workflow.selected ? "pass" : "neutral"}`}>
-                        {workflow.selected ? "Selected for optimization" : "Observe only"}
+                        {workflow.selected ? "Selected for evaluation" : "Not selected"}
                       </span>
+                      <span className={`badge ${workflow.integrationMode === "managed" ? "cyan" : "warn"}`}>
+                        {workflow.integrationMode === "managed" ? "Managed routing" : "Observe only"}
+                      </span>
+                      {workflow.contextSharedAt && <span className="badge pass">App context shared</span>}
                       <span className="badge accent">{workflow.environment}</span>
                     </div>
                     <div className="card-sub">
@@ -76,10 +80,38 @@ export default async function WorkflowsPage() {
                   </div>
                   <form action={action}>
                     <button className={`btn ${workflow.selected ? "danger-ghost" : "primary"}`}>
-                      {workflow.selected ? "Stop optimizing" : "Select workflow"}
+                      {workflow.selected ? "Stop evaluating" : "Select for evaluation"}
                     </button>
                   </form>
                 </div>
+
+                <details className="card" style={{ marginBottom: 14 }}>
+                  <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                    Actual workflow replay {workflow.replayEnabled && workflow.replayConfigured ? "· enabled" : "· not configured"}
+                  </summary>
+                  <p className="muted small">
+                    Blindspot sends a golden input plus a temporary model override to your protected
+                    callback. The app executes the real prompt, retrieval, tools and deterministic
+                    gates, then returns only the target node output and usage.
+                  </p>
+                  <form action={configureWorkflowReplay.bind(null, workflow.id)}>
+                    <div className="grid cols-2">
+                      <div className="field">
+                        <label className="label">HTTPS replay callback</label>
+                        <input className="input" name="url" type="url" required defaultValue={workflow.replayUrl ?? ""} placeholder="https://your-app.onrender.com/api/blindspot/replay" />
+                      </div>
+                      <div className="field">
+                        <label className="label">Replay secret {workflow.replayConfigured ? "(leave blank to keep)" : ""}</label>
+                        <input className="input" name="secret" type="password" minLength={16} placeholder="Stored encrypted; never returned" />
+                      </div>
+                    </div>
+                    <label className="row small" style={{ gap: 8, cursor: "pointer", marginBottom: 10 }}>
+                      <input type="checkbox" name="enabled" defaultChecked={workflow.replayEnabled} />
+                      Enable replay-grade evals for this workflow
+                    </label>
+                    <button className="btn">Save replay configuration</button>
+                  </form>
+                </details>
 
                 <div className="card pad-0">
                   <table className="table">

@@ -6,7 +6,7 @@ import {
   type GoldenExampleInput,
 } from "@blindspot/shared";
 
-export type UploadFormat = "csv" | "jsonl";
+export type UploadFormat = "csv" | "json" | "jsonl";
 
 /**
  * Parse + validate a golden-set upload (PRD §7 seed path).
@@ -26,10 +26,26 @@ export function parseGoldenUpload(
     );
   }
 
-  const rows: unknown[] =
-    format === "csv"
-      ? (parse(data, { columns: true, skip_empty_lines: true, trim: true }) as unknown[])
-      : data
+  let rows: unknown[];
+  if (format === "csv") {
+    rows = parse(data, { columns: true, skip_empty_lines: true, trim: true }) as unknown[];
+  } else if (format === "json") {
+    let decoded: unknown;
+    try {
+      decoded = JSON.parse(data);
+    } catch {
+      throw new Error("JSON upload must contain a valid array of examples");
+    }
+    const candidate =
+      decoded && typeof decoded === "object" && !Array.isArray(decoded)
+        ? (decoded as { examples?: unknown }).examples
+        : decoded;
+    if (!Array.isArray(candidate)) {
+      throw new Error('JSON upload must be an array or an object with an "examples" array');
+    }
+    rows = candidate;
+  } else {
+    rows = data
           .split(/\r?\n/)
           .filter((line) => line.trim().length > 0)
           .map((line, i) => {
@@ -39,6 +55,7 @@ export function parseGoldenUpload(
               throw new Error(`JSONL parse error on line ${i + 1}`);
             }
           });
+  }
 
   if (rows.length > MAX_UPLOAD_EXAMPLES) {
     throw new Error(

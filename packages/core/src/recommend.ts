@@ -9,6 +9,7 @@ import {
 } from "@blindspot/db";
 import { costPer1kCents } from "@blindspot/providers";
 import { clampPagination, type Evidence } from "@blindspot/shared";
+import { getRouteControlState } from "./workflows";
 
 const COST_UNKNOWN = Number.POSITIVE_INFINITY;
 
@@ -26,6 +27,7 @@ export async function generateRecommendation(
   const db = getDb();
   const route = (await db.select().from(routes).where(eq(routes.id, routeId)).limit(1))[0];
   if (!route) return null;
+  const control = await getRouteControlState(routeId);
 
   const evidencePlan = (
     await db
@@ -39,7 +41,15 @@ export async function generateRecommendation(
       .orderBy(desc(evalPlans.completedAt), desc(evalPlans.createdAt))
       .limit(1)
   )[0];
-  if (!evidencePlan || evidencePlan.status !== "completed") return null;
+  // Direct model calls are useful screening evidence, but only an actual workflow replay includes
+  // the app's prompts, retrieval, tools and deterministic gates strongly enough to propose a swap.
+  if (
+    !evidencePlan ||
+    evidencePlan.status !== "completed" ||
+    evidencePlan.executionMode !== "workflow_replay"
+  ) {
+    return null;
+  }
 
   const minScore = route.policyJson.minScore;
   const runs = await db
@@ -61,7 +71,10 @@ export async function generateRecommendation(
   const latest = new Map<string, (typeof completed)[number]>();
   for (const r of completed) if (!latest.has(r.modelRef)) latest.set(r.modelRef, r);
 
-  const liveModel = route.liveModel;
+  const liveModel =
+    control.integrationMode === "observe_only"
+      ? control.observedModel ?? route.liveModel
+      : route.liveModel;
   const liveRun = liveModel ? latest.get(liveModel) : undefined;
   const liveCost = liveModel ? (costPer1kCents(liveModel) ?? COST_UNKNOWN) : COST_UNKNOWN;
   // A swap needs a baseline measured under the exact same authorization and golden sample.
@@ -201,7 +214,11 @@ export async function generateRecommendation(
   // picks the highest-scoring passing model regardless of price — which could be MORE
   // expensive. Cost guard (FMEA P2): never auto-switch to a pricier model. If recovery
   // needs a costlier model, fall back to a pending recommendation for human approval.
-  const autoApprove = route.autoApprove && costDeltaPct != null && costDeltaPct < 0;
+  const autoApprove =
+    control.integrationMode === "managed" &&
+    route.autoApprove &&
+    costDeltaPct != null &&
+    costDeltaPct < 0;
   const rec = await db.transaction(async (tx) => {
     const currentRoute = (
       await tx
@@ -211,9 +228,28 @@ export async function generateRecommendation(
         .limit(1)
         .for("update")
     )[0];
-    if (!currentRoute || currentRoute.liveModel !== liveModel) {
+    if (
+      !currentRoute ||
+      (control.integrationMode === "managed" && currentRoute.liveModel !== liveModel)
+    ) {
       throw new Error("route live model changed while recommendation evidence was prepared");
     }
+    // The earlier lookup is only a fast path. Re-check after locking the route so two
+    // concurrently completed plans cannot create duplicate pending approvals for one target.
+    const concurrentDupe = (
+      await tx
+        .select()
+        .from(recommendations)
+        .where(
+          and(
+            eq(recommendations.routeId, routeId),
+            eq(recommendations.status, "pending"),
+            eq(recommendations.toModel, best.modelRef),
+          ),
+        )
+        .limit(1)
+    )[0];
+    if (concurrentDupe) return concurrentDupe;
     const created = (
       await tx
         .insert(recommendations)
@@ -257,6 +293,7 @@ export async function approveRecommendation(id: string, projectId: string) {
   const rec = await getOwnedRec(id, projectId);
   if (!rec) throw new Error("recommendation not found");
   if (rec.status !== "pending") throw new Error(`recommendation already ${rec.status}`);
+  const control = await getRouteControlState(rec.routeId);
   await db.transaction(async (tx) => {
     // re-check status inside the tx to close the approve/approve race
     const current = (
@@ -286,16 +323,31 @@ export async function approveRecommendation(id: string, projectId: string) {
     if (!currentRoute || currentRoute.projectId !== projectId) {
       throw new Error("recommendation not found");
     }
-    if (currentRoute.liveModel !== current.fromModel) {
+    const effectiveLiveModel =
+      control.integrationMode === "observe_only"
+        ? control.observedModel ?? currentRoute.liveModel
+        : currentRoute.liveModel;
+    if (effectiveLiveModel !== current.fromModel) {
       throw new Error("route live model changed; run a new comparable eval before approval");
     }
     await tx
       .update(recommendations)
       .set({ status: "approved" })
       .where(eq(recommendations.id, id));
-    await tx.update(routes).set({ liveModel: current.toModel }).where(eq(routes.id, current.routeId));
+    if (control.integrationMode === "managed") {
+      await tx
+        .update(routes)
+        .set({ liveModel: current.toModel })
+        .where(eq(routes.id, current.routeId));
+    }
   });
-  return { ...rec, status: "approved" as const };
+  return {
+    ...rec,
+    status: "approved" as const,
+    integrationMode: control.integrationMode,
+    applicationStatus:
+      control.integrationMode === "managed" ? ("applied" as const) : ("awaiting_rollout" as const),
+  };
 }
 
 /** Reject → dismissed; the reason tunes future recommendations (PRD §3). */
@@ -335,7 +387,7 @@ export async function listRecommendations(opts: {
   const where = opts.status
     ? and(eq(routes.projectId, opts.projectId), eq(recommendations.status, opts.status))
     : eq(routes.projectId, opts.projectId);
-  return getDb()
+  const rows = await getDb()
     .select({ ...getTableColumns(recommendations), routeName: routes.name })
     .from(recommendations)
     .innerJoin(routes, eq(recommendations.routeId, routes.id))
@@ -343,4 +395,20 @@ export async function listRecommendations(opts: {
     .orderBy(desc(recommendations.createdAt))
     .limit(limit)
     .offset(offset);
+  return Promise.all(
+    rows.map(async (row) => {
+      const control = await getRouteControlState(row.routeId);
+      const applicationStatus =
+        row.status === "pending"
+          ? "pending"
+          : row.status === "rejected"
+            ? "rejected"
+            : control.integrationMode === "managed"
+              ? "applied"
+              : control.observedModel === row.toModel
+                ? "applied"
+                : "awaiting_rollout";
+      return { ...row, integrationMode: control.integrationMode, applicationStatus };
+    }),
+  );
 }

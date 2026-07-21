@@ -6,6 +6,8 @@ export type GoldenOrigin = "upload" | "agent" | "grown";
 export type GoldenLabel = "pass" | "fail" | "unlabeled";
 export type RecStatus = "pending" | "approved" | "rejected";
 export type CaptureMode = "metadata" | "inputs" | "full";
+export type IntegrationMode = "observe_only" | "managed";
+export type EvalExecutionMode = "model_only" | "workflow_replay";
 
 export interface Policy {
   type: "cheapest_passing";
@@ -38,6 +40,7 @@ export interface Overview {
   avgQuality: number | null;
   savedCentsPer1kRealized: number;
   savedCentsPer1kPending: number;
+  savedCentsPer1kAwaitingRollout: number;
   pendingApprovals: number;
   driftAlerts: number;
   routesHealthy: number;
@@ -93,6 +96,8 @@ export interface RouteDetail {
     autoApprove: boolean;
     createdAt: string;
     costPer1kCents: number | null;
+    integrationMode: IntegrationMode;
+    observedModel: string | null;
   };
   candidates: CandidateDetail[];
   scoreSeries: { score: number; version: number; at: string }[];
@@ -132,6 +137,8 @@ export interface Recommendation {
   status: RecStatus;
   reason: string | null;
   createdAt: string;
+  integrationMode: IntegrationMode;
+  applicationStatus: "pending" | "rejected" | "awaiting_rollout" | "applied";
 }
 
 export interface DriftEvent {
@@ -142,6 +149,7 @@ export interface DriftEvent {
   oldScore: number | null;
   newScore: number;
   action: string;
+  source: "golden_eval" | "live_traffic" | "provider_version" | "simulation";
   createdAt: string;
   recommendationId: string | null;
 }
@@ -216,6 +224,8 @@ export interface RouteModelCompatibility {
     id: string;
     name: string;
     selected: boolean;
+    integrationMode: IntegrationMode;
+    replayReady: boolean;
     nodeId: string;
     nodeName: string;
   } | null;
@@ -255,6 +265,7 @@ export interface ModelRegistryOverview {
 }
 
 export interface EvalPlanDisclosure {
+  executionMode: EvalExecutionMode;
   mode: "full" | "sampled";
   models: string[];
   judgeModel: string;
@@ -289,6 +300,7 @@ export interface EvalPlan {
   routeId: string;
   goldenSetId: string;
   status: "draft" | "running" | "completed" | "failed" | "expired";
+  executionMode: EvalExecutionMode;
   modelRefsJson: string[];
   judgeModel: string;
   budgetCents: number;
@@ -306,6 +318,7 @@ export interface EvalExampleEvidence {
   id: string;
   evalRunId: string;
   goldenExampleId: string | null;
+  label: GoldenLabel;
   input: string;
   referenceOutput: string | null;
   candidateOutput: string | null;
@@ -327,6 +340,8 @@ export interface EvalRunEvidence {
   modelRef: string;
   goldenSetVersion: number;
   status: "running" | "completed" | "failed";
+  executionMode: EvalExecutionMode;
+  scoreMethod: "criteria_mean" | "legacy_judge_overall";
   avgScore: number | null;
   costPer1k: number | null;
   latencyMs: number | null;
@@ -348,10 +363,36 @@ export interface WorkflowSummary {
   language: string | null;
   environment: string;
   selected: boolean;
+  integrationMode: IntegrationMode;
+  contextHash: string | null;
+  contextSharedAt: string | null;
+  replayUrl: string | null;
+  replayEnabled: boolean;
+  replayConfigured: boolean;
   firstSeenAt: string;
   lastSeenAt: string;
   nodeCount: number;
   executionCount: number;
+}
+
+export interface WorkflowContextManifest {
+  version: string;
+  productBrief?: string;
+  architecture?: string;
+  documents: Array<{
+    name: string;
+    kind: "readme" | "design" | "prompt" | "architecture" | "other";
+    content: string;
+  }>;
+}
+
+export interface RouteWorkflowContext {
+  workflowId: string;
+  workflowName: string;
+  environment: string;
+  context: WorkflowContextManifest | null;
+  contextHash: string | null;
+  contextSharedAt: string | null;
 }
 
 export interface WorkflowNodeDetail {

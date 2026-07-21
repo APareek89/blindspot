@@ -46,6 +46,9 @@ export function ApprovalsInbox({ recommendations }: { recommendations: Recommend
                 <div className="row" style={{ gap: 8, marginBottom: 7, flexWrap: "wrap" }}>
                   <span className="badge accent">{r.routeName}</span>
                   <RecStatusBadge status={r.status} />
+                  <span className={`badge ${r.applicationStatus === "applied" ? "pass" : r.applicationStatus === "awaiting_rollout" ? "warn" : "neutral"}`}>
+                    {r.applicationStatus.replaceAll("_", " ")}
+                  </span>
                 </div>
                 <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
                   <span className="model-ref">{r.fromModel ? modelName(r.fromModel) : "—"}</span>
@@ -63,7 +66,7 @@ export function ApprovalsInbox({ recommendations }: { recommendations: Recommend
                 {r.status === "pending" && (
                   <>
                     <button className="btn sm pass" disabled={pending} onClick={() => act(() => approveRec(r.id))}>
-                      Approve
+                      {r.integrationMode === "managed" ? "Approve & apply" : "Approve recommendation"}
                     </button>
                     <button
                       className="btn sm danger-ghost"
@@ -128,6 +131,9 @@ function EvidenceDrawer({
             <div className="row" style={{ gap: 8, marginBottom: 8 }}>
               <span className="badge accent">{rec.routeName}</span>
               <RecStatusBadge status={rec.status} />
+              <span className={`badge ${rec.applicationStatus === "applied" ? "pass" : rec.applicationStatus === "awaiting_rollout" ? "warn" : "neutral"}`}>
+                {rec.applicationStatus.replaceAll("_", " ")}
+              </span>
             </div>
             <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
               <span className="model-ref">{rec.fromModel ? modelName(rec.fromModel) : "—"}</span>
@@ -141,6 +147,11 @@ function EvidenceDrawer({
         </div>
 
         <div className="drawer-body">
+          <div className={`alert ${rec.integrationMode === "managed" ? "info" : "warn"}`} style={{ marginBottom: 16 }}>
+            {rec.integrationMode === "managed"
+              ? "Managed route: approval updates the model Blindspot resolves for the application."
+              : "Observe-only route: approval records the decision, but the application must roll it out. Blindspot will mark it applied only after it observes the target model."}
+          </div>
           {/* headline deltas */}
           <div className="grid cols-3" style={{ marginBottom: 18 }}>
             <div className="card">
@@ -255,7 +266,7 @@ function EvidenceDrawer({
               )}
               <div className="row" style={{ gap: 8 }}>
                 <button className="btn pass" disabled={pending} onClick={onApprove}>
-                  {pending ? "Working…" : "Approve swap"}
+                  {pending ? "Working…" : rec.integrationMode === "managed" ? "Approve & apply" : "Approve recommendation"}
                 </button>
                 <button className="btn danger-ghost" disabled={pending} onClick={onReject}>
                   Reject

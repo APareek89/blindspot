@@ -28,7 +28,7 @@ import type { Env } from "../types";
 /** Golden-set management (PRD §7). Mounted under /v1; project auth applied by parent. */
 export const golden = new Hono<Env>();
 
-// seed via upload (CSV/JSONL)
+// seed via upload (CSV/JSON/JSONL)
 golden.post("/routes/:name/golden-sets/upload", async (c) => {
   const route = await getRouteByName(c.get("projectId"), c.req.param("name"));
   if (!route) return c.json({ error: { message: "route not found" } }, 404);
@@ -36,9 +36,12 @@ golden.post("/routes/:name/golden-sets/upload", async (c) => {
   const body = (await c.req.json().catch(() => null)) as
     | { format?: string; data?: string }
     | null;
-  if (!body?.data || (body.format !== "csv" && body.format !== "jsonl")) {
+  if (
+    !body?.data ||
+    (body.format !== "csv" && body.format !== "json" && body.format !== "jsonl")
+  ) {
     return c.json(
-      { error: { message: "expected { format: 'csv'|'jsonl', data: string }" } },
+      { error: { message: "expected { format: 'csv'|'json'|'jsonl', data: string }" } },
       400,
     );
   }

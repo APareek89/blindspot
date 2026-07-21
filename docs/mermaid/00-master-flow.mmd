@@ -1,44 +1,42 @@
-%% Blindspot — master flow: Observe -> Eval -> Recommend -> Approve -> Route -> Gate
-%% BUILT & verified live 2026-07-16 (Groq + Supabase). Dashboard surface: see 05-dashboard-mgmt.mmd.
-%% files: apps/gateway/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
-%% granularity: summary
+%% Blindspot — master flow: Connect -> Observe -> Eval -> Recommend -> Approve -> Apply (FMEA synced 2026-07-21)
+%% files: packages/sdk/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts, packages/core/src/drift.ts
+%% granularity: master
 flowchart TD
-  A["User agent call<br/>ENTRY · base_url points to gateway, model = route:name"]:::term
-  B["Resolve route to approved live_model<br/>FUNCTION<br/>in: route:name · out: concrete model_ref"]:::fn
-  C{"Route exists?<br/>FUNCTION"}:::dec
-  D["Auto-create route with default policy<br/>FUNCTION · out: routes row"]:::fn
-  E["Decrypt user provider key<br/>FUNCTION · AES-256-GCM<br/>in: provider_keys.encrypted_key · out: in-memory key"]:::fn
-  F["Live LLM call through user key<br/>LIBRARY · Vercel AI SDK adapter<br/>in: prompt + model_ref · out: completion"]:::data
-  G["Write trace<br/>DATA · traces · cost, latency, output"]:::data
-  EST["Free cost + sample estimate<br/>FUNCTION · immutable eval_plan draft<br/>no provider calls"]:::fn
-  CONF{"Confirm disclosed cases + maximum spend?<br/>USER"}:::ask
-  H["Lock single-use plan and run inline locally<br/>FUNCTION · Phase 8 queues this authorization"]:::data
-  I["Judge scores golden set<br/>AGENT · JUDGE_MODEL<br/>in: outputs vs golden_examples · out: per-criterion scores"]:::agent
-  J["Aggregate avg_score, cost, latency<br/>FUNCTION · writes DATA · eval_runs"]:::fn
-  K{"Drift? new score below route band<br/>FUNCTION · new below old minus margin"}:::dec
-  L{"Same-plan live + candidate evidence; passing and provably cheaper?<br/>FUNCTION · score at or above 0.85, comparable price"}:::dec
-  M["Create Recommendation with evidence<br/>FUNCTION · per-criterion scores, cost and latency delta, 3 side-by-side samples<br/>DATA · recommendations status = pending"]:::fn
-  N["Approvals inbox<br/>DATA · recommendations"]:::data
-  O{"User decision<br/>USER · approve or reject"}:::ask
-  P["Lock decision + Route; reject stale from_model; update live_model<br/>FUNCTION · drift auto-revert ONLY if route.auto_approve"]:::fn
-  Q["Store rejection reason, tunes future recs<br/>FUNCTION · DATA · recommendations status = rejected"]:::fn
-  R["Legacy paid drift + CI endpoints closed<br/>FUNCTION · plan-aware queue handoff in Phase 8"]:::term
+  A["Existing agent handles a user request<br/>ENTRY · app keeps its own prompts, tools and deterministic code"]:::term
+  MODE{"Connection mode?<br/>USER · observe-only is default"}:::dec
+  OBS["Observe existing model calls and every node kind<br/>FUNCTION · SDK sends consent-bounded spans<br/>out: workflow map + generation Routes"]:::fn
+  MAN["Resolve generation node to approved model<br/>FUNCTION · managed SDK or OpenAI-compatible gateway<br/>out: concrete provider:model"]:::fn
+  LIVE["Run the real application workflow<br/>AGENT + FUNCTION nodes<br/>out: answer, spans, usage, errors and latency"]:::agent
+  GOLD["Create versioned golden set<br/>USER · upload, documents, explicitly shared context, or consented live traces"]:::ask
+  EST["Choose compatible models + execution mode; calculate budget<br/>FUNCTION · exact full/sample disclosure · no provider calls"]:::fn
+  CONF{"Confirm exact paid plan?<br/>USER"}:::ask
+  EVAL["Execute authorized examples and judge visible criteria<br/>AGENT · candidate + JUDGE_MODEL<br/>DATA · per-example evidence and criterion-mean score"]:::agent
+  GRADE{"Evidence grade?<br/>FUNCTION"}:::dec
+  SCREEN["Model-only screening result<br/>DATA · shortlist/issues only · cannot recommend production switch"]:::term
+  POLICY{"Replay evidence complete and candidate passes bar with proven benefit?<br/>FUNCTION"}:::dec
+  REC["Create evidence-backed Recommendation<br/>DATA · Approvals inbox · live app unchanged"]:::data
+  DECIDE{"Approve or reject?<br/>USER"}:::ask
+  APPLY{"Connection is managed?<br/>FUNCTION"}:::dec
+  SWITCH["Apply approved route model<br/>FUNCTION · transactional stale-baseline check + audit log"]:::fn
+  ROLLOUT["Mark awaiting app rollout<br/>DATA · observe-only never claims the app changed"]:::term
+  DRIFT["Monitor live operational signals + replay-grade golden scores<br/>FUNCTION · simulations stay quarantined from evidence"]:::fn
+  NOOP["Keep current model and visible issues<br/>DATA"]:::term
 
-  A --> B --> C
-  C -- "no" --> D --> E
-  C -- "yes" --> E
-  E --> F --> G
-  F --> EST --> CONF
-  CONF -- "confirm" --> H --> I --> J
+  A --> MODE
+  MODE -- "observe-only" --> OBS --> LIVE
+  MODE -- "managed" --> MAN --> LIVE
+  LIVE --> GOLD --> EST --> CONF
   CONF -- "revise" --> EST
-  J --> K
-  J --> L
-  K -- "yes, quality dropped" --> M
-  L -- "yes, cheaper passes" --> M
-  M --> N --> O
-  O -- "approve" --> P
-  O -- "reject" --> Q
-  R -.-> L
+  CONF -- "confirm" --> EVAL --> GRADE
+  GRADE -- "model-only" --> SCREEN
+  GRADE -- "workflow replay" --> POLICY
+  POLICY -- "no" --> NOOP
+  POLICY -- "yes" --> REC --> DECIDE
+  DECIDE -- "reject" --> NOOP
+  DECIDE -- "approve" --> APPLY
+  APPLY -- "yes" --> SWITCH --> DRIFT
+  APPLY -- "no" --> ROLLOUT --> DRIFT
+  DRIFT -. "new evidence" .-> POLICY
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;

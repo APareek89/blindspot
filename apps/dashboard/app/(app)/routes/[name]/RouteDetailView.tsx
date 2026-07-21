@@ -7,6 +7,7 @@ import { costPer1k, modelName, ms, qualityPct } from "@/lib/format";
 import type {
   EvalPlan,
   EvalRunEvidence,
+  EvalExecutionMode,
   ModelCompatibility,
   RouteDetail,
   RouteModelCompatibility,
@@ -14,7 +15,6 @@ import type {
 import {
   addCandidateA,
   estimateEvalA,
-  recommendA,
   removeCandidateA,
   runEvalPlanA,
   savePolicy,
@@ -56,8 +56,13 @@ export function RouteDetailView({
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
-  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [selectedModels, setSelectedModels] = useState<string[]>(
+    detail.route.liveModel ? [detail.route.liveModel] : [],
+  );
   const [budgetUsd, setBudgetUsd] = useState(0.05);
+  const [executionMode, setExecutionMode] = useState<EvalExecutionMode>(
+    compatibility.workflow?.replayReady ? "workflow_replay" : "model_only",
+  );
   const [plan, setPlan] = useState<EvalPlan | null>(null);
 
   const [minScore, setMinScore] = useState(detail.route.policy.minScore);
@@ -90,7 +95,7 @@ export function RouteDetailView({
     setMsg(null);
     setPlan(null);
     start(async () => {
-      const result = await estimateEvalA(route, selectedModels, budgetUsd);
+      const result = await estimateEvalA(route, selectedModels, budgetUsd, executionMode);
       if (!result.ok) setError(result.error);
       else setPlan(result.plan);
     });
@@ -123,6 +128,13 @@ export function RouteDetailView({
           {msg}
         </div>
       )}
+
+      <div className={`alert ${detail.route.integrationMode === "managed" ? "info" : "warn"}`} style={{ marginBottom: 14 }}>
+        <strong>{detail.route.integrationMode === "managed" ? "Managed routing" : "Observe-only connection"}.</strong>{" "}
+        {detail.route.integrationMode === "managed"
+          ? "Approved changes can be resolved by the connected application."
+          : "Blindspot can recommend a model, but approval means awaiting app rollout—it will not claim the application changed."}
+      </div>
 
       <div className="grid cols-2" style={{ marginBottom: 14 }}>
         {/* policy + automation */}
@@ -176,24 +188,16 @@ export function RouteDetailView({
 
         {/* quick actions */}
         <div className="card">
-          <div className="card-title" style={{ marginBottom: 12 }}>
-            Actions
-          </div>
-          <div className="stack" style={{ gap: 10 }}>
-            <button
-              className="btn"
-              disabled
-              title="Choose models and approve a budget in the Experiment panel"
-            >
-              Re-evaluate through Experiment ↓
-            </button>
-            <button
-              className="btn"
-              disabled={pending}
-              onClick={() => run(() => recommendA(route), "Checked policy — see Approvals for any recommendation.")}
-            >
-              Check for a cheaper model
-            </button>
+          <div className="card-title" style={{ marginBottom: 8 }}>Experiment steps</div>
+          <div className="stack small" style={{ gap: 8 }}>
+            <div><span className="badge neutral">1</span> Add only technically compatible models.</div>
+            <div><span className="badge neutral">2</span> Select the live model and candidates.</div>
+            <div><span className="badge neutral">3</span> Calculate cost and disclosed sampling.</div>
+            <div><span className="badge neutral">4</span> Confirm the paid run.</div>
+            <div><span className="badge neutral">5</span> Review every output before any approval.</div>
+            <Link href={`/routes/${encodeURIComponent(route)}/evals`} className="btn">
+              Open Eval Results ({evidence.length})
+            </Link>
             {detail.pendingRecs > 0 && (
               <Link href="/approvals" className="btn primary">
                 {detail.pendingRecs} pending approval{detail.pendingRecs === 1 ? "" : "s"} →
@@ -287,6 +291,29 @@ export function RouteDetailView({
           Select technically eligible models in the candidate pool. Calculating an estimate is
           free; provider calls begin only after you confirm the disclosed plan.
         </div>
+        <div className="grid cols-2" style={{ marginBottom: 14 }}>
+          <button
+            className={`card ${executionMode === "model_only" ? "selected" : ""}`}
+            style={{ textAlign: "left" }}
+            onClick={() => { setExecutionMode("model_only"); setPlan(null); }}
+          >
+            <div className="card-title">Model-only screening</div>
+            <div className="card-sub">Fast shortlist. Direct prompt call; no production swap recommendation.</div>
+          </button>
+          <button
+            className={`card ${executionMode === "workflow_replay" ? "selected" : ""}`}
+            style={{ textAlign: "left", opacity: compatibility.workflow?.replayReady ? 1 : 0.55 }}
+            disabled={!compatibility.workflow?.replayReady}
+            onClick={() => { setExecutionMode("workflow_replay"); setPlan(null); }}
+          >
+            <div className="card-title">Actual workflow replay</div>
+            <div className="card-sub">
+              {compatibility.workflow?.replayReady
+                ? "Runs the connected app callback. Required for a production recommendation."
+                : "Configure the protected replay callback under Workflows first."}
+            </div>
+          </button>
+        </div>
         <div className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}>
           <div>
             <label className="label">Maximum spend (USD)</label>
@@ -322,6 +349,9 @@ export function RouteDetailView({
               <div>
                 <div style={{ fontWeight: 600 }}>
                   {plan.disclosure.mode === "full" ? "Full golden-set run" : "Stratified sample"}
+                </div>
+                <div className="muted small">
+                  {plan.disclosure.executionMode === "workflow_replay" ? "Actual workflow replay" : "Model-only screening"}
                 </div>
                 <div className="muted small mono">seed {plan.disclosure.seed}</div>
               </div>
@@ -511,78 +541,6 @@ export function RouteDetailView({
         </div>
       </div>
 
-      <div className="card" style={{ marginTop: 14 }}>
-        <div className="row between wrap" style={{ marginBottom: 4 }}>
-          <span className="card-title">Eval evidence &amp; issues</span>
-          <span className="muted small">latest {evidence.length} runs</span>
-        </div>
-        {evidence.length === 0 ? (
-          <div className="hint">No authorized experiment has completed yet.</div>
-        ) : (
-          <div className="stack" style={{ gap: 10 }}>
-            {evidence.slice(0, 6).map((runEvidence) => (
-              <details className="card" key={runEvidence.id}>
-                <summary style={{ cursor: "pointer" }}>
-                  <span style={{ fontWeight: 600 }}>{modelName(runEvidence.modelRef)}</span>{" "}
-                  <span className={`badge ${runEvidence.status === "completed" ? "pass" : "warn"}`}>
-                    {runEvidence.status}
-                  </span>{" "}
-                  <span className="mono muted small">
-                    score {qualityPct(runEvidence.avgScore)} · {runEvidence.examplesScored}/
-                    {runEvidence.examplesPlanned} scored · actual {usdFromCents(runEvidence.actualCostCents)}
-                  </span>
-                </summary>
-                <div className="stack" style={{ marginTop: 10, gap: 8 }}>
-                  {runEvidence.examples.map((example) => (
-                    <div className="card" key={example.id}>
-                      <div className="row between wrap" style={{ marginBottom: 6 }}>
-                        <span className="mono small">score {qualityPct(example.score)}</span>
-                        <div className="row wrap" style={{ gap: 4 }}>
-                          {example.issuesJson.length === 0 ? (
-                            <span className="badge pass">no issue</span>
-                          ) : (
-                            example.issuesJson.map((issue) => (
-                              <span className="badge warn" key={issue}>
-                                {issue.replaceAll("_", " ")}
-                              </span>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                      <div className="muted small" style={{ whiteSpace: "pre-wrap" }}>
-                        {example.input.slice(0, 240)}
-                      </div>
-                      {example.referenceOutput && (
-                        <div className="hint" style={{ whiteSpace: "pre-wrap" }}>
-                          Reference: {example.referenceOutput}
-                        </div>
-                      )}
-                      {example.candidateOutput && (
-                        <div className="hint" style={{ whiteSpace: "pre-wrap" }}>
-                          Candidate: {example.candidateOutput}
-                        </div>
-                      )}
-                      {example.perCriterionJson.length > 0 && (
-                        <div className="row wrap" style={{ gap: 4, marginTop: 6 }}>
-                          {example.perCriterionJson.map((criterion) => (
-                            <span className="badge neutral" key={criterion.criterion}>
-                              {criterion.criterion}: {qualityPct(criterion.score)}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {example.reasoning && (
-                        <div className="hint">Judge: {example.reasoning}</div>
-                      )}
-                      {example.error && <div className="alert warn">{example.error}</div>}
-                    </div>
-                  ))}
-                </div>
-              </details>
-            ))}
-          </div>
-        )}
-      </div>
     </>
   );
 }

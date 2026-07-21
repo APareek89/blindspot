@@ -58,3 +58,14 @@ export async function mintKeyA(): Promise<{ ok: true; key: string } | { ok: fals
     return { ok: false, error: e instanceof Error ? e.message : "mint failed" };
   }
 }
+
+export async function revokeKeyA(id: string): Promise<Result> {
+  const client = await requireApi();
+  try {
+    await client.deleteGatewayKey(id);
+  } catch (e) {
+    return fail(e);
+  }
+  revalidatePath("/settings");
+  return { ok: true };
+}

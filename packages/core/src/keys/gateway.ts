@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { apiKeys, getDb } from "@blindspot/db";
 
 /** Project-issued gateway keys look like `bs_live_<48 hex chars>`. */
@@ -34,4 +34,27 @@ export async function listGatewayKeys(projectId: string) {
     .from(apiKeys)
     .where(eq(apiKeys.projectId, projectId))
     .orderBy(desc(apiKeys.createdAt));
+}
+
+/**
+ * Revoke one project-scoped gateway key. The final key is protected so a project cannot
+ * accidentally lock itself out of the dashboard and key-management API.
+ */
+export async function deleteGatewayKey(projectId: string, keyId: string) {
+  return getDb().transaction(async (tx) => {
+    // Lock the project's key rows so two concurrent revocations cannot both observe two keys
+    // and leave the project with none.
+    const keys = await tx
+      .select({ id: apiKeys.id })
+      .from(apiKeys)
+      .where(eq(apiKeys.projectId, projectId))
+      .for("update");
+    if (!keys.some((key) => key.id === keyId)) return "not_found" as const;
+    if (keys.length === 1) return "last_key" as const;
+
+    await tx
+      .delete(apiKeys)
+      .where(and(eq(apiKeys.projectId, projectId), eq(apiKeys.id, keyId)));
+    return "deleted" as const;
+  });
 }
