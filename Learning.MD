@@ -16,6 +16,9 @@ therefore missed the failure. This was the deepest cause of the repeated-login l
 Server Action diagnosis was incomplete.
 **Fix:** logout is now POST-only, triggered by a normal form button, same-origin checked, and impossible
 for link prefetch to execute. `GET /logout` has no state-changing handler.
+**Hosted follow-up:** Render exposes the public host through forwarded headers, so comparing the form
+origin to the internal request URL rejected a real Sign out with 403. Login and logout now share one
+proxy-aware origin helper; proxy-shaped regression input must cover every same-origin form handler.
 **Watch for later:** every GET and every prefetched route must be read-only. Browser-session acceptance
 must execute the hydrated UI, not only request pages with a cookie jar.
 

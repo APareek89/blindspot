@@ -1,27 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { api, ApiError } from "@/lib/api";
 import { KEY_COOKIE, KEY_COOKIE_OPTIONS } from "@/lib/auth-cookie";
+import { isSameOrigin, publicOrigin } from "@/lib/request-origin";
 
 function safeNext(value: FormDataEntryValue | null): string {
   const path = typeof value === "string" ? value : "/";
   return /^\/(?!\/)[^\\\r\n]*$/.test(path) ? path : "/";
-}
-
-function publicOrigin(req: NextRequest): string {
-  const host = (req.headers.get("x-forwarded-host") ?? req.headers.get("host"))
-    ?.split(",")[0]
-    ?.trim();
-  const protocol = (req.headers.get("x-forwarded-proto") ?? req.nextUrl.protocol.slice(0, -1))
-    .split(",")[0]
-    ?.trim();
-  if (host && (protocol === "http" || protocol === "https")) {
-    try {
-      return new URL(`${protocol}://${host}`).origin;
-    } catch {
-      // Fall through to Next's parsed request origin when proxy headers are malformed.
-    }
-  }
-  return req.nextUrl.origin;
 }
 
 function loginError(req: NextRequest, code: string, next: string) {
@@ -33,14 +17,7 @@ function loginError(req: NextRequest, code: string, next: string) {
 
 export async function POST(req: NextRequest) {
   const expectedOrigin = publicOrigin(req);
-  const suppliedOrigin = req.headers.get("origin");
-  let suppliedOriginNormalized: string | null = null;
-  try {
-    suppliedOriginNormalized = suppliedOrigin ? new URL(suppliedOrigin).origin : null;
-  } catch {
-    // A malformed origin is never same-origin.
-  }
-  if (suppliedOriginNormalized !== expectedOrigin) {
+  if (!isSameOrigin(req)) {
     return NextResponse.json({ error: "cross-origin sign-in is not allowed" }, { status: 403 });
   }
 

@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 8c2a83f
+> last-synced: d1de2dd
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Shipped and live
@@ -9,7 +9,7 @@
 - ✅ Child-span bug fixed: conflict updates are non-empty and cannot reopen a completed root; zero-token regression covers root + ordinary child.
 - ✅ Invite beta: atomic project/key CLI, versioned SDK, fresh-connection banner, native project feedback, operator review CLI and onboarding guide.
 - ✅ Render has additive `beta_feedback`; submission is explicit/bounded, rejects obvious credentials, attaches no logs, and authenticated GET is 200.
-- ⏳ Browser-only session root cause fixed locally: prefetched GET logout replaced by explicit same-origin POST; deploy/real-user proof next.
+- ⏳ Browser session root is live (GET logout 405); shared proxy-aware POST origin fix passes locally and awaits deploy/user proof.
 
 ## Verification
 - `pnpm typecheck` — 8/8 pass.
@@ -19,7 +19,7 @@
 - Hosted — health/features, feedback, login and SDK pass; GSTPilot project key returns `/v1/me` 200 and is sourced from GSTPilot, not Blindspot `.env`.
 - Auth regression — GET logout is 405 and preserves the session; rejected POST preserves it; same-origin POST alone removes it. Browser plugin was unavailable, so user confirmation is required.
 
-## FMEA at `ade11e4` + beta worktree; logout delta at `8c2a83f` + worktree
+## FMEA at `ade11e4` + beta worktree; logout delta at `d1de2dd` + worktree
 **Outcome:** 0 P0. Fixed during scan: private-GitHub feedback blocker, obvious credential submission,
 operator CLI hang, wrong-target database migration and stale connection confirmation.
 
