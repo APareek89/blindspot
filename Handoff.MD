@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 1a4880b + current truthful-evidence working tree
+> last-synced: 44465df
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Current state
@@ -52,7 +52,8 @@ exhaustion, security/access control, partial writes, observability, scale/load, 
 retry/idempotency, config drift and PRD edge cases.
 
 ## Next
-- 🤖 Commit and push the truthful-evidence checkpoint, then create `blindspot-gateway` and
+- ✅ Truthful-evidence checkpoint committed at `44465df`.
+- 🤖 Push the checkpoint, then create `blindspot-gateway` and
   `blindspot-dashboard` on Render with the existing database/encryption values and verify live `/healthz`.
 - 🤖 After deployment, update this handoff with service IDs/URLs and the exact GSTPilot env checklist.
 - 🧑 USER: for the first paid hosted eval, choose the route, golden version, Sonnet/Haiku, 1–2 examples,
