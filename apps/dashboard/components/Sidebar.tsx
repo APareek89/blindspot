@@ -11,6 +11,7 @@ const NAV: { href: string; label: string; icon: keyof typeof ICONS; badge?: "pen
   { href: "/drift", label: "Drift", icon: "pulse" },
   { href: "/golden-sets", label: "Golden Sets", icon: "star" },
   { href: "/connect", label: "Connect", icon: "plug" },
+  { href: "/feedback", label: "Beta feedback", icon: "chat" },
   { href: "/settings", label: "Settings", icon: "cog" },
 ];
 
@@ -22,6 +23,7 @@ const ICONS = {
   pulse: "M3 12h4l3 8 4-16 3 8h4",
   star: "M12 3l2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 18.8 6.2 21.9l1.1-6.5L2.6 9.8l6.5-.9z",
   plug: "M9 2v6M15 2v6M6 8h12v3a6 6 0 01-12 0zM12 17v5",
+  chat: "M4 5h16v11H8l-4 4zM8 9h8M8 12h5",
   cog: "M12 15a3 3 0 100-6 3 3 0 000 6zM19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7.7 1.6 1.6 0 01-3.2 0 1.6 1.6 0 00-2.7-.7l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.6 1.6 0 00-.7-2.7 1.6 1.6 0 010-3.2 1.6 1.6 0 00.7-2.7l-.1-.1a2 2 0 112.8-2.8l.1.1a1.6 1.6 0 002.7-.7 1.6 1.6 0 013.2 0 1.6 1.6 0 002.7.7l.1-.1a2 2 0 112.8 2.8l-.1.1a1.6 1.6 0 00.7 2.7 1.6 1.6 0 010 3.2 1.6 1.6 0 00-1 .9z",
 };
 

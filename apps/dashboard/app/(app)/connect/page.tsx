@@ -2,12 +2,15 @@ import { Copy } from "@/components/Copy";
 import { GATEWAY_URL } from "@/lib/api";
 import { PageError } from "@/components/PageError";
 import { requireApi } from "@/lib/session";
+import { dateTime } from "@/lib/format";
 import type { CaptureMode } from "@/lib/types";
 import { setCaptureMode } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const BASE = `${GATEWAY_URL}/v1`;
+const SDK_URL = "https://blindspot-dashboard.onrender.com/blindspot-sdk-0.1.0.tgz";
+const INSTALL = `pnpm add ${SDK_URL}`;
 
 const CURL = `curl ${BASE}/chat/completions \\
   -H "Authorization: Bearer $BLINDSPOT_API_KEY" \\
@@ -71,7 +74,7 @@ await blindspot.flush();           // request/process boundary`;
 
 const ENV = `BLINDSPOT_API_KEY=bs_live_…
 BLINDSPOT_BASE_URL=${GATEWAY_URL}
-BLINDSPOT_ENVIRONMENT=development
+BLINDSPOT_ENVIRONMENT=production
 BLINDSPOT_CAPTURE=metadata         # metadata | inputs | full
 BLINDSPOT_ROUTING=observe_only     # observe_only | managed`;
 
@@ -156,6 +159,29 @@ const STEPS = [
   },
 ];
 
+const ONBOARDING = [
+  {
+    n: 1,
+    title: "Create a separate app key",
+    body: "Keep the invite key as recovery. In Settings, mint a second key for the application so it can be revoked independently.",
+  },
+  {
+    n: 2,
+    title: "Install and start private",
+    body: "Install the TypeScript SDK, add server-only environment variables, and begin with metadata + observe-only.",
+  },
+  {
+    n: 3,
+    title: "Wrap one shared model boundary",
+    body: "Instrument the helper every model call already passes through. Environment variables alone do not send telemetry.",
+  },
+  {
+    n: 4,
+    title: "Send one real request",
+    body: "Return here after a request. A production workflow and its latest-seen time will confirm the connection.",
+  },
+];
+
 function CodeCard({ title, code }: { title: string; code: string }) {
   return (
     <div className="card">
@@ -171,11 +197,24 @@ function CodeCard({ title, code }: { title: string; code: string }) {
 export default async function ConnectPage() {
   const client = await requireApi();
   let captureMode: CaptureMode;
+  let workflows;
   try {
-    captureMode = (await client.getDataControls()).captureMode;
+    const [controls, discovered] = await Promise.all([
+      client.getDataControls(),
+      client.listWorkflows(),
+    ]);
+    captureMode = controls.captureMode;
+    workflows = discovered.workflows;
   } catch (error) {
     return <PageError error={error} />;
   }
+  const production = workflows
+    .filter((workflow) => workflow.environment === "production")
+    .sort((a, b) => Date.parse(b.lastSeenAt) - Date.parse(a.lastSeenAt));
+  const latest = production[0] ?? workflows[0];
+  const connectionIsFresh = latest
+    ? Date.now() - Date.parse(latest.lastSeenAt) <= 15 * 60 * 1000
+    : false;
   return (
     <>
       <div className="page-head">
@@ -187,6 +226,37 @@ export default async function ConnectPage() {
           </p>
         </div>
       </div>
+
+      <div className={`alert ${connectionIsFresh ? "success" : "warn"}`} style={{ marginBottom: 14 }}>
+        {connectionIsFresh && latest ? (
+          <>
+            <strong>Connected:</strong> <span className="mono">{latest.name}</span> · {latest.environment} · {latest.nodeCount} nodes · last seen {dateTime(latest.lastSeenAt)}
+          </>
+        ) : latest ? (
+          <>
+            <strong>Workflow found, but no recent request.</strong> <span className="mono">{latest.name}</span> was last seen {dateTime(latest.lastSeenAt)}. Send a request through the connected app, then reload this page.
+          </>
+        ) : (
+          <>
+            <strong>Waiting for the first request.</strong> Complete the four steps below, send one request through your app, then reload this page.
+          </>
+        )}
+      </div>
+
+      <h2 style={{ margin: "26px 0 14px", fontSize: 16 }}>Five-minute beta setup</h2>
+      <div className="grid cols-2" style={{ marginBottom: 14 }}>
+        {ONBOARDING.map((step) => (
+          <div className="card" key={step.n}>
+            <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+              <span className="badge accent">{step.n}</span>
+              <span className="card-title">{step.title}</span>
+            </div>
+            <p className="muted small">{step.body}</p>
+          </div>
+        ))}
+      </div>
+
+      <CodeCard title="Install the TypeScript SDK (beta 0.1.0)" code={INSTALL} />
 
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row between wrap" style={{ gap: 10 }}>

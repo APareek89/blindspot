@@ -14,8 +14,8 @@ export default function LoginPage() {
           Blindspot
         </div>
         <p className="muted small" style={{ marginBottom: 20 }}>
-          The eval-gated model &amp; cost layer for your AI agents. Sign in with the project
-          key printed by <span className="mono">pnpm --filter @blindspot/gateway bootstrap</span>.
+          The eval-gated model &amp; cost layer for your AI agents. Sign in with the shown-once
+          project key included in your Blindspot beta invite.
         </p>
         <form action={action}>
           <div className="field">
@@ -31,7 +31,9 @@ export default function LoginPage() {
               autoComplete="off"
               autoFocus
             />
-            <div className="hint">Held in an httpOnly cookie — never exposed to the browser.</div>
+            <div className="hint">
+              Held in an httpOnly cookie. After sign-in, mint a separate application key in Settings.
+            </div>
           </div>
           {error && (
             <div className="alert danger" style={{ marginBottom: 14 }}>

@@ -8,6 +8,28 @@ export type RecStatus = "pending" | "approved" | "rejected";
 export type CaptureMode = "metadata" | "inputs" | "full";
 export type IntegrationMode = "observe_only" | "managed";
 export type EvalExecutionMode = "model_only" | "workflow_replay";
+export type BetaFeedbackStage =
+  | "connection"
+  | "workflows"
+  | "golden_sets"
+  | "evals"
+  | "approvals"
+  | "drift"
+  | "other";
+export type BetaFeedbackImpact = "blocked" | "confusing" | "minor" | "idea";
+
+export interface BetaFeedback {
+  id: string;
+  projectId: string;
+  stage: BetaFeedbackStage;
+  attempted: string;
+  expected: string;
+  actual: string;
+  impact: BetaFeedbackImpact;
+  framework: string | null;
+  captureMode: CaptureMode | "not_sure" | null;
+  createdAt: string;
+}
 
 export interface Policy {
   type: "cheapest_passing";

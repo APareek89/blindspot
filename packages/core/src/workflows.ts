@@ -297,6 +297,9 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
           .onConflictDoUpdate({
             target: [workflowExecutions.workflowId, workflowExecutions.externalId],
             set: {
+              // A normal child span carries no execution-level changes. Keep this conflict
+              // update non-empty without reopening a completed execution.
+              externalId: item.execution.id,
               ...(item.execution.status || item.span.status === "error"
                 ? {
                     status:

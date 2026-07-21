@@ -447,3 +447,47 @@ export const GoldenExamplePatchSchema = z.object({
   active: z.boolean().optional(),
 });
 export type GoldenExamplePatch = z.infer<typeof GoldenExamplePatchSchema>;
+
+export const BetaFeedbackStageSchema = z.enum([
+  "connection",
+  "workflows",
+  "golden_sets",
+  "evals",
+  "approvals",
+  "drift",
+  "other",
+]);
+export type BetaFeedbackStage = z.infer<typeof BetaFeedbackStageSchema>;
+
+export const BetaFeedbackImpactSchema = z.enum([
+  "blocked",
+  "confusing",
+  "minor",
+  "idea",
+]);
+export type BetaFeedbackImpact = z.infer<typeof BetaFeedbackImpactSchema>;
+
+/** Authenticated, project-scoped beta feedback. Content is bounded and explicitly user-submitted. */
+const FEEDBACK_CREDENTIAL =
+  /\b(?:bs_live_[a-f0-9]{16,}|sk-(?:ant-)?[a-z0-9_-]{16,}|AIza[a-z0-9_-]{20,}|Bearer\s+[a-z0-9._~-]{16,})/i;
+
+export const BetaFeedbackInputSchema = z
+  .object({
+    stage: BetaFeedbackStageSchema,
+    attempted: z.string().trim().min(5).max(4_000),
+    expected: z.string().trim().min(5).max(4_000),
+    actual: z.string().trim().min(5).max(4_000),
+    impact: BetaFeedbackImpactSchema,
+    framework: z.string().trim().max(100).optional(),
+    captureMode: z.enum(["metadata", "inputs", "full", "not_sure"]).optional(),
+    confirmSafe: z.literal(true),
+  })
+  .superRefine((value, ctx) => {
+    if (FEEDBACK_CREDENTIAL.test([value.attempted, value.expected, value.actual].join("\n"))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "feedback looks like it contains a credential; redact it and try again",
+      });
+    }
+  });
+export type BetaFeedbackInput = z.infer<typeof BetaFeedbackInputSchema>;

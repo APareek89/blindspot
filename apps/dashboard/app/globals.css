@@ -617,6 +617,11 @@ h3 {
   background: var(--warn-soft);
   border-color: rgba(224, 163, 46, 0.3);
 }
+.alert.success {
+  color: #a9e7c4;
+  background: var(--pass-soft);
+  border-color: rgba(53, 190, 120, 0.28);
+}
 .alert.info {
   color: #b9d9dd;
   background: var(--cyan-soft);

@@ -14,17 +14,26 @@ export function hashGatewayKey(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
+/** Generate shown-once key material without persisting the raw value. */
+export function mintGatewayKeyMaterial() {
+  const key = `${GATEWAY_KEY_PREFIX}${randomBytes(24).toString("hex")}`;
+  return { key, prefix: key.slice(0, 12), keyHash: hashGatewayKey(key) };
+}
+
 /** Mint a new gateway key for a project. Returns the raw key ONCE (never stored/retrievable). */
 export async function createGatewayKey(projectId: string) {
-  const raw = `${GATEWAY_KEY_PREFIX}${randomBytes(24).toString("hex")}`;
-  const prefix = raw.slice(0, 12);
+  const material = mintGatewayKeyMaterial();
   const row = (
     await getDb()
       .insert(apiKeys)
-      .values({ projectId, prefix, keyHash: hashGatewayKey(raw) })
+      .values({
+        projectId,
+        prefix: material.prefix,
+        keyHash: material.keyHash,
+      })
       .returning({ id: apiKeys.id, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt })
   )[0]!;
-  return { id: row.id, prefix: row.prefix, createdAt: row.createdAt, key: raw };
+  return { id: row.id, prefix: row.prefix, createdAt: row.createdAt, key: material.key };
 }
 
 /** List a project's gateway keys — id, shown-once prefix, createdAt. Never the hash or value. */

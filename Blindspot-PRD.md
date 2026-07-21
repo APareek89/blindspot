@@ -76,6 +76,21 @@ A user runs a LangGraph app (e.g., a lesson generator or a RAG assistant) that m
 
 ## 5. Model catalog & onboarding (frontier + HuggingFace + BYO keys)
 
+### 5a. Invite-only beta adoption
+
+Before open signup, a Blindspot operator creates one isolated project and shown-once recovery key
+for each invited application owner. The tester signs in with that key, mints a separately revocable
+server-side application key, installs a versioned TypeScript connector, and starts with
+`metadata + observe_only`. Connect confirms success only after a recent production request is
+actually ingested. Context sharing, prompt/output retention, provider keys, paid evals and managed
+routing are separate later decisions; accepting an invite does not enable any of them.
+
+The beta distribution is intentionally simple: the dashboard serves an immutable-version SDK
+tarball with a published SHA-256 checksum, and the dashboard provides a project-scoped structured
+feedback form that never attaches application logs implicitly.
+Open signup, organization roles, billing, npm publication and a native Python observability SDK are
+general-availability work, not claims of this beta.
+
 **The catalog = “models on the platform to choose from.”** A provider sync discovers models, then Blindspot normalizes and verifies them. The experiment selector defaults to technically compatible models; an “Excluded” view explains every omitted model. Spans:
 - **A · Frontier APIs** — first prototype: Anthropic Claude Sonnet 4.6 vs Claude Haiku 4.5. Provider-list synchronization is account-specific.
 - **B · HuggingFace open models** — added by model id, served via the **HF Inference API** (serverless, free tier — great for eval back-testing) or **Inference Endpoints** (dedicated/autoscaling). e.g. `Qwen/Qwen2.5-7B`, `meta-llama/Llama-3.3-70B`.
@@ -138,7 +153,7 @@ User agent ──(gateway: base_url→route | SDK/OTel: spans)──▶ BLINDSPO
 Stateless gateway (scale by instance count) · eval runs are the bursty/slow work → decoupled into workers via a queue · idempotent jobs · DLQ · per-key rate limiting · `render.yaml` autoscaling · `/healthz` · OpenTelemetry + Sentry · **user provider keys encrypted at rest** (BYO).
 
 ## 9. Data model (Postgres)
-`projects(id, user, name, capture_mode)` · `workflows(id, project_id, name, framework, environment, selected, integration_mode, context_manifest/hash/shared_at, replay_url/encrypted_secret/enabled, first_seen, last_seen)` · `workflow_nodes(id, workflow_id, route_id, name, kind, latest_model, requirements_json)` · `workflow_executions(...)` · `workflow_spans(...)` · `routes(id, project_id, name, live_model, policy_json, auto_approve)` · `model_registry(...)` · `candidates(...)` · `golden_sets(...)` · `golden_examples(...)` · `eval_plans(..., execution_mode, disclosed sample/seed/hash, status, expiry, actual_cost)` · `eval_runs(..., execution_mode, score_method, avg_score, counts, costs, latency, seed)` · `eval_example_results(..., input/reference/candidate_output, score, criteria, reasoning, issues, candidate/judge cost, error)` · `recommendations(...)` · `drift_events(..., source[live_traffic|provider_version|golden_eval|simulation], action)` · `provider_keys(...)` · `api_keys(hash + prefix only)` · `traces(...)`.
+`projects(id, user, name, capture_mode)` · `beta_feedback(project_id, stage, attempted, expected, actual, impact, framework, capture_mode)` · `workflows(id, project_id, name, framework, environment, selected, integration_mode, context_manifest/hash/shared_at, replay_url/encrypted_secret/enabled, first_seen, last_seen)` · `workflow_nodes(id, workflow_id, route_id, name, kind, latest_model, requirements_json)` · `workflow_executions(...)` · `workflow_spans(...)` · `routes(id, project_id, name, live_model, policy_json, auto_approve)` · `model_registry(...)` · `candidates(...)` · `golden_sets(...)` · `golden_examples(...)` · `eval_plans(..., execution_mode, disclosed sample/seed/hash, status, expiry, actual_cost)` · `eval_runs(..., execution_mode, score_method, avg_score, counts, costs, latency, seed)` · `eval_example_results(..., input/reference/candidate_output, score, criteria, reasoning, issues, candidate/judge cost, error)` · `recommendations(...)` · `drift_events(..., source[live_traffic|provider_version|golden_eval|simulation], action)` · `provider_keys(...)` · `api_keys(hash + prefix only)` · `traces(...)`.
 
 ## 10. COMPLETE UI/UX (Blindspot agent-workspace design)
 Dark, data-dense, Linear/Vercel-clean. Tokens: bg `#0B0D10`, card `#14171C`, accent `#635BFF`, pass `#2FBF71`, warn `#E0A32E`, danger `#E5484D`, cyan `#3DB7C0`.

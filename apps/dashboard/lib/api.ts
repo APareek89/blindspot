@@ -21,6 +21,9 @@ import type {
   Settings,
   Trace,
   CaptureMode,
+  BetaFeedback,
+  BetaFeedbackImpact,
+  BetaFeedbackStage,
   EvalExecutionMode,
   RouteWorkflowContext,
   WorkflowDetail,
@@ -192,6 +195,19 @@ export function api(key: string) {
       ),
     driftCheck: (name: string, body: { simulateNewScore?: number; margin?: number }) =>
       send<unknown>("POST", `/v1/routes/${encodeURIComponent(name)}/drift-check`, body),
+
+    // explicit, project-scoped private-beta feedback
+    listBetaFeedback: () => get<{ feedback: BetaFeedback[] }>("/v1/beta-feedback"),
+    submitBetaFeedback: (body: {
+      stage: BetaFeedbackStage;
+      attempted: string;
+      expected: string;
+      actual: string;
+      impact: BetaFeedbackImpact;
+      framework?: string;
+      captureMode?: CaptureMode | "not_sure";
+      confirmSafe: true;
+    }) => send<{ feedback: BetaFeedback }>("POST", "/v1/beta-feedback", body),
 
     // golden sets
     listGoldenSets: (name: string) =>

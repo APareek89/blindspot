@@ -1,77 +1,56 @@
 # Handoff.MD — Blindspot
-> last-synced: d0df9b8
+> last-synced: ade11e4
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Current state
-- ✅ Lowercase `/Documents/Projects/blindspot` is now the canonical repo; branch `main` includes the
-  newer `Blindspot_v1` history. Backup branch: `codex/pre-v1-sync-20260721`; the pre-sync stash remains.
-- ✅ Workflows show agent/generation/retrieval/tool/function nodes; Routes & Models shows only model
-  generation nodes. Observe-only and managed routing are explicit and use the observed/app-approved
-  model as their respective source of truth.
-- ✅ Golden Sets has source → configure → review/publish → run steps; CSV/JSON/JSONL structured upload,
-  Markdown/text context, explicit shared-manifest consent, live-trace consent, CRUD/versioning and
-  trace promotion are present.
-- ✅ Eval plans fix `model_only` vs `workflow_replay`. Results have Label, user/task Input, Expected,
-  LLM output, equal-weight criterion-mean Score/formula and Issues. Model-only is screening and cannot
-  create a production Recommendation; protected workflow replay is required.
-- ✅ Drift simulation is quarantined. Comparable same-sample workflow-replay scores can create real
-  golden-eval drift. Operational telemetry is collected, but automatic operational thresholds and
-  consented live semantic scheduling remain Phase 8.
-- ✅ Approval is truthful: managed = approve/apply; observe-only = approve/awaiting rollout. Overview
-  does not count screening as live quality or awaiting rollout as realized savings.
-- ✅ Gateway keys now support race-safe revoke with final-key lockout protection. The exposed local
-  GSTPilot project key was replaced, verified and revoked without printing its replacement.
-- ✅ SDK builds to a publishable tarball shape; Render Blueprint uses two free Singapore web services,
-  inline eval mode and no Redis for this prototype.
-- ✅ Render gateway and dashboard are live from `dd8eced`; the Blueprint and live services use Render's
-  provided `pnpm`. Exact URLs, service IDs, environment names and GSTPilot rollout order are in
-  `docs/RENDER_DEPLOYMENT.md`.
+- ✅ Canonical repo is `/Documents/Projects/blindspot` on `main`; Render gateway/dashboard deploy from
+  `APareek89/blindspot`. GSTPilot is `/Documents/gstpilot` on `master`.
+- ✅ Truthful-evidence flow is built: all workflow node kinds vs model-only Routes, consented/versioned
+  golden sets, disclosed model-only vs workflow-replay evals, visible per-example scoring, real drift
+  lanes and approval-gated application state.
+- ✅ GSTPilot commits `02f8c81` + `4b11365` are pushed. Its SDK is a vendored 0.1.0 artifact rather
+  than a non-deployable sibling link; Render has five metadata/observe-only Blindspot variables and a
+  corrected pnpm build command. Hosted GSTPilot is live at `4b11365`.
+- 🟡 The first hosted GSTPilot smoke answered two questions, but child telemetry returned 500 because
+  the execution conflict update was empty. The root-only trace proved the bug; the fix and regression
+  are local and must now deploy before the final smoke.
+- ✅ Invite-only beta is local: atomic isolated project/key CLI, versioned public SDK artifact, recent
+  connection confirmation, private in-product feedback, onboarding guide and consent-safe defaults.
+- ✅ `blindspot.beta_feedback` was added non-destructively to the configured Postgres database. Feedback
+  is authenticated/project-scoped, bounded, explicit, rejects obvious credentials and attaches no logs.
 
-## Verification
-- `pnpm typecheck` — 8/8 packages pass.
-- `pnpm test:eval-plan` — zero provider tokens; passes spend authorization, criteria score,
-  model-only drift isolation, simulation quarantine, observe-only rollout and concurrency regressions.
-- `pnpm build` — dashboard production build passes, including `/routes/[name]/evals` and favicon.
-- Mermaid — 9/9 parse; `docs/architecture-flow.html` rebuilt.
-- Local HTTP — gateway `/healthz` and dashboard evidence/golden/drift/approval/settings pages return 200;
-  visible assertions pass, simulator is hidden.
-- Hosted HTTP — gateway `/healthz` and dashboard `/login` return 200; unauthenticated dashboard root
-  redirects to login. The rotated GSTPilot key authenticated, `/v1/workflows` returned `gstpilot`, and
-  the authenticated dashboard `/routes` page rendered successfully.
+## Verification at this checkpoint
+- `pnpm typecheck` — 8/8 pass.
+- `pnpm test:eval-plan` — pass, zero provider tokens; includes invite/raw-key, feedback isolation,
+  SDK request boundary and root+ordinary-child persistence regressions.
+- `pnpm build` — pass; `/connect` and `/feedback` compile.
+- Mermaid — 9/9 structural parse; `docs/architecture-flow.html` rebuilt.
+- SDK artifact SHA-256 matches `docs/BETA_ONBOARDING.md`; GSTPilot clean-checkout production build passed.
 
-## FMEA — feature-complete scan at `1a4880b` + working tree
-**Scope:** truthful eval UX, workflow replay, drift, keys, uploads, SDK packaging and Render config.
-**Outcome:** 0 P0. Fixed during scan: response streaming/2MB cap + DNS pinning, model-only/incomparable
-drift, screening-as-live-quality, observe-only savings, concurrent final-key deletion, oversized request
-bodies, and duplicate Recommendation race.
+## FMEA — feature-complete scan at `ade11e4` + working tree
+**Outcome:** 0 P0. The scan found the private-GitHub feedback path would block external testers, so it
+was replaced before release with project-scoped native feedback.
 
-| Remaining | Priority | Action |
+| Remaining failure mode | Priority | Concrete follow-up |
 |---|---|---|
-| Inline sequential evals can outlive an HTTP request and have no crash recovery after paid calls. | P1 | Phase 8: BullMQ handoff, idempotent resume, DLQ and plan-aware worker. Keep first hosted test to 1–2 examples. |
-| No per-project rate limit, OTel/Sentry alerting or automatic operational-drift thresholds yet. | P1 | Phase 8 before multi-tenant production traffic. |
-| Live semantic drift needs full capture plus explicit judge budget/schedule. | P1 | Build consented sampler; never judge metadata-only traffic. |
-| GSTPilot’s committed local connector still uses a sibling SDK link and has no protected replay callback. | P1 | Separate GSTPilot-repo change is required before hosted workflow replay; do not set managed/replay envs until that code is deployed. |
-| Replay DNS lookup itself relies on the OS resolver timeout; callback failures are visible per example but not alerted externally. | P2 | Add resolver timeout metric + Sentry in Phase 8. |
+| All beta bearer keys currently have project-admin power; secure delivery/revocation is procedural. | P1 | Add scoped/expiring human vs app keys before a broad beta; invite only trusted testers now. |
+| SDK telemetry is best-effort with one retry; prolonged gateway failure can drop spans. | P1 | Phase 8 durable spool/queue, metrics and external alerts. |
+| Inline sequential paid evals lack crash recovery after a provider call. | P1 | Phase 8 BullMQ idempotent resume + DLQ; keep hosted tests to 1–2 examples. |
+| No per-project rate limit, Sentry/OTel alerting or automatic operational thresholds. | P1 | Complete Phase 8 before production traffic. |
+| Concurrent identical operator invites can race the application-level duplicate check. | P2 | Add a DB uniqueness constraint or serializable retry before self-serve signup. |
+| Beta SDK tarball is checksum-pinned but not registry-signed/automatically upgraded. | P2 | Publish `@blindspot/sdk` to npm with provenance before GA. |
 
-**Coverage:** 12/12 categories checked: unhandled errors, external dependencies, races/state, resource
-exhaustion, security/access control, partial writes, observability, scale/load, billing mismatch,
-retry/idempotency, config drift and PRD edge cases.
+**Coverage:** 12/12 categories: errors, dependencies, races, resources, security, partial writes,
+observability, scale, billing, retry/idempotency, config drift and PRD edges.
 
 ## Next
-- ✅ Truthful-evidence checkpoint committed at `44465df`.
-- ✅ Render build correction is committed/pushed; both services are live and verified.
-- ✅ Service IDs/URLs and the exact hosted-app environment checklist are recorded in
-  `docs/RENDER_DEPLOYMENT.md` without secret values.
-- 🧑 USER: for the first paid hosted eval, choose the route, golden version, Sonnet/Haiku, 1–2 examples,
-  displayed budget and capture mode. Paid provider evals remain ask-only; Loop remains off.
-- 🤖 Separate next checkpoint: implement/push GSTPilot’s distributable SDK dependency, managed resolver
-  at its shared model-call wrapper and authenticated replay endpoint, then configure the workflow callback.
-- 🤖 Phase 8: Redis worker durability, rate limits, pricing freshness, OTel/Sentry and k6.
+1. Commit/push Blindspot, wait for both Render services, verify health + SDK asset + feedback endpoint.
+2. Send one harmless hosted GSTPilot question; prove the production execution contains root and child
+   generation/function nodes, not merely a successful app response.
+3. Update this handoff and `docs/RENDER_DEPLOYMENT.md` with the verified commit, then final checkpoint.
+4. Managed routing and protected replay remain OFF for GSTPilot until every model boundary supports
+   temporary overrides. Loop remains off; paid evals remain ask-only.
 
-## Run locally
-Blindspot: `pnpm start:gateway` (:8787) · `pnpm start:dashboard` (:3001) · verify with
-`pnpm typecheck && pnpm test:eval-plan && pnpm build`.
-
-GSTPilot (:3000):
-`NODE_EXTRA_CA_CERTS='/Users/anandpareek/Documents/SEO content Skill/scripts/system-ca-bundle.pem' pnpm dev`
-(run from `/Users/anandpareek/Documents/gstpilot`).
+## Local commands
+`pnpm start:gateway` (:8787) · `pnpm start:dashboard` (:3001) ·
+`pnpm typecheck && pnpm test:eval-plan && pnpm build`

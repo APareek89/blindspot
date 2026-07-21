@@ -43,6 +43,13 @@
       "when": 1784618167242,
       "tag": "0005_amazing_plazm",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1784623737702,
+      "tag": "0006_black_justice",
+      "breakpoints": true
     }
   ]
 }

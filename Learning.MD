@@ -6,6 +6,33 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — A child span exposed an empty database update only in production
+**What happened:** hosted GSTPilot answered normally, but Blindspot recorded only the pipeline root.
+The app logged an ingest 500 and the gateway logged `No values to set` for every ordinary child span.
+**Why chain:** the execution already existed → a normal child deliberately carried no workflow-level
+status/session/metadata → the conflict-update object became empty → Drizzle [the typed database layer]
+rejects an update with zero fields. Local lifecycle coverage had checked SDK payload semantics but had
+not persisted a root followed by an ordinary child. Deepest cause: `partial write path` — batch items
+were individually transactional, so the root committed while child-only conflict handling was untested.
+**Action:** every execution conflict update now includes its existing external ID as a harmless no-op;
+status is still changed only when the app explicitly owns the request boundary. The zero-token
+integration test now persists a completed root and late child, asserting both spans exist and the
+execution remains completed.
+**Preventive action:** test ingest batches by span role (root, ordinary child, error child, late child),
+not just by schema shape. Best-effort telemetry needs an app log plus a gateway log and an end-to-end
+node-count assertion; a successful application response does not prove observability succeeded.
+
+## 2026-07-21 — A local workspace dependency is not a deployable SDK release
+**What happened:** GSTPilot worked locally with `link:../Projects/Blindspot_v1/packages/sdk`, but its
+Render build checks out only the GSTPilot repository and cannot see a sibling folder.
+**Root cause:** the package link described one developer's filesystem, not an artifact the hosted app
+could install.
+**Fix:** package SDK 0.1.0 into a versioned tarball, vendor it in GSTPilot for a pinned production build,
+serve the same verified artifact from the Blindspot dashboard for beta testers, and document its
+SHA-256 checksum. npm publication remains the general-availability distribution path.
+**Watch for later:** verify every connector from a clean checkout that contains no sibling repos; version
+the artifact, pin its integrity, and keep its public API backward-compatible before inviting users.
+
 ## 2026-07-21 — Do not run `corepack enable` in Render's read-only runtime
 **What happened:** both Render services failed before dependency installation with `EROFS` while
 Corepack attempted to unlink `/usr/bin/pnpm`.

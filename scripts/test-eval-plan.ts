@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import {
+  apiKeys,
   candidates,
   driftEvents,
   evalExampleResults,
@@ -13,23 +14,30 @@ import {
   recommendations,
   routes,
   traces,
+  workflowExecutions,
   workflowNodes,
+  workflowSpans,
   workflows,
 } from "@blindspot/db";
 import {
   checkDrift,
+  createInvitedProject,
   createEvalPlan,
   createGoldenSet,
   generateRecommendation,
+  ingestWorkflowSpans,
+  hashGatewayKey,
+  listBetaFeedback,
   approveRecommendation,
   promoteTrace,
   runAuthorizedEvalPlan,
   setProviderKey,
+  submitBetaFeedback,
   updateWorkflowReplayConfig,
   type EvalRuntime,
 } from "@blindspot/core";
 import { Blindspot } from "@blindspot/sdk";
-import { loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
+import { BetaFeedbackInputSchema, loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
 
 loadRootEnv(import.meta.url);
 
@@ -95,6 +103,31 @@ async function assertSdkExecutionBoundary() {
 async function main() {
   await assertSdkExecutionBoundary();
   const db = getDb();
+  const inviteOwner = `invite-test-${randomUUID()}@example.com`;
+  const invited = await createInvitedProject({
+    name: "Invite integration test",
+    owner: inviteOwner,
+  });
+  try {
+    const storedInviteKey = (
+      await db
+        .select({ keyHash: apiKeys.keyHash })
+        .from(apiKeys)
+        .where(eq(apiKeys.projectId, invited.project.id))
+        .limit(1)
+    )[0]!;
+    assert.equal(storedInviteKey.keyHash, hashGatewayKey(invited.key));
+    assert.equal("key" in storedInviteKey, false, "raw invite keys must never be stored");
+    let duplicateInviteBlocked = false;
+    try {
+      await createInvitedProject({ name: "Invite integration test", owner: inviteOwner });
+    } catch {
+      duplicateInviteBlocked = true;
+    }
+    assert.equal(duplicateInviteBlocked, true, "duplicate beta projects must be rejected");
+  } finally {
+    await db.delete(projects).where(eq(projects.id, invited.project.id));
+  }
   const project = (
     await db
       .insert(projects)
@@ -103,6 +136,100 @@ async function main() {
   )[0]!;
 
   try {
+    const feedback = await submitBetaFeedback(project.id, {
+      stage: "connection",
+      attempted: "Connected the hosted test application",
+      expected: "A complete multi-node workflow trace",
+      actual: "The test feedback path stored this report",
+      impact: "minor",
+      framework: "custom TypeScript",
+      captureMode: "metadata",
+      confirmSafe: true,
+    });
+    const feedbackHistory = await listBetaFeedback(project.id);
+    assert.equal(feedbackHistory[0]?.id, feedback.id, "feedback must remain project-scoped");
+    assert.equal(
+      BetaFeedbackInputSchema.safeParse({
+        stage: "connection",
+        attempted: "I pasted this by mistake",
+        expected: "The credential should be rejected",
+        actual: ["bs", "live", "a".repeat(24)].join("_"),
+        impact: "blocked",
+        confirmSafe: true,
+      }).success,
+      false,
+      "obvious credentials must be rejected before feedback storage",
+    );
+
+    const executionId = `ingest-lifecycle-${randomUUID()}`;
+    const now = new Date();
+    await ingestWorkflowSpans(project.id, [
+      {
+        workflow: {
+          name: "ingest-lifecycle-test",
+          environment: "test",
+          integrationMode: "observe_only",
+        },
+        execution: {
+          id: executionId,
+          status: "completed",
+          endedAt: now.toISOString(),
+        },
+        span: {
+          id: executionId,
+          node: "pipeline",
+          kind: "agent",
+          startedAt: new Date(now.getTime() - 10).toISOString(),
+          endedAt: now.toISOString(),
+          status: "ok",
+          latencyMs: 10,
+        },
+        captureMode: "metadata",
+      },
+      {
+        workflow: {
+          name: "ingest-lifecycle-test",
+          environment: "test",
+          integrationMode: "observe_only",
+        },
+        execution: { id: executionId },
+        span: {
+          id: `${executionId}-child`,
+          parentId: executionId,
+          node: "intake",
+          kind: "generation",
+          provider: "anthropic",
+          model: "claude-haiku-4-5-20251001",
+          startedAt: new Date(now.getTime() - 8).toISOString(),
+          endedAt: now.toISOString(),
+          status: "ok",
+          latencyMs: 8,
+        },
+        captureMode: "metadata",
+      },
+    ]);
+    const lifecycleWorkflow = (
+      await db
+        .select({ id: workflows.id })
+        .from(workflows)
+        .where(eq(workflows.name, "ingest-lifecycle-test"))
+        .limit(1)
+    )[0]!;
+    const lifecycleExecution = (
+      await db
+        .select({ id: workflowExecutions.id, status: workflowExecutions.status })
+        .from(workflowExecutions)
+        .where(eq(workflowExecutions.externalId, executionId))
+        .limit(1)
+    )[0]!;
+    const lifecycleSpans = await db
+      .select({ id: workflowSpans.id })
+      .from(workflowSpans)
+      .where(eq(workflowSpans.executionId, lifecycleExecution.id));
+    assert.equal(lifecycleWorkflow.id.length > 0, true);
+    assert.equal(lifecycleExecution.status, "completed", "a late child must not reopen execution");
+    assert.equal(lifecycleSpans.length, 2, "root and child spans must both ingest");
+
     await setProviderKey(project.id, "anthropic", "test-only-provider-key");
     const capabilities = ModelCapabilitiesSchema.parse({
       inputModalities: ["text"],
@@ -549,11 +676,15 @@ async function main() {
         staleApprovalBlocked: true,
         duplicateRunBlocked: duplicateBlocked,
         sdkExecutionBoundarySafe: true,
+        ordinaryChildSpanIngestSafe:
+          lifecycleSpans.length === 2 && lifecycleExecution.status === "completed",
         deterministicCriteriaScore: true,
         modelOnlyDriftBlocked: true,
         driftSimulationQuarantined: true,
         observeOnlyApprovalAwaitsRollout: true,
         providerTokenCost: 0,
+        inviteProjectAndKeySafe: true,
+        projectScopedFeedbackSafe: feedbackHistory[0]?.projectId === project.id,
       }),
     );
   } finally {

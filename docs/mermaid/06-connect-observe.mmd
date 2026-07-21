@@ -1,7 +1,10 @@
-%% Blindspot — explicit observe-only or managed connection, consented context, and node discovery (FMEA synced 2026-07-21)
-%% files: packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx
+%% Blindspot — invite-only beta, explicit observe-only or managed connection, consented context, and node discovery (FMEA synced 2026-07-21)
+%% files: packages/core/src/onboarding.ts, packages/core/src/feedback.ts, apps/gateway/src/scripts/invite.ts, apps/gateway/src/scripts/feedback.ts, apps/gateway/src/manage/feedback.ts, packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/login/page.tsx, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx, apps/dashboard/app/(app)/feedback/page.tsx
 %% granularity: full
 flowchart TD
+  INVITE["Create isolated beta project + shown-once key<br/>FUNCTION · operator CLI · one database transaction<br/>out: project key delivered through a secure channel"]:::fn
+  SIGNIN["Sign in and mint separate application key<br/>USER · invite key stays as recovery<br/>out: independently revocable server-only app key"]:::ask
+  INSTALL["Install versioned TypeScript SDK + five environment variables<br/>FUNCTION · metadata + observe-only default<br/>out: deployable application connector"]:::fn
   APP["Existing agent receives a request<br/>FUNCTION<br/>in: user input · out: application response"]:::term
   MODE{"BLINDSPOT_ROUTING?<br/>USER · observe_only default or managed"}:::dec
   KEEP["Application keeps its configured model<br/>FUNCTION · observe-only never asks Blindspot to route"]:::fn
@@ -18,8 +21,10 @@ flowchart TD
   SHARE{"Share product context now?<br/>USER · explicit action only"}:::ask
   MANIFEST["Store versioned context manifest and hash<br/>DATA · README/design/prompt/architecture selected by app owner"]:::data
   NONE["No repository content leaves the app<br/>DATA"]:::term
+  FEEDBACK["Submit project-scoped beta feedback<br/>USER · stage, expected, actual and impact<br/>explicit submit · no automatic logs or attachments"]:::ask
+  FDB["Store bounded feedback + show own history<br/>DATA · authenticated project scope<br/>operator reads all only from trusted database CLI"]:::data
 
-  APP --> MODE
+  INVITE --> SIGNIN --> INSTALL --> APP --> MODE
   MODE -- "observe-only" --> KEEP --> RUN
   MODE -- "managed" --> RESOLVE --> RUN
   RUN --> SDK --> CAP --> API --> REDACT --> MAP --> GEN
@@ -28,6 +33,7 @@ flowchart TD
   UI --> SHARE
   SHARE -- "consent" --> MANIFEST
   SHARE -- "not now" --> NONE
+  UI --> FEEDBACK --> FDB
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;

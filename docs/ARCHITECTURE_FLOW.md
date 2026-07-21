@@ -1,9 +1,11 @@
 # Blindspot — Architecture Flow
 
-> **Status: local prototype verified through the truthful-evidence UX correction on 2026-07-21.**
+> **Status: hosted invite-only beta verified through the truthful-evidence UX correction on 2026-07-21.**
 > The SDK discovers real workflows, the dashboard separates every workflow node from model-only
 > Routes, golden sets are versioned and consent-aware, budgeted evals persist per-example evidence,
-> and production model recommendations require real workflow replay. Redis/worker durability,
+> and production model recommendations require real workflow replay. Each beta company receives an
+> isolated project/key, a versioned TypeScript connector, a live connection check and a structured
+> feedback path. Open signup/billing, npm publication, Redis/worker durability,
 > scheduled live semantic judging, the suggested-additions queue, OTel/Sentry and load hardening
 > remain Phase 8 work.
 >
@@ -22,6 +24,7 @@
 | Workflow-replay eval | A protected callback runs the real app with a temporary target-node model override. This is production-grade evidence. |
 | Golden set | A versioned, user-owned asset seeded by structured upload or agent generation from consented documents/context/traces, then curated through CRUD and trace promotion. |
 | Drift | Live operational telemetry is collected (automatic thresholds remain Phase 8), live semantic judging needs consent/budget, and golden-eval comparison is active. Developer simulations are quarantined. |
+| Beta invite | Operator-created isolated project plus shown-once key. The tester mints a separate revocable app key; open signup is deliberately deferred. |
 
 ## Master flow
 

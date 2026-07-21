@@ -12,6 +12,8 @@ import {
 } from "drizzle-orm/pg-core";
 import type {
   CaptureMode,
+  BetaFeedbackImpact,
+  BetaFeedbackStage,
   DriftSource,
   Evidence,
   EvalCriterionScore,
@@ -90,6 +92,26 @@ export const projects = bs.table("projects", {
   captureMode: captureMode("capture_mode").$type<CaptureMode>().notNull().default("metadata"),
   createdAt: createdAt(),
 });
+
+/** Project-scoped private-beta feedback; never accepts attachments or implicit telemetry. */
+export const betaFeedback = bs.table(
+  "beta_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    stage: text("stage").$type<BetaFeedbackStage>().notNull(),
+    attempted: text("attempted").notNull(),
+    expected: text("expected").notNull(),
+    actual: text("actual").notNull(),
+    impact: text("impact").$type<BetaFeedbackImpact>().notNull(),
+    framework: text("framework"),
+    captureMode: text("capture_mode"),
+    createdAt: createdAt(),
+  },
+  (t) => [index("beta_feedback_project_created_idx").on(t.projectId, t.createdAt)],
+);
 
 /** App-issued gateway keys (bs_live_…). We store only a hash + a shown-once prefix. */
 export const apiKeys = bs.table(
