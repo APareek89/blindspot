@@ -6,6 +6,17 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Provider/infrastructure keys cannot sign into a Blindspot project
+**What happened:** dashboard sign-in failed when a key from Blindspot's own `.env` was used.
+**Root cause:** that file has no `BLINDSPOT_API_KEY`; it contains infrastructure and model-provider
+credentials. Dashboard authentication requires a `bs_live_…` project key stored as a hash in the same
+production database used by the hosted gateway. GSTPilot's working project key lives in GSTPilot's
+server-only environment.
+**Fix:** validated the GSTPilot key against hosted `/v1/me` without printing it, copied it directly to
+the user's clipboard, and clarified the beta onboarding guide.
+**Watch for later:** always name both the credential type and its source: invite/project key for human
+sign-in, separate project key for the app, provider key only for model calls. Never say “API key” alone.
+
 ## 2026-07-21 — A local schema push does not migrate Render's database
 **What happened:** native beta feedback passed locally, but the production service uses a different
 `DATABASE_URL`. Applying the additive table through the developer `.env` therefore did not prepare

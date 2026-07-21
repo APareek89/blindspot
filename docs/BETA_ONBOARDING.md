@@ -32,6 +32,12 @@ pnpm --filter @blindspot/gateway feedback -- --limit 25
 3. Add a provider key only when ready to run model evals; observability itself does not require it.
 4. In Connect, keep project retention at Metadata only for the first test.
 
+The login credential is always a `bs_live_…` project key created by Blindspot. Do not use
+`ANTHROPIC_API_KEY`, `DATABASE_URL`, `ENCRYPTION_KEY`, or any other value from the Blindspot server's
+own `.env`; those are infrastructure/provider credentials and cannot authenticate a project. For the
+existing GSTPilot test, the working project key is its server-only `BLINDSPOT_API_KEY` in the GSTPilot
+repository/Render service—not in the Blindspot repository `.env`.
+
 ## 3. Tester — install the TypeScript connector
 
 During the private beta, the versioned package is served by the Blindspot dashboard:

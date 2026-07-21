@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 3ea4505
+> last-synced: 3c40907
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Shipped and live
@@ -16,7 +16,7 @@
 - `pnpm test:eval-plan` — pass, zero provider tokens; invite/key, feedback, SDK/ingest, budget/evidence/drift/approval and concurrency regressions pass.
 - `pnpm build` — pass; `/connect` and `/feedback` compile.
 - Mermaid — 9/9 structural parse; HTML viewer rebuilt.
-- Hosted — health API/version/features, feedback, login and SDK artifact pass; artifact checksum matches.
+- Hosted — health/features, feedback, login and SDK pass; GSTPilot project key returns `/v1/me` 200 and is sourced from GSTPilot, not Blindspot `.env`.
 - In-app browser QA hit a local runtime conflict; no click-through is claimed. Build, HTTP/API and real-app flow are verified.
 
 ## FMEA at `ade11e4` + feature worktree
