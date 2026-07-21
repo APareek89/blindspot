@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 44465df
+> last-synced: d0df9b8
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Current state
@@ -23,6 +23,9 @@
   GSTPilot project key was replaced, verified and revoked without printing its replacement.
 - ✅ SDK builds to a publishable tarball shape; Render Blueprint uses two free Singapore web services,
   inline eval mode and no Redis for this prototype.
+- 🟡 Render services exist (`blindspot-gateway`, `blindspot-dashboard`). Their first builds failed
+  before dependency installation because `corepack enable` cannot replace Render's read-only
+  `/usr/bin/pnpm`; the Blueprint now invokes Render's provided `pnpm` directly and needs redeployment.
 
 ## Verification
 - `pnpm typecheck` — 8/8 packages pass.
@@ -53,8 +56,8 @@ retry/idempotency, config drift and PRD edge cases.
 
 ## Next
 - ✅ Truthful-evidence checkpoint committed at `44465df`.
-- 🤖 Push the checkpoint, then create `blindspot-gateway` and
-  `blindspot-dashboard` on Render with the existing database/encryption values and verify live `/healthz`.
+- 🤖 Commit/push the Render build-command correction, update both live service build commands, redeploy,
+  then verify gateway `/healthz` and dashboard `/login`.
 - 🤖 After deployment, update this handoff with service IDs/URLs and the exact GSTPilot env checklist.
 - 🧑 USER: for the first paid hosted eval, choose the route, golden version, Sonnet/Haiku, 1–2 examples,
   displayed budget and capture mode. Paid provider evals remain ask-only; Loop remains off.

@@ -6,6 +6,15 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-21 — Do not run `corepack enable` in Render's read-only runtime
+**What happened:** both Render services failed before dependency installation with `EROFS` while
+Corepack attempted to unlink `/usr/bin/pnpm`.
+**Root cause:** Render's Node runtime already exposes `pnpm` in a read-only system path; `corepack
+enable` is a machine-level shim installation command and therefore cannot mutate that path.
+**Fix:** call `pnpm install --frozen-lockfile` directly in the Blueprint and live service build commands.
+**Watch for later:** deployment build commands should use the package manager supplied by the runtime;
+do not add global installer or shim mutation steps unless the platform explicitly requires them.
+
 ## 2026-07-21 — Screening, workflow evidence, drift and application state are different truths
 **What happened:** the user could not tell whether Routes included deterministic code, what the
 manual drift number meant, why a 72% score existed, why “explore cheaper models” produced no usable
