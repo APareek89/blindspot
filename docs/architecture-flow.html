@@ -11,14 +11,15 @@
 </style></head><body>
 <div class="hint">Tip: use Ctrl/Cmd + scroll or browser zoom to enlarge a diagram.</div>
 <h1>Architecture Flow</h1>
-<h2>Blindspot — master flow: Connect -&gt; Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Apply (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — master flow: Connect -&gt; Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Apply (FMEA synced 2026-07-21)
+<h2>Blindspot — master flow: Connect -&gt; Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Apply (takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — master flow: Connect -&gt; Observe -&gt; Eval -&gt; Recommend -&gt; Approve -&gt; Apply (takeover reviewed 2026-07-22)
 %% files: packages/sdk/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts, packages/core/src/drift.ts
 %% granularity: master
 flowchart TD
   A["Existing agent handles a user request&lt;br/&gt;ENTRY · app keeps its own prompts, tools and deterministic code"]:::term
   MODE{"Connection mode?&lt;br/&gt;USER · observe-only is default"}:::dec
-  OBS["Observe existing model calls and every node kind&lt;br/&gt;FUNCTION · SDK sends consent-bounded spans&lt;br/&gt;out: workflow map + generation Routes"]:::fn
+  OBS["Observe instrumented calls and executed node kinds&lt;br/&gt;FUNCTION · SDK sends consent-bounded spans&lt;br/&gt;out: observed workflow map + generation Routes"]:::fn
+  TOPO["Declared topology + environment coverage&lt;br/&gt;PLANNED · not current runtime truth"]:::term
   MAN["Resolve generation node to approved model&lt;br/&gt;FUNCTION · managed SDK or OpenAI-compatible gateway&lt;br/&gt;out: concrete provider:model"]:::fn
   LIVE["Run the real application workflow&lt;br/&gt;AGENT + FUNCTION nodes&lt;br/&gt;out: answer, spans, usage, errors and latency"]:::agent
   GOLD["Create versioned golden set&lt;br/&gt;USER · upload, documents, explicitly shared context, or consented live traces"]:::ask
@@ -51,6 +52,7 @@ flowchart TD
   APPLY -- "yes" --&gt; SWITCH --&gt; DRIFT
   APPLY -- "no" --&gt; ROLLOUT --&gt; DRIFT
   DRIFT -. "new evidence" .-&gt; POLICY
+  OBS -. "future manifest" .-&gt; TOPO
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;
@@ -61,7 +63,7 @@ flowchart TD
 </pre>
 <h2>Blindspot — BUILD DECISIONS LOG (not a runtime flow)</h2>
 <pre class="mermaid">%% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Truthful-evidence + deployment sync: 2026-07-21.
+%% Records WHAT was chosen at each phase and WHY. Hosted-beta + takeover sync: 2026-07-22.
 %% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
@@ -106,18 +108,20 @@ flowchart TD
   P7["Phase 7 · Dashboard (Next.js §10) — DONE"]:::done
   P7A["Phase 7A · Connect + Observe — DONE"]:::done
   P7Aa["Observe-only TypeScript SDK + authenticated batch ingestion; metadata-only default&lt;br/&gt;WHY: connect an existing agent without forcing it through Blindspot routing or retaining content"]:::why
-  P7Ab["Workflow/node hierarchy links generation nodes to existing Routes; user selects workflows&lt;br/&gt;WHY: compatibility and optimization are node-specific, and discovery must not imply permission to change"]:::why
+  P7Ab["Observed workflow/node hierarchy links generation nodes to existing Routes; user selects workflows&lt;br/&gt;WHY: ingest proves executed instrumentation, not unobserved static topology or permission to change"]:::why
   P7Ac["Claude Sonnet 4.6 vs Haiku 4.5 first; HF + Fireworks adapters remain pluggable&lt;br/&gt;WHY: prove the end-to-end decision with gstpilot before widening the catalog"]:::why
   P7B["Phase 7B · Registry + Compatibility — DONE"]:::done
   P7Ba["Read-only provider catalog sync stores project-scoped account availability + normalized&lt;br/&gt;capabilities; listing consumes zero inference tokens&lt;br/&gt;WHY: expose only models the user's own account can actually access"]:::why
   P7Bb["Observed node requirements deterministically gate Sonnet/Haiku; excluded models carry reasons&lt;br/&gt;WHY: technical fit permits an experiment, while quality and spend remain separate later gates"]:::why
   P7Bc["Adding a compatible candidate does not run an eval or change live_model&lt;br/&gt;WHY: Phase 7C must estimate cost and obtain explicit spend approval before paid work"]:::why
-  P7C["Phase 7C · Quality + Experiment — DONE LOCALLY"]:::done
+  P7C["Phase 7C · Quality + Experiment — BUILT + DEPLOYED"]:::done
   P7Ca["Immutable 30-minute eval plan: full estimate or disclosed SHA-seeded stratified sample;&lt;br/&gt;selected + omitted cases, calls, cost, safety and confidence shown before confirm&lt;br/&gt;WHY: the user owns eval spend and must know exactly what a smaller budget changes"]:::why
   P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;&lt;br/&gt;per-example evidence is persisted immediately and incomplete runs cannot recommend&lt;br/&gt;WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
   P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,&lt;br/&gt;rate limits, observability and plan-aware CI/drift jobs&lt;br/&gt;WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
   QA["2026-07-18 · Power Coding QA hardening&lt;br/&gt;Recommendations now require complete same-plan live + candidate evidence; unknown price cannot auto-approve;&lt;br/&gt;critical/high dependency advisories removed without changing the approved stack"]:::done
-  P7D["Phase 7D · Truthful evidence loop — DONE LOCALLY 2026-07-21&lt;br/&gt;observe-only vs managed, protected replay, visible criterion mean, evidence table,&lt;br/&gt;consent-aware golden wizard, real drift lanes and revocable gateway keys"]:::done
+  P7D["Phase 7D · Truthful evidence loop — BUILT + DEPLOYED 2026-07-22&lt;br/&gt;observe-only vs managed, protected replay, visible criterion mean, evidence table,&lt;br/&gt;consent-aware golden wizard, real drift lanes and revocable gateway keys"]:::done
+  AUTH["Hosted beta access — BUILT + QA&lt;br/&gt;signed invite, separate recovery/application keys, one secure project-key session&lt;br/&gt;WHY: smooth private beta now; Supabase human identity remains an explicit future decision"]:::done
+  GAP["Next product truth gap&lt;br/&gt;declared topology + dev/production coverage + deterministic node instrumentation&lt;br/&gt;WHY: observed node count must never be mistaken for the complete source workflow"]:::wip
 
   P0 --&gt; P0c --&gt; P0d --&gt; P05
   P05 --&gt; P05c --&gt; P05d --&gt; P05e --&gt; P1
@@ -125,15 +129,15 @@ flowchart TD
   P2 --&gt; P2a --&gt; P2b --&gt; P2c --&gt; P3
   P3 --&gt; P3a --&gt; P3b --&gt; P3fix --&gt; P4
   P4 --&gt; P4a --&gt; P4b --&gt; P4c --&gt; P5
-  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc --&gt; P7C --&gt; P7Ca --&gt; P7Cb --&gt; P7Cc --&gt; QA --&gt; P7D
+  P5 --&gt; P5a --&gt; P5b --&gt; DONE --&gt; P7 --&gt; P7A --&gt; P7Aa --&gt; P7Ab --&gt; P7Ac --&gt; P7B --&gt; P7Ba --&gt; P7Bb --&gt; P7Bc --&gt; P7C --&gt; P7Ca --&gt; P7Cb --&gt; P7Cc --&gt; QA --&gt; P7D --&gt; AUTH --&gt; GAP
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;
   classDef todo fill:#e5e7eb,stroke:#6b7280,color:#111827;
   classDef why fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
 </pre>
-<h2>Blindspot — golden-set lifecycle: explicit source -&gt; configure -&gt; review -&gt; run (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — golden-set lifecycle: explicit source -&gt; configure -&gt; review -&gt; run (FMEA synced 2026-07-21)
+<h2>Blindspot — golden-set lifecycle: explicit source -&gt; configure -&gt; review -&gt; run (takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — golden-set lifecycle: explicit source -&gt; configure -&gt; review -&gt; run (takeover reviewed 2026-07-22)
 %% files: apps/gateway/src/manage/golden.ts, packages/core/src/golden/agent.ts, packages/core/src/golden/service.ts, packages/core/src/golden/upload.ts, apps/dashboard/app/(app)/golden-sets/[route]/GoldenManager.tsx
 %% granularity: full
 flowchart TD
@@ -172,8 +176,8 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
 </pre>
-<h2>Blindspot — eval + recommend: screening evidence is not production evidence (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — eval + recommend: screening evidence is not production evidence (FMEA synced 2026-07-21)
+<h2>Blindspot — eval + recommend: screening evidence is not production evidence (takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — eval + recommend: screening evidence is not production evidence (takeover reviewed 2026-07-22)
 %% files: apps/gateway/src/manage/eval.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts
 %% granularity: full
 flowchart TD
@@ -227,8 +231,8 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
 </pre>
-<h2>Blindspot — three drift lanes with simulations quarantined from evidence (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — three drift lanes with simulations quarantined from evidence (FMEA synced 2026-07-21)
+<h2>Blindspot — three drift lanes with simulations quarantined from evidence (takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — three drift lanes with simulations quarantined from evidence (takeover reviewed 2026-07-22)
 %% files: packages/core/src/drift.ts, packages/core/src/eval/runner.ts, apps/gateway/src/manage/drift.ts, apps/dashboard/app/(app)/drift/page.tsx
 %% granularity: full
 flowchart TD
@@ -264,15 +268,15 @@ flowchart TD
   classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
 </pre>
-<h2>Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-22.</h2>
-<pre class="mermaid">%% Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-22.
+<h2>Blindspot — dashboard + management API. Hosted invite/project-key signup + session QA synced 2026-07-22.</h2>
+<pre class="mermaid">%% Blindspot — dashboard + management API. Hosted invite/project-key signup + session QA synced 2026-07-22.
 %% Management keeps bs_key server-only; invite signup is the explicit shown-once key-delivery boundary.
 %% files: apps/dashboard/lib/api.ts, apps/dashboard/lib/request-origin.ts, apps/dashboard/app/logout/route.ts, apps/dashboard/app/signup/SignupFlow.tsx, apps/dashboard/app/signup/session/route.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/public/signup.ts, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/signup.ts
 %% granularity: full
 flowchart TD
   U["Browser (client components)&lt;br/&gt;ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?&lt;br/&gt;FUNCTION · httpOnly cookie bs_key present"}:::dec
-  SI["Sign-in-with-key screen&lt;br/&gt;FUNCTION · exact origin or browser-proven same-origin form&lt;br/&gt;validates via GET /v1/me · sets httpOnly cookie"]:::fn
+  SI["Current beta sign-in-with-project-key screen&lt;br/&gt;FUNCTION · exact origin or browser-proven same-origin form&lt;br/&gt;validates via GET /v1/me · sets httpOnly cookie · not Supabase Auth"]:::fn
   IV["Issue invite link&lt;br/&gt;FUNCTION · HMAC-signs email + project + expiry&lt;br/&gt;out: shown-once URL-fragment token"]:::fn
   SU["Signup screen&lt;br/&gt;USER · confirms locked email/project&lt;br/&gt;out: same-origin creation request"]:::ask
   VG["Public signup gate&lt;br/&gt;FUNCTION · signature + expiry + size checks&lt;br/&gt;out: verified claims"]:::fn
@@ -337,27 +341,28 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
 </pre>
-<h2>Blindspot — invite-only beta, explicit observe-only or managed connection, consented context, and node discovery (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — invite-only beta, explicit observe-only or managed connection, consented context, and node discovery (FMEA synced 2026-07-21)
+<h2>Blindspot — invite beta, connection modes, consented context, and observed node discovery (takeover synced 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — invite beta, connection modes, consented context, and observed node discovery (takeover synced 2026-07-22)
 %% files: packages/core/src/onboarding.ts, packages/core/src/feedback.ts, apps/gateway/src/scripts/invite.ts, apps/gateway/src/scripts/feedback.ts, apps/gateway/src/manage/feedback.ts, packages/sdk/src/index.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/workflows.ts, packages/db/src/schema.ts, apps/dashboard/app/login/page.tsx, apps/dashboard/app/(app)/workflows/page.tsx, apps/dashboard/app/(app)/connect/page.tsx, apps/dashboard/app/(app)/feedback/page.tsx
 %% granularity: full
 flowchart TD
-  INVITE["Create isolated beta project + shown-once key&lt;br/&gt;FUNCTION · operator CLI · one database transaction&lt;br/&gt;out: project key delivered through a secure channel"]:::fn
-  SIGNIN["Sign in and mint separate application key&lt;br/&gt;USER · invite key stays as recovery&lt;br/&gt;out: independently revocable server-only app key"]:::ask
+  INVITE["Create signed recipient/project signup link&lt;br/&gt;FUNCTION · operator CLI · token in URL fragment&lt;br/&gt;out: secure, expiring invitation"]:::fn
+  SIGNIN["Create workspace + separate recovery/application keys&lt;br/&gt;USER · invite-gated project-key identity, not Supabase Auth&lt;br/&gt;out: signed-in browser + revocable server-only app key"]:::ask
   INSTALL["Install versioned TypeScript SDK + five environment variables&lt;br/&gt;FUNCTION · metadata + observe-only default&lt;br/&gt;out: deployable application connector"]:::fn
   APP["Existing agent receives a request&lt;br/&gt;FUNCTION&lt;br/&gt;in: user input · out: application response"]:::term
   MODE{"BLINDSPOT_ROUTING?&lt;br/&gt;USER · observe_only default or managed"}:::dec
   KEEP["Application keeps its configured model&lt;br/&gt;FUNCTION · observe-only never asks Blindspot to route"]:::fn
   RESOLVE["Resolve node model with safe fallback&lt;br/&gt;FUNCTION · POST /v1/workflows/resolve-model&lt;br/&gt;in: workflow, node, fallback · out: approved provider:model"]:::fn
   RUN["Run application workflow&lt;br/&gt;AGENT + FUNCTION nodes&lt;br/&gt;out: answers, tool results and deterministic decisions"]:::agent
-  SDK["Queue bounded best-effort telemetry&lt;br/&gt;FUNCTION · 900KB cap, one retry, terminal flush at request boundary"]:::fn
+  SDK["Queue bounded best-effort telemetry for instrumented nodes&lt;br/&gt;FUNCTION · 900KB cap, one retry, terminal flush at request boundary"]:::fn
   CAP{"Effective capture mode&lt;br/&gt;FUNCTION · stricter of SDK and project&lt;br/&gt;metadata, inputs, or full"}:::dec
   API["Ingest authenticated span batch&lt;br/&gt;FUNCTION · 1MB request cap, max 100 spans, Zod validation"]:::fn
   REDACT["Redact credential-shaped fields&lt;br/&gt;FUNCTION · out: consent-bounded safe payload"]:::fn
-  MAP["Upsert workflow, execution and every node kind&lt;br/&gt;DATA · agent, generation, retrieval, tool and deterministic function nodes"]:::data
+  MAP["Upsert workflow, execution and each received node kind&lt;br/&gt;DATA · observed agent, generation, retrieval, tool or function spans only"]:::data
   GEN{"Node is a model generation?&lt;br/&gt;FUNCTION"}:::dec
   ROUTE["Create/link environment-scoped Route&lt;br/&gt;FUNCTION · observed model is truth in observe-only&lt;br/&gt;managed route changes only after approval"]:::fn
-  UI["Workflows dashboard&lt;br/&gt;FUNCTION · map shows all nodes; Routes &amp; Models shows generation nodes only"]:::fn
+  UI["Workflows dashboard&lt;br/&gt;FUNCTION · map shows observed nodes; Routes &amp; Models shows generations only"]:::fn
+  DECL["Declared topology + dev/production coverage&lt;br/&gt;PLANNED · startup manifest is not implemented"]:::term
   SHARE{"Share product context now?&lt;br/&gt;USER · explicit action only"}:::ask
   MANIFEST["Store versioned context manifest and hash&lt;br/&gt;DATA · README/design/prompt/architecture selected by app owner"]:::data
   NONE["No repository content leaves the app&lt;br/&gt;DATA"]:::term
@@ -370,6 +375,7 @@ flowchart TD
   RUN --&gt; SDK --&gt; CAP --&gt; API --&gt; REDACT --&gt; MAP --&gt; GEN
   GEN -- "yes" --&gt; ROUTE --&gt; UI
   GEN -- "no" --&gt; UI
+  UI -. "future coverage" .-&gt; DECL
   UI --&gt; SHARE
   SHARE -- "consent" --&gt; MANIFEST
   SHARE -- "not now" --&gt; NONE
@@ -382,8 +388,8 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef data fill:#ede9fe,stroke:#7c3aed,color:#2a0a4a;
 </pre>
-<h2>Blindspot — provider registry + node compatibility gate (Phase 7B; reviewed 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — provider registry + node compatibility gate (Phase 7B; reviewed 2026-07-21)
+<h2>Blindspot — provider registry + node compatibility gate (Phase 7B; takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — provider registry + node compatibility gate (Phase 7B; takeover reviewed 2026-07-22)
 %% files: packages/providers/src/registry.ts, packages/core/src/model-registry.ts, apps/gateway/src/manage/model-registry.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
 %% granularity: full
 flowchart TD
@@ -394,7 +400,7 @@ flowchart TD
   CATALOG["List account-visible models&lt;br/&gt;FUNCTION · provider read-only endpoint&lt;br/&gt;bounded timeout + 5 MB response · zero inference tokens"]:::fn
   VALIDATE["Validate catalog with Zod&lt;br/&gt;FUNCTION&lt;br/&gt;normalize capabilities + availability + pricing"]:::fn
   REG["Upsert account-scoped registry&lt;br/&gt;DATA · model_registry&lt;br/&gt;unseen prior rows become unavailable"]:::data
-  REQ["Strictest observed node requirements&lt;br/&gt;DATA · workflow_nodes.requirements_json"]:::data
+  REQ["Strictest currently observed/supplied node requirements&lt;br/&gt;DATA · workflow_nodes.requirements_json&lt;br/&gt;unseen branches are not inferred"]:::data
   SELECT{"Workflow selected for optimization?&lt;br/&gt;USER · default false"}:::ask
   ALLOW["Prototype allowlist&lt;br/&gt;FUNCTION · Claude Sonnet 4.6 + Haiku 4.5"]:::fn
   ACCESS{"Provider key + account access verified?&lt;br/&gt;FUNCTION"}:::dec
@@ -428,8 +434,8 @@ flowchart TD
   classDef ask fill:#cffafe,stroke:#0891b2,color:#083344;
   classDef term fill:#e5e7eb,stroke:#6b7280,color:#111827;
 </pre>
-<h2>Blindspot — immutable eval spend authorization with explicit execution grade (FMEA synced 2026-07-21)</h2>
-<pre class="mermaid">%% Blindspot — immutable eval spend authorization with explicit execution grade (FMEA synced 2026-07-21)
+<h2>Blindspot — immutable eval spend authorization with explicit execution grade (takeover reviewed 2026-07-22)</h2>
+<pre class="mermaid">%% Blindspot — immutable eval spend authorization with explicit execution grade (takeover reviewed 2026-07-22)
 %% files: packages/core/src/eval/cost.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
 %% granularity: full
 flowchart TD

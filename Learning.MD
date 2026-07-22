@@ -6,6 +6,21 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-22 — Observed node inventory was mistaken for the application's full topology
+**What happened:** hosted GSTPilot showed 3 production nodes while development showed 7, so the user
+reasonably asked whether the hosted app was connected and why Blindspot had lost nodes.
+**Why chain:** the UI said “nodes” without a coverage qualifier → `workflow_nodes` contains distinct
+names upserted from received spans → production had only two requests and executed fewer branches →
+GSTPilot instruments the root agent plus shared LLM helper, not every deterministic step → no declared
+startup manifest exists. Deepest cause: `semantic contract` — runtime discovery was presented like
+static architecture discovery.
+**Action:** documented the counts and exact environments, standardized takeover guidance on “observed
+nodes,” and made the missing declared-topology/coverage layer explicit. Production connection evidence
+remains valid; the difference is coverage, not disconnection.
+**Preventive action:** never call an ingested-node union the complete workflow. Future UI and schema
+must separate declared, observed-in-development, observed-in-production and never-observed nodes;
+connectors must explicitly instrument deterministic/retrieval/tool steps when that visibility matters.
+
 ## 2026-07-22 — The opaque-Origin fix covered logout but missed the sign-in form
 **What happened:** after pasting a valid project key, the user received the raw JSON error
 `cross-origin sign-in is not allowed`; the key was never validated and no session cookie was set.

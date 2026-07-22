@@ -1,33 +1,40 @@
 # Handoff.MD — Blindspot
-> last-synced: 9cdb7d9
+> last-synced: 1915846
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
-## Current checkpoint
-- ✅ `9cdb7d9` is on GitHub `main` and live on Render: project-key sign-in accepts Chromium's legitimate `Origin: null` only with browser-proven same-origin navigation metadata.
-- ✅ Hosted matrix: opaque same-origin and exact-origin forms reach key validation (303); cross-site and missing-origin posts stay 403.
-- ✅ Hosted Playwright captured the real `Origin: null` form returning 303 with zero console errors; a real project key set the secure session and opened `/connect` with 200 without printing the key.
-- ✅ Full typecheck, route regression, zero-token integration suite, production build, secret scan and relevant Mermaid validation passed; provider token cost stayed 0.
+## Takeover checkpoint — 2026-07-22
+- Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.
+- Read order: `AGENTS.md` → this file → `Loop.MD` → `README.md` → `Blindspot-PRD.md` → `docs/ARCHITECTURE_FLOW.md`.
+- Architecture was approved 2026-07-16. Do not restart Phase 0 or re-litigate the stack.
+- All 13 Markdown files and all 9 Mermaid sources were reconciled for Claude takeover; the root `README.md` is now the map.
 
-## Shipped and live before this checkpoint
-- ✅ `006c590` on `main`: signed private-beta signup, shown-once recovery/application keys, guided Connect, nine-tab session persistence and POST logout.
-- ✅ Gateway advertises `invite-signup-v1`; hosted signup/security-header/tamper/cross-origin acceptance previously passed.
-- ✅ GSTPilot production remains metadata + observe-only with its prior hosted key for now.
+## Live product truth
+- Render gateway/dashboard are live; invite signup, project-key sessions, Connect, workflows, golden
+  lifecycle, budgeted evidence, approvals, drift and feedback are deployed.
+- Auth is **signed invite + Blindspot project keys**, not Supabase Auth; signup-first human identity,
+  organizations and scoped human/app credentials remain a product/architecture decision.
+- Current beta eval mode is inline; Redis/durable retries, rate limits, OTel/Sentry and k6 remain
+  Phase 8; cold starts can surface temporary 502s. Approval gates and golden lifecycle remain fixed.
 
-## Credential rotation required
-- ⚠️ Playwright's failed API-request diagnostic printed GSTPilot's project cookie. Temporary auth files were deleted and the incident is in `Learning.MD`.
-- ✅ A replacement project key was minted/verified, saved in `/Users/anandpareek/Documents/gstpilot/.env`, and copied to the macOS clipboard without printing it.
-- ⏳ GSTPilot Render still has the old key so production is not broken; the old key must be revoked immediately after Render uses the replacement.
-- Blocker: the previously supplied Render API key now returns HTTP 400. Put a fresh `RENDER_API_KEY` in Blindspot's git-ignored `.env`, or paste the current clipboard into GSTPilot Render `BLINDSPOT_API_KEY`, save/deploy, then say **rotation done**.
+## GSTPilot evidence and the node-count correction
+- Hosted `gstpilot / production` is connected in `metadata + observe_only`: 2 executions, 3 observed
+  nodes, last seen 2026-07-21 09:05:22 UTC. Development: 5 executions, 7 observed nodes.
+- `nodeCount` is the environment-scoped union of ingested node names—not a static/source topology.
+  GSTPilot emits the `pipeline` root plus wrapped LLM generations. Uninstrumented/unexecuted
+  deterministic branches are absent; the first root-only production request was not backfilled.
+- Next topology proof: declared startup manifest + declared/dev/prod/unseen coverage, explicit spans
+  for deterministic nodes, and UI wording “observed nodes.”
 
-## Product/security follow-ups
-- P1: bearer keys still have project-admin power; build scoped/expiring human vs app keys before broad beta.
-- P1: current auth is project-key + invite, not Supabase Auth. Align signup-first human identity before implementing it.
-- P1: free Render cold starts can still surface a transient 502; add warm-service resilience and production-appropriate error UX.
-- P1: add public rate limits, Sentry/OTel alerts, BullMQ retry/resume and load hardening before production traffic.
-- FMEA at `9cdb7d9`: 0 P0; 2 existing P1 above; P2s are fail-closed raw 403 UX in header-stripping browsers and no disposable automated happy-path cookie fixture; 12/12 categories checked.
-- Loop remains off; no paid eval ran.
+## Immediate risks / next decisions
+1. **Rotate the exposed GSTPilot production key:** replacement is verified in GSTPilot's git-ignored
+   `.env` and clipboard. Replace Render `BLINDSPOT_API_KEY`, deploy, verify one safe request, then
+   revoke the old key. The old Render API token returns HTTP 400; never print either credential.
+2. Align signup-first Supabase Auth, organizations and scoped/expiring human vs application keys
+   before implementing broader beta identity.
+3. Build declared-vs-observed topology/coverage and instrument GSTPilot deterministic nodes.
+4. Add gateway cold-start retry/error UX, then Phase 8 durability/monitoring before production traffic.
 
-## Next
-1. User retries the hosted project-key sign-in; the cross-origin JSON error is fixed live.
-2. Complete the GSTPilot Render key swap above and revoke the exposed key.
-3. Align the Supabase Auth signup-first correction, then implement it one approved step at a time.
+## Verification at this checkpoint
+- PASS: `pnpm typecheck`, `pnpm test:auth-origin`, `pnpm test:eval-plan`, `pnpm build`.
+- PASS: Mermaid 9/9 + rebuilt viewer; Markdown local links 13/13; 23-file secret scan; token cost 0.
+- Loop remains `off`; no paid eval ran. Documentation-only change; no runtime feature/FMEA delta.

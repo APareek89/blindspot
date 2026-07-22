@@ -1,5 +1,5 @@
 %% Blindspot — BUILD DECISIONS LOG (not a runtime flow)
-%% Records WHAT was chosen at each phase and WHY. Truthful-evidence + deployment sync: 2026-07-21.
+%% Records WHAT was chosen at each phase and WHY. Hosted-beta + takeover sync: 2026-07-22.
 %% files: Blindspot-PRD.md, Handoff.MD, packages/core/src/model-registry.ts, packages/core/src/eval/queue.ts, packages/core/src/recommend.ts, apps/dashboard/package.json
 %% granularity: summary
 flowchart TD
@@ -44,18 +44,20 @@ flowchart TD
   P7["Phase 7 · Dashboard (Next.js §10) — DONE"]:::done
   P7A["Phase 7A · Connect + Observe — DONE"]:::done
   P7Aa["Observe-only TypeScript SDK + authenticated batch ingestion; metadata-only default<br/>WHY: connect an existing agent without forcing it through Blindspot routing or retaining content"]:::why
-  P7Ab["Workflow/node hierarchy links generation nodes to existing Routes; user selects workflows<br/>WHY: compatibility and optimization are node-specific, and discovery must not imply permission to change"]:::why
+  P7Ab["Observed workflow/node hierarchy links generation nodes to existing Routes; user selects workflows<br/>WHY: ingest proves executed instrumentation, not unobserved static topology or permission to change"]:::why
   P7Ac["Claude Sonnet 4.6 vs Haiku 4.5 first; HF + Fireworks adapters remain pluggable<br/>WHY: prove the end-to-end decision with gstpilot before widening the catalog"]:::why
   P7B["Phase 7B · Registry + Compatibility — DONE"]:::done
   P7Ba["Read-only provider catalog sync stores project-scoped account availability + normalized<br/>capabilities; listing consumes zero inference tokens<br/>WHY: expose only models the user's own account can actually access"]:::why
   P7Bb["Observed node requirements deterministically gate Sonnet/Haiku; excluded models carry reasons<br/>WHY: technical fit permits an experiment, while quality and spend remain separate later gates"]:::why
   P7Bc["Adding a compatible candidate does not run an eval or change live_model<br/>WHY: Phase 7C must estimate cost and obtain explicit spend approval before paid work"]:::why
-  P7C["Phase 7C · Quality + Experiment — DONE LOCALLY"]:::done
+  P7C["Phase 7C · Quality + Experiment — BUILT + DEPLOYED"]:::done
   P7Ca["Immutable 30-minute eval plan: full estimate or disclosed SHA-seeded stratified sample;<br/>selected + omitted cases, calls, cost, safety and confidence shown before confirm<br/>WHY: the user owns eval spend and must know exactly what a smaller budget changes"]:::why
   P7Cb["Confirmation locks the plan once; every real eval requires its route/model/example authorization;<br/>per-example evidence is persisted immediately and incomplete runs cannot recommend<br/>WHY: budget, retry safety and evidence integrity are server-enforced, not UI conventions"]:::why
   P7Cc["Local mode runs inline with Redis bypassed; Phase 8 owns queued plan handoff, crash recovery,<br/>rate limits, observability and plan-aware CI/drift jobs<br/>WHY: preserve the approved scale architecture without depending on Redis for this prototype"]:::why
   QA["2026-07-18 · Power Coding QA hardening<br/>Recommendations now require complete same-plan live + candidate evidence; unknown price cannot auto-approve;<br/>critical/high dependency advisories removed without changing the approved stack"]:::done
-  P7D["Phase 7D · Truthful evidence loop — DONE LOCALLY 2026-07-21<br/>observe-only vs managed, protected replay, visible criterion mean, evidence table,<br/>consent-aware golden wizard, real drift lanes and revocable gateway keys"]:::done
+  P7D["Phase 7D · Truthful evidence loop — BUILT + DEPLOYED 2026-07-22<br/>observe-only vs managed, protected replay, visible criterion mean, evidence table,<br/>consent-aware golden wizard, real drift lanes and revocable gateway keys"]:::done
+  AUTH["Hosted beta access — BUILT + QA<br/>signed invite, separate recovery/application keys, one secure project-key session<br/>WHY: smooth private beta now; Supabase human identity remains an explicit future decision"]:::done
+  GAP["Next product truth gap<br/>declared topology + dev/production coverage + deterministic node instrumentation<br/>WHY: observed node count must never be mistaken for the complete source workflow"]:::wip
 
   P0 --> P0c --> P0d --> P05
   P05 --> P05c --> P05d --> P05e --> P1
@@ -63,7 +65,7 @@ flowchart TD
   P2 --> P2a --> P2b --> P2c --> P3
   P3 --> P3a --> P3b --> P3fix --> P4
   P4 --> P4a --> P4b --> P4c --> P5
-  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc --> QA --> P7D
+  P5 --> P5a --> P5b --> DONE --> P7 --> P7A --> P7Aa --> P7Ab --> P7Ac --> P7B --> P7Ba --> P7Bb --> P7Bc --> P7C --> P7Ca --> P7Cb --> P7Cc --> QA --> P7D --> AUTH --> GAP
 
   classDef done fill:#dcfce7,stroke:#16a34a,color:#052e16;
   classDef wip fill:#fef9c3,stroke:#ca8a04,color:#3f2d00;

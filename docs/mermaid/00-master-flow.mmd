@@ -1,10 +1,11 @@
-%% Blindspot — master flow: Connect -> Observe -> Eval -> Recommend -> Approve -> Apply (FMEA synced 2026-07-21)
+%% Blindspot — master flow: Connect -> Observe -> Eval -> Recommend -> Approve -> Apply (takeover reviewed 2026-07-22)
 %% files: packages/sdk/src/index.ts, packages/core/src/eval/planner.ts, packages/core/src/eval/runner.ts, packages/core/src/recommend.ts, packages/core/src/drift.ts
 %% granularity: master
 flowchart TD
   A["Existing agent handles a user request<br/>ENTRY · app keeps its own prompts, tools and deterministic code"]:::term
   MODE{"Connection mode?<br/>USER · observe-only is default"}:::dec
-  OBS["Observe existing model calls and every node kind<br/>FUNCTION · SDK sends consent-bounded spans<br/>out: workflow map + generation Routes"]:::fn
+  OBS["Observe instrumented calls and executed node kinds<br/>FUNCTION · SDK sends consent-bounded spans<br/>out: observed workflow map + generation Routes"]:::fn
+  TOPO["Declared topology + environment coverage<br/>PLANNED · not current runtime truth"]:::term
   MAN["Resolve generation node to approved model<br/>FUNCTION · managed SDK or OpenAI-compatible gateway<br/>out: concrete provider:model"]:::fn
   LIVE["Run the real application workflow<br/>AGENT + FUNCTION nodes<br/>out: answer, spans, usage, errors and latency"]:::agent
   GOLD["Create versioned golden set<br/>USER · upload, documents, explicitly shared context, or consented live traces"]:::ask
@@ -37,6 +38,7 @@ flowchart TD
   APPLY -- "yes" --> SWITCH --> DRIFT
   APPLY -- "no" --> ROLLOUT --> DRIFT
   DRIFT -. "new evidence" .-> POLICY
+  OBS -. "future manifest" .-> TOPO
 
   classDef agent fill:#dbeafe,stroke:#2563eb,color:#0b2a5b;
   classDef fn fill:#dcfce7,stroke:#16a34a,color:#052e16;

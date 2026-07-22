@@ -1,6 +1,6 @@
 # Blindspot — PRD + Claude Code Build Guide
 
-**Version:** 1.2 · **Owner:** Anand Pareek · **Status:** Truthful-evidence prototype approved 2026-07-21
+**Version:** 1.3 · **Owner:** Anand Pareek · **Status:** Hosted beta + Claude takeover synced 2026-07-22
 **One-liner:** *Blindspot is the improvement workspace for a built AI agent: connect any workflow, understand every model-powered node, test only technically compatible models against user-owned golden sets, and surface **evidence-backed recommendations the user approves**, never a silent switch.*
 **Why the name:** the whole product exists to reveal the **blind spot** every agent team has — the silent quality regression you can’t see until users complain.
 
@@ -10,14 +10,19 @@
 > Evidence semantics corrected 2026-07-21: observe-only vs managed application, model-only
 > screening vs protected workflow replay, visible criterion-mean scoring, explicit context consent,
 > and real-vs-simulated drift separation.
+> Takeover semantics corrected 2026-07-22: current node inventory is observed runtime telemetry,
+> invite/project-key access is not Supabase Auth, and Phase 8 durability remains unbuilt.
 
 ---
 
 ## 0. HOW CLAUDE CODE SHOULD USE THIS DOCUMENT (read first)
 
-> **a) ALIGN THE ARCHITECTURE WITH ME BEFORE WRITING ANY CODE.**
-> Read this whole PRD, then: (1) restate the architecture + the core objects back to me in your own words; (2) confirm tech choices (language, MCP/gateway approach, queue, DB) and flag anything you’d do differently; (3) print the **`.env` / secrets checklist** from §11 and confirm which providers I’m enabling for v1; (4) confirm the two non-negotiables — **swaps require my approval** (§3) and **golden sets have an upload-or-auto-generate lifecycle** (§7). **Do not scaffold until I reply “architecture approved.”**
-> *(In parallel, I’m running the separate `SETUP-secrets-and-deps-prompt.md` in a second Claude Code session to gather keys — assume a `.env` will appear; read from it, never hard-code secrets.)*
+> **a) THE ARCHITECTURE IS ALREADY APPROVED (2026-07-16).**
+> For a takeover, read `AGENTS.md`, `Handoff.MD`, `Loop.MD`, this PRD and
+> `docs/ARCHITECTURE_FLOW.md`; reconcile the handoff SHA; then continue the listed next work. Do not
+> restart Phase 0, scaffold a replacement, or re-litigate the stack. Ask for approval only when a
+> proposed change alters the architecture or one of the two non-negotiables. Read secrets from the
+> existing git-ignored `.env`; never print or hard-code them.
 >
 > **b) EXECUTE PROMPTS ONE AT A TIME, TEACHING AS YOU GO.**
 > Work through §12 one prompt at a time. **Before each step**, explain in *plain English first, then technical terms* — what you’re building, why, and how (e.g., “we’re adding a *gateway* so your app calls Blindspot instead of the model directly — technically an OpenAI-compatible proxy that resolves a route alias to a concrete model”). After each step: show the diff + a one-line “what changed / how to verify,” and **pause for my OK**. I want to *learn the stack* as we build.
@@ -37,8 +42,9 @@ Agent teams hard-code one model per call-site and never revisit it. Two costs fo
 | Object | Definition |
 |---|---|
 | **Route** | A named **model-generation call-site** in the user’s agent (`summarizer`, `section-writer`). It never represents deterministic code. The unit of model config + eval. |
-| **Workflow** | A discovered agentic flow (for example `gstpilot/pipeline`) containing model and deterministic nodes. Discovery is read-only until the user selects it. |
-| **Node** | One step inside a workflow: agent, generation, retrieval, tool or deterministic function. Only generation nodes become Routes. |
+| **Workflow** | An environment-scoped agentic flow (for example `gstpilot / production`). Today it is discovered from ingested spans and is read-only until the user selects it. |
+| **Observed node** | A step actually instrumented and executed in that environment: agent, generation, retrieval, tool or deterministic function. Only observed generation nodes become Routes. This is not yet the app's complete static topology. |
+| **Declared topology** | Planned startup manifest of expected nodes/edges. It will allow coverage comparisons such as declared, observed in development, observed in production and never seen. It is not implemented yet. |
 | **Model registry** | Provider-discovered models normalized with capability, availability, pricing, version and deprecation metadata. |
 | **Compatibility status** | `compatible`, `needs verification`, `needs provider key`, `incompatible`, or `eval failed`, with an explicit reason. |
 | **Candidate pool** | Models allowed to run a route — frontier APIs + HuggingFace/open models, chosen from the **catalog** (§5). |
@@ -68,7 +74,9 @@ This is a *stronger* product stance than silent autonomy: **evidence-backed reco
 
 A user runs a LangGraph app (e.g., a lesson generator or a RAG assistant) that makes ~6 model calls per request, all hard-coded to one frontier model.
 1. **Connect** — add the lightweight SDK for observe-only discovery (default), enable SDK managed resolution per generation node, or point an OpenAI-compatible client at the gateway. Capture mode and repository-context sharing are separate user decisions.
-2. **Workflows appear** — users select which discovered workflow to improve; each generation node becomes an eval Route with its observed model, latency, tokens, errors and capability requirements.
+2. **Observed workflows appear** — users select which discovered workflow/environment to improve;
+   each instrumented generation node becomes an eval Route with its observed model, latency, tokens,
+   errors and capability requirements. Unexecuted or uninstrumented branches do not appear yet.
 3. **Choose candidate models** from the catalog (frontier + open/HF) per route.
 4. **Give each route a golden set** — upload one, or let the **Golden Set Agent** write one (§7); set a policy.
 5. **Blindspot evals** — model-only runs shortlist candidates; protected workflow replay runs the real prompt, retrieval, tools and deterministic gates. Only complete replay-grade evidence can recommend a production switch.
@@ -94,6 +102,10 @@ feedback form that never attaches application logs implicitly.
 Uninvited/open signup, email/password identity, organization roles, billing, npm publication and a
 native Python observability SDK are general-availability work, not claims of this beta.
 
+**Identity decision still required:** the current beta is signed-invite + project-key access. The
+user's desired general flow is signup-first human identity, likely Supabase Auth. Do not imply that
+Supabase Auth is integrated; align account, organization and key-scope semantics before building it.
+
 **The catalog = “models on the platform to choose from.”** A provider sync discovers models, then Blindspot normalizes and verifies them. The experiment selector defaults to technically compatible models; an “Excluded” view explains every omitted model. Spans:
 - **A · Frontier APIs** — first prototype: Anthropic Claude Sonnet 4.6 vs Claude Haiku 4.5. Provider-list synchronization is account-specific.
 - **B · HuggingFace open models** — added by model id, served via the **HF Inference API** (serverless, free tier — great for eval back-testing) or **Inference Endpoints** (dedicated/autoscaling). e.g. `Qwen/Qwen2.5-7B`, `meta-llama/Llama-3.3-70B`.
@@ -111,7 +123,7 @@ experiment, never a live swap.
 - **Managed (future):** Blindspot proxies through its own accounts (OpenRouter-style) + unified billing — no user keys needed. Roadmap only.
 
 ## 6. The loop: Observe → Eval → Recommend → Approve → Route → Gate
-Observe (all node kinds; content only at the selected capture level) → Eval (model-only screening or
+Observe (all **instrumented** node kinds; content only at the selected capture level) → Eval (model-only screening or
 real workflow replay) → score as the visible equal-weight criterion mean → **Recommend** only from
 complete replay evidence → **Approve** → apply on managed connections or mark awaiting rollout on
 observe-only connections → monitor operational and golden-eval drift.
@@ -155,8 +167,12 @@ User agent ──(gateway: base_url→route | SDK/OTel: spans)──▶ BLINDSPO
                                                      Postgres (routes · scores · golden sets · recs · drift history)
 Stateless gateway (scale by instance count) · eval runs are the bursty/slow work → decoupled into workers via a queue · idempotent jobs · DLQ · per-key rate limiting · `render.yaml` autoscaling · `/healthz` · OpenTelemetry + Sentry · **user provider keys encrypted at rest** (BYO).
 
+This diagram is the approved scale target. The current local and Render beta runs evals inline and
+does not require Redis. Durable BullMQ workers, DLQ/retry, rate limiting, OTel/Sentry and k6 are
+Phase 8; documentation and UI must not describe them as live production guarantees.
+
 ## 9. Data model (Postgres)
-`projects(id, user, name, capture_mode)` · `beta_feedback(project_id, stage, attempted, expected, actual, impact, framework, capture_mode)` · `workflows(id, project_id, name, framework, environment, selected, integration_mode, context_manifest/hash/shared_at, replay_url/encrypted_secret/enabled, first_seen, last_seen)` · `workflow_nodes(id, workflow_id, route_id, name, kind, latest_model, requirements_json)` · `workflow_executions(...)` · `workflow_spans(...)` · `routes(id, project_id, name, live_model, policy_json, auto_approve)` · `model_registry(...)` · `candidates(...)` · `golden_sets(...)` · `golden_examples(...)` · `eval_plans(..., execution_mode, disclosed sample/seed/hash, status, expiry, actual_cost)` · `eval_runs(..., execution_mode, score_method, avg_score, counts, costs, latency, seed)` · `eval_example_results(..., input/reference/candidate_output, score, criteria, reasoning, issues, candidate/judge cost, error)` · `recommendations(...)` · `drift_events(..., source[live_traffic|provider_version|golden_eval|simulation], action)` · `provider_keys(...)` · `api_keys(hash + prefix only)` · `traces(...)`.
+`projects(id, user, name, capture_mode)` · `beta_feedback(project_id, stage, attempted, expected, actual, impact, framework, capture_mode)` · `workflows(id, project_id, name, framework, environment, selected, integration_mode, context_manifest/hash/shared_at, replay_url/encrypted_secret/enabled, first_seen, last_seen)` · `workflow_nodes(id, workflow_id, route_id, name, kind, latest_model, requirements_json)` (**currently observed-only**) · `workflow_executions(...)` · `workflow_spans(...)` · `routes(id, project_id, name, live_model, policy_json, auto_approve)` · `model_registry(...)` · `candidates(...)` · `golden_sets(...)` · `golden_examples(...)` · `eval_plans(..., execution_mode, disclosed sample/seed/hash, status, expiry, actual_cost)` · `eval_runs(..., execution_mode, score_method, avg_score, counts, costs, latency, seed)` · `eval_example_results(..., input/reference/candidate_output, score, criteria, reasoning, issues, candidate/judge cost, error)` · `recommendations(...)` · `drift_events(..., source[live_traffic|provider_version|golden_eval|simulation], action)` · `provider_keys(...)` · `api_keys(hash + prefix only)` · `traces(...)`. A declared-node/edge table is a planned topology addition, not current schema.
 
 ## 10. COMPLETE UI/UX (Blindspot agent-workspace design)
 Dark, data-dense, Linear/Vercel-clean. Tokens: bg `#0B0D10`, card `#14171C`, accent `#635BFF`, pass `#2FBF71`, warn `#E0A32E`, danger `#E5484D`, cyan `#3DB7C0`.
@@ -178,8 +194,11 @@ States to design: empty (no route), no-golden-set (offer upload/agent), pending-
 - `JUDGE_MODEL=anthropic:claude-haiku-4-5-20251001` — cheap Claude judge.
 - `BLINDSPOT_DEFAULT_MODEL=anthropic:claude-sonnet-4-6` — observed route fallback.
 - `GOLDEN_MODEL=anthropic:claude-sonnet-4-6` — agent-generated golden examples.
-- `DATABASE_URL` — Postgres (Supabase/Render/Neon). · `REDIS_URL` — queue + cache (Render KV/Upstash).
+- `DATABASE_URL` — Postgres (Supabase/Render/Neon).
 - `ENCRYPTION_KEY` — 32-byte key to encrypt stored user provider keys at rest.
+
+**Deferred for Phase 8:** `REDIS_URL` — queue/cache durability. It is not required while
+`BLINDSPOT_EVAL_MODE=inline`.
 
 **Optional candidate providers:** `HF_TOKEN` · `FIREWORKS_API_KEY` (adapters wired; only
 models that pass the node compatibility gate may enter an experiment).
@@ -197,7 +216,7 @@ models that pass the node compatibility gate may enter an experiment).
 it is stored encrypted in Blindspot and is never the project key.
 
 ## 12. BUILD SEQUENCE (Claude Code: one prompt at a time, teach-as-you-go per §0b)
-**Phase 0 — Align & scaffold.** Restate architecture; print `.env` checklist; confirm the two decisions; wait for “architecture approved.” Scaffold: gateway service + dashboard (Next.js) + Postgres schema (§9) + Redis + queue + `/healthz`.
+**Phase 0 — Align & scaffold (DONE; approved 2026-07-16).** Gateway, dashboard, schema, queue wiring and `/healthz`. A takeover does not repeat this phase.
 **Phase 1 — Gateway & routes.** OpenAI-compatible gateway that resolves `route:<name>` → a model via a provider adapter (start with one provider, BYO key, encrypted). Auto-create routes from traffic. Trace every call.
 **Phase 2 — Golden sets.** Upload (CSV/JSONL) + validation; the **Golden Set Agent** (synthesize inputs + reference/rubric); CRUD (add/edit/delete/version); “promote a trace.”
 **Phase 3 — Eval engine.** LLM-as-judge scores a route’s golden set; store `eval_runs`; back-test a candidate on add.
@@ -206,16 +225,17 @@ it is stored encrypted in Blindspot and is never the project key.
 **Phase 6 — Catalog & providers.** Model catalog (frontier + HF via `HF_TOKEN` + aggregators); add-from-catalog with back-test.
 **Phase 7 — Dashboard.** Build §10 screens (Connect + Approvals + Golden Sets first — they carry the demo).
 **Phase 8 — Scale & observability.** Queue workers, DLQ, idempotency, rate limits, `render.yaml` autoscaling, OTel + Sentry, k6 load test, `SCALING.md`.
-**Phase 9 — Ship.** Tests + a tool/eval suite (does the judge agree with human approvals?), README + Loom, deploy to Render.
+**Phase 9 — Ship (PARTIAL).** Tests, root README and Render deployment exist. Broad beta identity,
+durability/observability, load testing, npm publication and Loom remain.
 
 **Agent-workspace prototype expansion (approved 2026-07-18; one checkpoint at a time):**
 - **Phase 7A — Connect + Observe.** TypeScript SDK, authenticated span ingestion, workflow/node discovery, workflow selection, data controls. Test shape: gstpilot.
 - **Phase 7B — Registry + Compatibility (built 2026-07-18).** Anthropic account model sync; Sonnet 4.6 vs Haiku 4.5; normalized capability matrix and read-only access probes. HF + Fireworks adapters stay pluggable.
-- **Phase 7C — Quality + Experiment (built locally 2026-07-18).** Context import, golden lifecycle, per-example outputs/issues, full cost estimate and transparent stratified sampling under a user cap.
-- **Phase 7D — Truthful evidence loop (built locally 2026-07-21).** Observe-only vs managed application, protected workflow replay, criterion-mean evidence table, comparable golden-eval drift, operational-signal collection and quarantined simulation. Automatic operational thresholds and consented live semantic scheduling remain Phase 8.
+- **Phase 7C — Quality + Experiment (built and deployed).** Context import, golden lifecycle, per-example outputs/issues, full cost estimate and transparent stratified sampling under a user cap.
+- **Phase 7D — Truthful evidence loop + beta access (built and deployed 2026-07-22).** Observe-only vs managed application, protected workflow replay, criterion-mean evidence table, comparable golden-eval drift, operational-signal collection, quarantined simulation, signed invite signup and project-key sessions. Automatic operational thresholds, consented live semantic scheduling, Supabase human identity and declared topology remain future work.
 
 ## 13. Success metrics
-**Portfolio:** a live demo where connecting an app → all nodes and model Routes appear → a budgeted
+**Portfolio:** a live demo where connecting an app → all **instrumented/observed** nodes and model Routes appear → a budgeted
 workflow replay produces transparent evidence → an approved managed Recommendation changes a route
 or an observe-only one waits for rollout → a later real golden-eval regression raises drift evidence.
 **Product:** realized/pending savings, routes under management, rollout completion, real drift caught,
@@ -229,7 +249,7 @@ side-effect, latency, idempotency and security assertions) and produce code/test
 not model-switch Recommendations. Future also includes more providers, team roles, reports and MCP.
 
 ---
-*Definition of done (v1): connect a real app → workflow map + generation Routes appear → create a
+*Definition of done (v1): connect a real app → observed workflow map + generation Routes appear → create a
 versioned golden set → authorize a workflow-replay plan → inspect every input/output/score/issue →
 approve a managed Recommendation or track an observe-only rollout → detect a real comparable-score
 regression without polluting evidence with simulations — all on a live Render deployment.*

@@ -1,11 +1,11 @@
-%% Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-22.
+%% Blindspot — dashboard + management API. Hosted invite/project-key signup + session QA synced 2026-07-22.
 %% Management keeps bs_key server-only; invite signup is the explicit shown-once key-delivery boundary.
 %% files: apps/dashboard/lib/api.ts, apps/dashboard/lib/request-origin.ts, apps/dashboard/app/logout/route.ts, apps/dashboard/app/signup/SignupFlow.tsx, apps/dashboard/app/signup/session/route.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/public/signup.ts, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/signup.ts
 %% granularity: full
 flowchart TD
   U["Browser (client components)<br/>ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?<br/>FUNCTION · httpOnly cookie bs_key present"}:::dec
-  SI["Sign-in-with-key screen<br/>FUNCTION · exact origin or browser-proven same-origin form<br/>validates via GET /v1/me · sets httpOnly cookie"]:::fn
+  SI["Current beta sign-in-with-project-key screen<br/>FUNCTION · exact origin or browser-proven same-origin form<br/>validates via GET /v1/me · sets httpOnly cookie · not Supabase Auth"]:::fn
   IV["Issue invite link<br/>FUNCTION · HMAC-signs email + project + expiry<br/>out: shown-once URL-fragment token"]:::fn
   SU["Signup screen<br/>USER · confirms locked email/project<br/>out: same-origin creation request"]:::ask
   VG["Public signup gate<br/>FUNCTION · signature + expiry + size checks<br/>out: verified claims"]:::fn

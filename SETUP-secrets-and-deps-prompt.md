@@ -1,6 +1,12 @@
-# Blindspot — Parallel Setup Prompt (secrets & dependencies)
+# Blindspot — Bootstrap Setup Prompt (historical/reusable)
 
-Run this in a **second Claude Code session**, in the Blindspot repo folder, *while your main session builds*. It gathers every API key, provisions the free-tier accounts, scaffolds `.env`, installs dependencies, and verifies each credential — so the moment the main build needs a secret, it’s already there.
+> **Takeover note (2026-07-22):** the repository is already built and has an environment-owned,
+> git-ignored `.env`. Do not rerun this prompt during a normal takeover. Use it only when setting up
+> a new machine or deliberately replacing credentials, and never overwrite or reveal existing values.
+
+Run this in a **separate Claude Code session** only when bootstrapping a fresh environment. It gathers
+API keys, provisions optional free-tier accounts, scaffolds `.env`, installs dependencies, and
+verifies each credential.
 
 > How to use: paste **everything inside the code block below** into a fresh Claude Code session. It’s written to be interactive — it will walk you through one credential at a time and wait for you.
 
@@ -60,10 +66,9 @@ STEP 3 — Walk me through each credential, in this order, waiting after each:
   7. DATABASE_URL (Postgres) → EITHER Supabase (supabase.com → new project → Settings →
      Database → Connection string, "URI", use the pooled port 6543) OR Render Postgres OR
      Neon. FREE tier on all three. Paste the full postgres:// URL.
-  8. REDIS_URL → Upstash (upstash.com → create Redis → copy the `rediss://` URL) OR Render
-     Key Value. FREE tier. Used for the queue + cache.
-     For local Redis-free development, set BLINDSPOT_EVAL_MODE to `inline`; remove that
-     override when Redis-backed workers are enabled.
+  8. REDIS_URL → DEFER by default for the current beta. Redis is Phase 8 queue/cache durability.
+     When Phase 8 is explicitly approved, use Upstash or Render Key Value. Until then set
+     BLINDSPOT_EVAL_MODE to `inline`; Redis is not required for local or current hosted testing.
   9. ENCRYPTION_KEY → generate it FOR me locally (do not ask me): run
      `openssl rand -hex 32`, write the output to ENCRYPTION_KEY in `.env`, confirm "saved ✓".
      (This encrypts users' stored provider keys at rest.)
@@ -110,9 +115,9 @@ Start with STEP 1 now.
 | `HF_TOKEN` | open models via HF Inference API | huggingface.co/settings/tokens | ✅ |
 | `OPENAI_API_KEY` | GPT candidates (optional) | platform.openai.com/api-keys | pay-as-you-go |
 | `DATABASE_URL` | Postgres (routes, evals, golden sets) | Supabase / Render / Neon | ✅ |
-| `REDIS_URL` | queue + cache | Upstash / Render Key Value | ✅ |
+| `REDIS_URL` | Phase 8 queue + cache (currently optional) | Upstash / Render Key Value | ✅ |
 | `ENCRYPTION_KEY` | encrypt users' stored provider keys | `openssl rand -hex 32` | ✅ |
 | `SENTRY_DSN` | error monitoring (optional) | sentry.io | ✅ |
 
-**Tip:** you only need `ANTHROPIC_API_KEY` for the first Claude-only prototype. Add HF and
-Fireworks when the compatibility registry is ready to expose eligible open-model candidates.
+**Tip:** the deployed beta exposes Claude Sonnet 4.6 vs Haiku 4.5. Add HF and Fireworks only when
+their candidates are intentionally enabled; adapter wiring alone is not a live product claim.

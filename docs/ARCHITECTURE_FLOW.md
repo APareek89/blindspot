@@ -1,12 +1,12 @@
 # Blindspot — Architecture Flow
 
-> **Status: hosted invite-only beta plus locally release-gated signup/session flow as of 2026-07-22.**
+> **Status: hosted invite-only beta with hosted signup/session QA as of 2026-07-22.**
 > The SDK discovers real workflows, the dashboard separates every workflow node from model-only
 > Routes, golden sets are versioned and consent-aware, budgeted evals persist per-example evidence,
 > and production model recommendations require real workflow replay. Each beta company receives an
 > expiring recipient/project-bound signup link, separate recovery/application keys, a versioned
 > TypeScript connector, a live connection check and a structured feedback path. Uninvited open
-> signup/billing, npm publication, Redis/worker durability,
+> signup/billing, Supabase human identity, declared topology, npm publication, Redis/worker durability,
 > scheduled live semantic judging, the suggested-additions queue, OTel/Sentry and load hardening
 > remain Phase 8 work.
 >
@@ -17,7 +17,9 @@
 
 | Object | Runtime truth |
 |---|---|
-| Workflow | The whole application flow: agent, generation, retrieval, tool and deterministic function nodes. |
+| Workflow | One named, environment-scoped application flow. Its current dashboard inventory is built from received runtime spans. |
+| Observed node | A distinct node name actually instrumented and executed in that environment. Supported kinds are agent, generation, retrieval, tool and function; uninstrumented/unexecuted code is absent. |
+| Declared topology | Planned application-owned node/edge manifest for coverage comparisons. It is not implemented, so current node counts are not a full static architecture map. |
 | Route | One **generation node** where a model is used and can be compared or managed. Deterministic code is never mislabeled as a model route. |
 | Observe-only | Blindspot records the model the app actually used. Approval means “awaiting app rollout”; Blindspot does not claim it switched the app. |
 | Managed | The app asks Blindspot to resolve a node model. Only an approved Recommendation can change that route; fallback keeps the app available. |
@@ -27,13 +29,26 @@
 | Drift | Live operational telemetry is collected (automatic thresholds remain Phase 8), live semantic judging needs consent/budget, and golden-eval comparison is active. Developer simulations are quarantined. |
 | Beta invite | Operator-signed expiring fragment link bound to email/project. Signup atomically creates hash-only recovery/application keys, signs in and starts metadata + observe-only; uninvited signup is deferred. |
 
+## Declared versus observed topology
+
+The current ingest path upserts nodes from spans; it does not inspect a connected repository. A
+workflow's `nodeCount` therefore means “distinct observed node names in this environment.” Repeating
+a path adds executions/spans but not new node names. Instrumented branches appear only after they run.
+
+Hosted GSTPilot proves the distinction: production has 2 executions / 3 observed nodes, while
+development has 5 executions / 7 observed nodes. The connector currently emits a `pipeline` root
+agent span plus every wrapped LLM generation; deterministic router, retrieval, gate, calculator and
+tool steps need explicit spans. Planned declared topology will let Blindspot show declared, observed
+in development, observed in production and never-observed coverage without confusing runtime
+evidence with source architecture.
+
 ## Master flow
 
 ```mermaid
 flowchart TD
   A["Existing agent handles a user request<br/>ENTRY · app keeps its prompts, tools and deterministic code"]:::term
   MODE{"Connection mode?<br/>USER · observe-only is default"}:::dec
-  OBS["Observe existing calls and all node kinds<br/>FUNCTION · consent-bounded spans<br/>out: workflow map + generation Routes"]:::fn
+  OBS["Observe instrumented calls and executed node kinds<br/>FUNCTION · consent-bounded spans<br/>out: observed workflow map + generation Routes"]:::fn
   MAN["Resolve generation node to approved model<br/>FUNCTION · managed SDK or gateway<br/>out: provider:model"]:::fn
   LIVE["Run the real application workflow<br/>AGENT + FUNCTION nodes<br/>out: answer, spans, usage, errors and latency"]:::agent
   GOLD["Create versioned golden set<br/>USER · upload, documents, explicitly shared context, or consented traces"]:::ask
@@ -106,7 +121,7 @@ flowchart LR
 | Gate | Enforcer | Rule |
 |---|---|---|
 | Data retention | USER + FUNCTION | Effective capture is the stricter of project and SDK; metadata is default. Context and live-trace use each need explicit consent. |
-| Technical compatibility | FUNCTION | Provider access plus observed modality, tool, schema, streaming, system-message and context requirements. |
+| Technical compatibility | FUNCTION | Provider access plus requirements actually observed or explicitly supplied by the app: modality, tool, schema, streaming, system-message and context. Unobserved branches are not inferred. |
 | Eval spend | USER + FUNCTION | Immutable estimate → disclosed full/sample cases → explicit confirmation → single-use plan. |
 | Score | FUNCTION | Equal-weight mean of visible criteria; legacy judge overall only when no criteria exist. |
 | Production recommendation | FUNCTION | Complete same-plan **workflow-replay** evidence for live and candidate; candidate meets bar and proves the policy claim. |

@@ -3,6 +3,10 @@
 The beta is invite-only and self-serve after the link: every company receives an expiring signup link
 bound to one email and project. There is no uninvited signup, shared project or billing in this phase.
 
+**Current auth truth:** this is signed-invite + Blindspot project-key authentication. Supabase Auth,
+email/password identity and organizations are not integrated yet. A tester without an invite uses
+the project-key login only if an operator has securely given them a recovery key.
+
 ## 1. Blindspot operator — create the invite
 
 Run from the Blindspot repository with `ENCRYPTION_KEY` available in the git-ignored environment:
@@ -117,6 +121,20 @@ through `onError`, but must not break the user's application response.
 If no workflow appears, check the application logs for a redacted `[blindspot]` warning, confirm the
 five environment-variable names are present, and verify the SDK wrapper actually ran.
 
+### What “observed nodes” means
+
+Blindspot counts distinct node names actually received for a single workflow and environment. It
+does not scan the repository or infer every possible branch. A node appears only when both are true:
+
+1. the app instruments it (a root agent span, wrapped generation, or explicit function/tool/retrieval
+   span); and
+2. a request executes that path in the selected environment.
+
+Therefore development and production can legitimately show different counts. Repeating the same
+path adds executions/spans but does not add a distinct node. GSTPilot currently wraps its root and
+shared LLM helper, so deterministic router/calculator steps will remain absent until explicitly
+instrumented. A declared-topology/coverage view is planned but not shipped.
+
 `GET https://blindspot-gateway.onrender.com/healthz` is public and returns the API version plus
 connector features; it never returns project configuration or credentials.
 
@@ -134,3 +152,5 @@ prompts, outputs, customer identifiers and personal data from anything you type.
 - Observe-only cannot switch a live model. Managed routing requires `resolveModel()` at every model
   boundary plus protected workflow replay.
 - Redis-backed crash recovery, production rate limits and external alerting remain Phase 8.
+- Declared/static workflow topology and declared-vs-observed environment coverage are not shipped.
+- Human identity is project-key based; signup-first Supabase Auth remains a product decision.

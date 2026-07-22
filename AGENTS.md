@@ -25,20 +25,25 @@ Current state: [`Handoff.MD`](./Handoff.MD).
   production (human-curated) → full CRUD + versioning + promote-a-trace. Never a one-time
   upload.
 
-## Stack (approved)
+## Stack (approved target; current beta notes follow)
 TypeScript · **pnpm + Turborepo** monorepo · OpenAI-compatible **gateway** · **Vercel AI
 SDK** (pluggable provider adapters) · **Drizzle ORM** on Postgres · **BullMQ on Redis**
 (eval workers; worker runs in-process for local dev until Phase 8) · **Zod** as single
 source of truth · **Next.js** dashboard · user provider keys encrypted at rest with
 **AES-256-GCM** (`ENCRYPTION_KEY`) · Render deploy · `/healthz` · OpenTelemetry + Sentry ·
-k6 load test. **v1 providers:** Gemini (+ judge), Groq, HuggingFace, Anthropic (OpenAI
-optional). `JUDGE_MODEL` configurable (Gemini flash / Claude Haiku).
+k6 load test. Provider adapters stay pluggable; the **currently exposed experiment allowlist is
+Claude Sonnet 4.6 vs Haiku 4.5**. HuggingFace and Fireworks wiring is retained for expansion;
+Gemini, Groq and OpenAI are not current beta claims. `JUDGE_MODEL` remains configurable.
+
+The hosted/local beta intentionally uses `BLINDSPOT_EVAL_MODE=inline`; Redis workers, durable
+retries, OTel/Sentry and k6 hardening are Phase 8. Current human access is signed invite plus
+project-key cookie—not Supabase Auth. Do not describe either target capability as already shipped.
 
 ## Layout (target)
 - `apps/gateway` — OpenAI-compatible proxy; resolve `route:<name>` → approved model; trace
 - `apps/worker` — eval runs (golden set → judge → score → drift check → recommendation)
-- `apps/dashboard` — Next.js UI (§10 screens: Overview · Routes · Approvals · Drift ·
-  Golden Sets · Connect · Settings)
+- `apps/dashboard` — Next.js UI (§10 screens: Overview · Workflows · Routes & Models · Evals ·
+  Approvals · Drift · Golden Sets · Connect · Feedback · Settings)
 - `packages/db` — Drizzle schema/queries (§9) · `packages/shared` — Zod schemas/types
 - `docs/mermaid` + `docs/ARCHITECTURE_FLOW.md` — architecture diagrams
 
@@ -47,7 +52,8 @@ At session start read Handoff.MD; FIRST run `git log --oneline <its last-synced 
 and reconcile anything changed underneath it; then open with its pending points. Update
 Handoff.MD before every git checkpoint commit and at the end of every phase (low context is
 a secondary trigger) — snapshot, not journal, re-stamp `last-synced` with HEAD. If context
-was the trigger, give the continuation phrase using the absolute `Blindspot_v1` path. Above
+was the trigger, give the continuation phrase using the absolute
+`/Users/anandpareek/Documents/Projects/blindspot` path. Above
 ~40 lines or ~15 ✅ items, collapse shipped detail into one line.
 Log flow changes / user-reported bugs in Learning.MD using its 5-whys format.
 Read Loop.MD every session and obey its `status:` machine. While `status: on`, run the FREE
@@ -65,3 +71,12 @@ Before features, state and build the smallest proof first. New service/dependenc
 async architecture requires a plain-language diagram delta and user approval before code.
 Log stack/architecture/behavior decisions in Handoff.MD; never silently reverse one. Keep
 Blindspot-PRD.md current. Full FMEA scans obey `consent.fmea_full_scan`.
+
+## Current semantics Claude must preserve
+- `workflow_nodes` is an **observed runtime inventory**. A node appears only after the connected app
+  instruments and executes it in that environment; it is not yet a declared/static topology.
+- Always say “observed nodes” in product copy. Do not infer unexecuted branches from source code.
+- GSTPilot currently emits a root `agent` span plus wrapped LLM `generation` spans. Instrumented
+  deterministic/retrieval/tool spans and a declared-topology manifest are follow-up work.
+- Human signup is invite-gated and project-key based. Supabase Auth is an open product correction,
+  not an existing integration.

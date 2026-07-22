@@ -1,4 +1,4 @@
-%% Blindspot — provider registry + node compatibility gate (Phase 7B; reviewed 2026-07-21)
+%% Blindspot — provider registry + node compatibility gate (Phase 7B; takeover reviewed 2026-07-22)
 %% files: packages/providers/src/registry.ts, packages/core/src/model-registry.ts, apps/gateway/src/manage/model-registry.ts, packages/db/src/schema.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/RouteDetailView.tsx
 %% granularity: full
 flowchart TD
@@ -9,7 +9,7 @@ flowchart TD
   CATALOG["List account-visible models<br/>FUNCTION · provider read-only endpoint<br/>bounded timeout + 5 MB response · zero inference tokens"]:::fn
   VALIDATE["Validate catalog with Zod<br/>FUNCTION<br/>normalize capabilities + availability + pricing"]:::fn
   REG["Upsert account-scoped registry<br/>DATA · model_registry<br/>unseen prior rows become unavailable"]:::data
-  REQ["Strictest observed node requirements<br/>DATA · workflow_nodes.requirements_json"]:::data
+  REQ["Strictest currently observed/supplied node requirements<br/>DATA · workflow_nodes.requirements_json<br/>unseen branches are not inferred"]:::data
   SELECT{"Workflow selected for optimization?<br/>USER · default false"}:::ask
   ALLOW["Prototype allowlist<br/>FUNCTION · Claude Sonnet 4.6 + Haiku 4.5"]:::fn
   ACCESS{"Provider key + account access verified?<br/>FUNCTION"}:::dec
