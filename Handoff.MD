@@ -1,19 +1,23 @@
 # Handoff.MD — Blindspot
-> last-synced: 37ae225
+> last-synced: 844410c
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Active work — 2026-07-22 (Claude took over from codex)
-- Product reframe **Monitor → Insights → Evals + Supabase front door** brainstormed. Build order:
-  **Slice 1 Monitor (A) → 2 Insights (B) → 3 Eval polish/function-nodes (C) → 4 Supabase (D)**.
-  Rationale: A/B/C queries are all `projectId`-scoped, so Supabase slots under later with no rework.
-- Slice-1 spec (full): `docs/superpowers/specs/2026-07-22-monitor-insights-evals-reframe-design.md`
-  — **APPROVED 2026-07-22** (all §4 decisions confirmed). Decisions: Monitor screen is a new
-  top-level nav item; A.3 ships app-signaled (free) first, LLM-judge opt-in/paid later; A.5 adds
-  `execution_feedback` table + `blindspot.feedback()` SDK method + `POST /v1/feedback`.
-- Slice-1 implementation plan (9 TDD tasks): `docs/superpowers/plans/2026-07-22-monitor-slice-1.md`.
-  Adds `execution_feedback` table + `metrics.ts` + `GET /v1/metrics` + `POST /v1/feedback` + SDK
-  `feedback()` + `/monitor` screen. **Implementing inline against the dev `.env` DB; STOP before the
-  production push + Render migration (plan Task 9 Step 7 — user-gated).**
+Reframe **Monitor → Insights → Evals + Supabase front door**. Order: **Slice 1 Monitor (A) →
+2 Insights (B) → 3 Eval-polish/function-nodes (C) → 4 Supabase (D)** (A/B/C are `projectId`-scoped
+so Supabase slots under later, no rework). Spec (APPROVED) + plan under `docs/superpowers/`.
+Env note: this repo needs **Node 22** — prepend `~/.nvm/versions/node/v22.22.0/bin` to PATH or pnpm breaks.
+
+- **Slice 1 Monitor — BUILT + verified on branch `slice-1-monitor` (commits `ba6b9ce..844410c`;
+  NOT merged to main, NOT pushed, NOT deployed).** Added: `execution_feedback` table (migration
+  `0007_thankful_rage.sql`) · `packages/core/src/metrics.ts` (7/30/90d + previous-period + node
+  filter + monthly trend) · `GET /v1/metrics` + `POST /v1/feedback` (`monitor-v1`) · SDK
+  `feedback()` · `/monitor` screen + nav · `test:metrics` (Loop F4). Rung 1 all green, secret-scan
+  clean, 10/10 mermaid.
+- **PENDING (user-gated):** (1) offered full FMEA scan (`consent.fmea_full_scan: ask`); (2) merge
+  `slice-1-monitor` → main + push → **Render auto-deploys**; (3) apply `0007_thankful_rage.sql` to
+  the Render DB (deploy does NOT migrate); then verify `/monitor` + feedback against GSTPilot.
+- Not started: B Insights, C eval-polish/function-nodes, D Supabase.
 
 ## Takeover checkpoint — 2026-07-22
 - Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.

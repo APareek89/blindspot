@@ -22,7 +22,7 @@ golden-to-replay-to-approval path is proven against a hosted external app and Ph
 “Discovers” currently means nodes that the app instruments and executes, not static source topology.
 
 ## Rung 1 — existing zero-token checks
-Rung 1: `pnpm typecheck && pnpm test:auth-origin && pnpm test:eval-plan && pnpm build`
+Rung 1: `pnpm typecheck && pnpm test:auth-origin && pnpm test:eval-plan && pnpm test:metrics && pnpm build`
 CI: none yet
 
 ## Free evals — only automatic while the Loop is on
@@ -32,6 +32,7 @@ CI: none yet
 | F1 | Validate `docs/mermaid/*.mmd`, then rebuild `docs/architecture-flow.html` | Every diagram parses; the viewer contains every `.mmd`. |
 | F2 | Run the repository secret scan (staged before commits, full for baseline) | No secret-pattern hit; `.env*` values remain untracked. |
 | F3 | Start gateway/dashboard and request `/healthz` + `/login` | Gateway returns JSON 200; dashboard returns HTML 200 without exposing a project key; legitimate same-origin key sign-in persists across tabs. |
+| F4 | Run `pnpm test:metrics` | Windowed metrics, previous-period deltas, node filter and feedback aggregation are correct on seeded data. |
 
 ## Golden set — paid/graded product evals (approval required)
 These real-provider flows run only after the user sees the estimate and approves them.
