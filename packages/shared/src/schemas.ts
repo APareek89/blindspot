@@ -491,3 +491,39 @@ export const BetaFeedbackInputSchema = z
     }
   });
 export type BetaFeedbackInput = z.infer<typeof BetaFeedbackInputSchema>;
+
+/** The dashboard's operational reporting windows (each compared to the prior equal period). */
+export const MetricsWindowSchema = z.enum(["7d", "30d", "90d"]);
+export type MetricsWindow = z.infer<typeof MetricsWindowSchema>;
+
+export const ExecutionFeedbackKindSchema = z.enum(["up", "down", "score"]);
+export type ExecutionFeedbackKind = z.infer<typeof ExecutionFeedbackKindSchema>;
+
+/**
+ * One end-user feedback event on an agent execution. App-supplied and metadata-safe: only the
+ * optional `comment` is content, and it is guarded against pasted credentials.
+ */
+export const ExecutionFeedbackInputSchema = z
+  .object({
+    workflow: z.object({
+      name: z.string().trim().min(1).max(120),
+      environment: z.string().trim().min(1).max(40).default("production"),
+    }),
+    executionId: z.string().trim().min(1).max(200),
+    nodeName: z.string().trim().min(1).max(160).optional(),
+    kind: ExecutionFeedbackKindSchema,
+    value: z.number().min(0).max(1).optional(),
+    comment: z.string().trim().max(2_000).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === "score" && value.value === undefined) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: "kind 'score' requires a value" });
+    }
+    if (value.comment && FEEDBACK_CREDENTIAL.test(value.comment)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "feedback comment looks like it contains a credential; redact it and try again",
+      });
+    }
+  });
+export type ExecutionFeedbackInput = z.infer<typeof ExecutionFeedbackInputSchema>;
