@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-22
 - **Owner:** Anand Pareek
-- **Status:** Proposed — awaiting user review
+- **Status:** Approved 2026-07-22 (all §4 decisions confirmed) — implementing Slice 1
 - **Author of change:** Claude (takeover from codex)
 - **Baseline SHA:** `37ae225`
 
