@@ -330,6 +330,48 @@ export class Blindspot {
     }
   }
 
+  /**
+   * Record one end-user feedback event (👍/👎/score) for an execution. Best-effort and
+   * metadata-safe: only an optional comment is content. Never throws into the host app.
+   */
+  async feedback(input: {
+    executionId: string;
+    nodeName?: string;
+    kind: "up" | "down" | "score";
+    value?: number;
+    comment?: string;
+  }): Promise<boolean> {
+    if (!this.enabled) return false;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5_000);
+    timeout.unref?.();
+    try {
+      const response = await fetch(apiEndpoint(this.config.baseUrl!, "/feedback"), {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${this.config.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workflow: { name: this.config.workflow, environment: this.config.environment },
+          executionId: input.executionId,
+          nodeName: input.nodeName,
+          kind: input.kind,
+          value: input.value,
+          comment: input.comment,
+        }),
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error(`Blindspot feedback returned ${response.status}`);
+      return true;
+    } catch (error) {
+      this.report(error instanceof Error ? error : new Error("Blindspot feedback failed"));
+      return false;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   /** Send queued observations now; call this before a short-lived process exits. */
   async flush(): Promise<void> {
     if (!this.enabled || this.queue.length === 0) return;
