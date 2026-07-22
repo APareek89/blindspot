@@ -5,7 +5,7 @@
 flowchart TD
   U["Browser (client components)<br/>ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?<br/>FUNCTION · httpOnly cookie bs_key present"}:::dec
-  SI["Sign-in-with-key screen<br/>FUNCTION · validates via GET /v1/me · sets httpOnly cookie"]:::fn
+  SI["Sign-in-with-key screen<br/>FUNCTION · exact origin or browser-proven same-origin form<br/>validates via GET /v1/me · sets httpOnly cookie"]:::fn
   IV["Issue invite link<br/>FUNCTION · HMAC-signs email + project + expiry<br/>out: shown-once URL-fragment token"]:::fn
   SU["Signup screen<br/>USER · confirms locked email/project<br/>out: same-origin creation request"]:::ask
   VG["Public signup gate<br/>FUNCTION · signature + expiry + size checks<br/>out: verified claims"]:::fn

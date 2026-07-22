@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { api, ApiError } from "@/lib/api";
 import { KEY_COOKIE, KEY_COOKIE_OPTIONS } from "@/lib/auth-cookie";
-import { isSameOrigin, publicOrigin } from "@/lib/request-origin";
+import { isSameOriginNavigation, publicOrigin } from "@/lib/request-origin";
 
 function safeNext(value: FormDataEntryValue | null): string {
   const path = typeof value === "string" ? value : "/";
@@ -17,7 +17,7 @@ function loginError(req: NextRequest, code: string, next: string) {
 
 export async function POST(req: NextRequest) {
   const expectedOrigin = publicOrigin(req);
-  if (!isSameOrigin(req)) {
+  if (!isSameOriginNavigation(req)) {
     return NextResponse.json({ error: "cross-origin sign-in is not allowed" }, { status: 403 });
   }
 

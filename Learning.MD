@@ -6,6 +6,22 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-22 — The opaque-Origin fix covered logout but missed the sign-in form
+**What happened:** after pasting a valid project key, the user received the raw JSON error
+`cross-origin sign-in is not allowed`; the key was never validated and no session cookie was set.
+**Why chain:** sign-in required an exact `Origin` → Chromium legitimately submitted the HTML form with
+`Origin: null` → the browser still supplied same-origin Fetch Metadata, but sign-in did not use the
+navigation-aware policy already added for logout → the zero-token check tested the helper without
+testing the sign-in handler that needed it. Deepest cause: `acceptance-test boundary` — QA proved a
+shared primitive and a logout journey, then incorrectly generalized that proof to every session form.
+**Action:** sign-in now accepts either an exact origin or an opaque origin accompanied by browser-
+controlled `Sec-Fetch-Site: same-origin` and `Sec-Fetch-Mode: navigate`; cross-site and missing-origin
+posts still return 403. A route-level regression exercises the actual handler, and real Playwright
+submitted `Origin: null` and received the expected 303 key-validation redirect instead of 403.
+**Preventive action:** every authentication form needs an actual-handler matrix for exact-origin,
+opaque same-origin, cross-site and missing-origin requests, plus one hydrated-browser submission.
+Never infer route wiring from a helper test.
+
 ## 2026-07-22 — Browser QA failures can echo authenticated request headers
 **What happened:** a hosted Playwright check used its API request client while the browser held
 GSTPilot's real project cookie. A local certificate-chain failure printed the failed request headers,
@@ -29,8 +45,8 @@ Sign out returned 403 and left the httpOnly session cookie usable.
 `Origin: null` → the strict JSON-request rule rejected a real navigation. Deepest cause: `browser
 boundary` — login/signup fetches and user-activated form navigations do not always carry identical
 origin metadata.
-**Action:** JSON login/signup remain strict. Only the idempotent logout action also accepts an opaque
-origin when browser-controlled `Sec-Fetch-Site: same-origin` and `Sec-Fetch-Mode: navigate` both prove
+**Action:** JSON signup/fetch endpoints remain strict. HTML sign-in and sign-out forms accept an opaque
+origin only when browser-controlled `Sec-Fetch-Site: same-origin` and `Sec-Fetch-Mode: navigate` prove
 the navigation context. A cross-site opaque request is still rejected. Playwright now proves all nine
 tabs, refresh persistence, harmless GET logout, forged cross-site rejection, POST cookie deletion and
 post-logout protected-route redirect; the zero-token suite covers the origin policy directly.

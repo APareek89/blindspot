@@ -28,9 +28,10 @@ export function isSameOrigin(req: NextRequest): boolean {
 
 /**
  * Browser form navigations can carry the opaque `Origin: null` value even when
- * Sec-Fetch-Site proves the user activated a same-origin navigation. Keep that
- * narrow exception out of JSON/session-creation endpoints; it is only suitable
- * for an idempotent action such as clearing the current dashboard cookie.
+ * Sec-Fetch-Site proves the user activated a same-origin navigation. This narrow
+ * exception is for HTML form actions only; JSON/fetch endpoints stay on the exact
+ * origin check above. Cross-site forms cannot set the browser-controlled Fetch
+ * Metadata headers to `same-origin`, so they remain rejected.
  */
 export function isSameOriginNavigation(req: NextRequest): boolean {
   if (isSameOrigin(req)) return true;

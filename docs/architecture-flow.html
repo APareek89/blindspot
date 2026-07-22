@@ -272,7 +272,7 @@ flowchart TD
 flowchart TD
   U["Browser (client components)&lt;br/&gt;ENTRY · forms, toggles, drawers"]:::term
   L{"Signed in?&lt;br/&gt;FUNCTION · httpOnly cookie bs_key present"}:::dec
-  SI["Sign-in-with-key screen&lt;br/&gt;FUNCTION · validates via GET /v1/me · sets httpOnly cookie"]:::fn
+  SI["Sign-in-with-key screen&lt;br/&gt;FUNCTION · exact origin or browser-proven same-origin form&lt;br/&gt;validates via GET /v1/me · sets httpOnly cookie"]:::fn
   IV["Issue invite link&lt;br/&gt;FUNCTION · HMAC-signs email + project + expiry&lt;br/&gt;out: shown-once URL-fragment token"]:::fn
   SU["Signup screen&lt;br/&gt;USER · confirms locked email/project&lt;br/&gt;out: same-origin creation request"]:::ask
   VG["Public signup gate&lt;br/&gt;FUNCTION · signature + expiry + size checks&lt;br/&gt;out: verified claims"]:::fn

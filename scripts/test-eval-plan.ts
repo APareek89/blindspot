@@ -68,7 +68,7 @@ function assertDashboardOriginPolicy() {
   assert.equal(
     isSameOriginNavigation(browserNavigation),
     true,
-    "same-origin browser form navigation must be allowed to clear its own session",
+    "same-origin browser form navigation must be allowed to manage its own session",
   );
 
   const forgedNavigation = request({
@@ -79,7 +79,7 @@ function assertDashboardOriginPolicy() {
   assert.equal(
     isSameOriginNavigation(forgedNavigation),
     false,
-    "an opaque cross-site navigation must not clear the session",
+    "an opaque cross-site navigation must not manage the session",
   );
 }
 
@@ -784,7 +784,7 @@ async function main() {
         inviteProjectAndKeySafe: true,
         signedSignupIdempotentAndHashOnly: true,
         concurrentSignupCreatesOneProject: true,
-        dashboardLogoutOriginPolicySafe: true,
+        dashboardSessionOriginPolicySafe: true,
         projectScopedFeedbackSafe: feedbackHistory[0]?.projectId === project.id,
       }),
     );
