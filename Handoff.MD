@@ -1,5 +1,5 @@
 # Handoff.MD — Blindspot
-> last-synced: 844410c
+> last-synced: 49eb569
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
 
 ## Active work — 2026-07-22 (Claude took over from codex)
@@ -8,16 +8,19 @@ Reframe **Monitor → Insights → Evals + Supabase front door**. Order: **Slice
 so Supabase slots under later, no rework). Spec (APPROVED) + plan under `docs/superpowers/`.
 Env note: this repo needs **Node 22** — prepend `~/.nvm/versions/node/v22.22.0/bin` to PATH or pnpm breaks.
 
-- **Slice 1 Monitor — BUILT + verified on branch `slice-1-monitor` (commits `ba6b9ce..844410c`;
-  NOT merged to main, NOT pushed, NOT deployed).** Added: `execution_feedback` table (migration
-  `0007_thankful_rage.sql`) · `packages/core/src/metrics.ts` (7/30/90d + previous-period + node
-  filter + monthly trend) · `GET /v1/metrics` + `POST /v1/feedback` (`monitor-v1`) · SDK
-  `feedback()` · `/monitor` screen + nav · `test:metrics` (Loop F4). Rung 1 all green, secret-scan
-  clean, 10/10 mermaid.
-- **PENDING (user-gated):** (1) offered full FMEA scan (`consent.fmea_full_scan: ask`); (2) merge
-  `slice-1-monitor` → main + push → **Render auto-deploys**; (3) apply `0007_thankful_rage.sql` to
-  the Render DB (deploy does NOT migrate); then verify `/monitor` + feedback against GSTPilot.
-- Not started: B Insights, C eval-polish/function-nodes, D Supabase.
+- **Slice 1 Monitor — SHIPPED & LIVE (deployed `49eb569`, 2026-07-22; on `main` + `origin/main`).**
+  `execution_feedback` table (migration `0007_thankful_rage.sql`, applied to Render DB) ·
+  `packages/core/src/metrics.ts` (7/30/90d + previous-period + node filter + p95 + monthly trend,
+  **project-ownership enforced**) · `GET /v1/metrics` + `POST /v1/feedback` (`monitor-v1`) · SDK
+  `feedback()` · `/monitor` screen+nav · `test:metrics` (Loop F4). Verified live: healthz has
+  `monitor-v1`; `/v1/metrics` + `/v1/feedback` 401-gated; `/monitor`→login; prod DB migrated.
+- **FMEA (scan `0ef862a`, state stamped `1add5d2`):** P0 cross-tenant metrics IDOR — **FIXED +
+  regression test**. P2 backlog (open): feedback orphaned when its workflow isn't seen yet
+  (`workflowId=null`, uncounted); no feedback idempotency (double-submit double-counts); metrics
+  rollup/materialization at scale (Phase 8).
+- **Next:** Slice 2 **Insights (B)** — agentic hypothesis→evidence→recommendation over Monitor
+  signals. Then C eval-polish/function-nodes, D Supabase. Still open from takeover: rotate the
+  exposed GSTPilot prod key; declared-vs-observed topology.
 
 ## Takeover checkpoint — 2026-07-22
 - Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.
