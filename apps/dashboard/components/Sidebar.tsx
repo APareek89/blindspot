@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const NAV: { href: string; label: string; icon: keyof typeof ICONS; badge?: "pending" }[] = [
   { href: "/", label: "Overview", icon: "grid" },
+  { href: "/monitor", label: "Monitor", icon: "monitor" },
   { href: "/workflows", label: "Workflows", icon: "workflow" },
   { href: "/routes", label: "Routes & Models", icon: "route" },
   { href: "/approvals", label: "Approvals", icon: "check", badge: "pending" },
@@ -17,6 +18,7 @@ const NAV: { href: string; label: string; icon: keyof typeof ICONS; badge?: "pen
 
 const ICONS = {
   grid: "M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z",
+  monitor: "M3 3v18h18M7 15l3-4 3 3 4-6",
   workflow: "M5 6h4v4H5zM15 4h4v4h-4zM15 16h4v4h-4zM9 8h3a5 5 0 015 5v3",
   route: "M6 19a3 3 0 100-6 3 3 0 000 6zM18 11a3 3 0 100-6 3 3 0 000 6zM6 13V9a4 4 0 014-4h5",
   check: "M20 6L9 17l-5-5",

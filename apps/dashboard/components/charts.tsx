@@ -1,4 +1,4 @@
-import type { CostQualityPoint } from "@/lib/types";
+import type { CostQualityPoint, TrendBucket } from "@/lib/types";
 
 /** Score-over-time line with a dashed policy bar and golden-set version markers. */
 export function ScoreChart({
@@ -123,6 +123,42 @@ export function CostQualityChart({ points }: { points: CostQualityPoint[] }) {
       <text x={padL - 34} y={padT + 4} fontSize="9.5" fill="var(--muted-2)">
         quality
       </text>
+    </svg>
+  );
+}
+
+/** Monthly executions (bars) with a failure overlay — the Monitor trend. */
+export function TrendChart({ buckets }: { buckets: TrendBucket[] }) {
+  const width = 640;
+  const height = 180;
+  const padL = 34;
+  const padB = 22;
+  const padT = 12;
+  if (buckets.length === 0) {
+    return <div className="empty small">No executions in this range yet.</div>;
+  }
+  const max = Math.max(...buckets.map((b) => b.executions), 1);
+  const bw = (width - padL - 8) / buckets.length;
+  const yFor = (v: number) => padT + (1 - v / max) * (height - padT - padB);
+  return (
+    <svg width="100%" viewBox={`0 0 ${width} ${height}`} style={{ display: "block" }}>
+      {[0, 0.5, 1].map((g) => (
+        <line key={g} x1={padL} x2={width - 8} y1={yFor(g * max)} y2={yFor(g * max)} stroke="var(--border)" />
+      ))}
+      {buckets.map((b, i) => {
+        const x = padL + i * bw + 4;
+        return (
+          <g key={b.month}>
+            <rect x={x} y={yFor(b.executions)} width={bw - 8} height={height - padB - yFor(b.executions)} fill="var(--accent)" rx={2} />
+            {b.failures > 0 && (
+              <rect x={x} y={yFor(b.failures)} width={bw - 8} height={height - padB - yFor(b.failures)} fill="var(--danger)" rx={2} />
+            )}
+            <text x={x + (bw - 8) / 2} y={height - 6} fontSize="8.5" fill="var(--muted-2)" textAnchor="middle">
+              {b.month.slice(2)}
+            </text>
+          </g>
+        );
+      })}
     </svg>
   );
 }
