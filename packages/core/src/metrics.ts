@@ -5,6 +5,7 @@ import {
   workflowExecutions,
   workflowNodes,
   workflowSpans,
+  workflows,
 } from "@blindspot/db";
 import type { MetricsWindow } from "@blindspot/shared";
 
@@ -223,8 +224,19 @@ async function monthlyTrend(workflowId: string, since: Date): Promise<TrendBucke
 export async function getWorkflowMetrics(
   projectId: string,
   opts: { workflowId: string; nodeId?: string | null; window: MetricsWindow; now?: Date },
-): Promise<WorkflowMetrics> {
+): Promise<WorkflowMetrics | null> {
   const db = getDb();
+  // Tenant isolation (PRD §9): a workflow's telemetry is readable only by its owning project.
+  // Every child row (executions/spans/nodes/feedback) descends from this workflow, so verifying
+  // the workflow's project here is sufficient — never trust the caller-supplied workflowId alone.
+  const owned = (
+    await db
+      .select({ id: workflows.id })
+      .from(workflows)
+      .where(and(eq(workflows.id, opts.workflowId), eq(workflows.projectId, projectId)))
+      .limit(1)
+  )[0];
+  if (!owned) return null;
   const now = opts.now ?? new Date();
   const nodeId = opts.nodeId ?? null;
   const { start, end, prevStart, prevEnd } = windowRange(opts.window, now);

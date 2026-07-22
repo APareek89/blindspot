@@ -13,7 +13,9 @@ monitorRouter.get("/metrics", async (c) => {
   }
   const window = MetricsWindowSchema.catch("7d").parse(c.req.query("window"));
   const nodeId = c.req.query("nodeId") || null;
-  return c.json(await getWorkflowMetrics(c.get("projectId"), { workflowId, nodeId, window }));
+  const result = await getWorkflowMetrics(c.get("projectId"), { workflowId, nodeId, window });
+  if (!result) return c.json({ error: { message: "workflow not found" } }, 404);
+  return c.json(result);
 });
 
 // SDK-write: one end-user feedback event (👍/👎/score). Metadata-safe; comment is optional.

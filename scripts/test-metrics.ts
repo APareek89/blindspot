@@ -125,6 +125,7 @@ async function main() {
       .where(eq(executionFeedback.id, currentFeedbackIds[currentFeedbackIds.length - 1]!));
 
     const m = await getWorkflowMetrics(project.id, { workflowId: workflow.id, window: "7d", now });
+    assert.ok(m, "owning project must receive metrics");
 
     assert.equal(m.executions.current, 3, "current window has 3 executions");
     assert.equal(m.executions.previous, 1, "previous window has 1 execution");
@@ -143,7 +144,23 @@ async function main() {
       window: "7d",
       now,
     });
+    assert.ok(scoped, "scoped metrics must be returned");
     assert.equal(scoped.avgLatencyMs.current, 200, "node-scoped latency matches");
+
+    // Tenant isolation: a different project must not read this workflow's metrics (FMEA P0).
+    const otherProject = (
+      await db
+        .insert(projects)
+        .values({ userId: `metrics-other-${randomUUID()}`, name: "Metrics other-tenant" })
+        .returning()
+    )[0]!;
+    const leak = await getWorkflowMetrics(otherProject.id, {
+      workflowId: workflow.id,
+      window: "7d",
+      now,
+    });
+    await db.delete(projects).where(eq(projects.id, otherProject.id));
+    assert.equal(leak, null, "a different project must not read this workflow's metrics");
 
     console.log(
       JSON.stringify({ passed: true, executions: m.executions, feedbackScorePct: m.feedbackScorePct.current }),
