@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { KEY_COOKIE, KEY_COOKIE_OPTIONS } from "@/lib/auth-cookie";
-import { isSameOrigin, publicOrigin } from "@/lib/request-origin";
+import { isSameOriginNavigation, publicOrigin } from "@/lib/request-origin";
 
 export async function POST(req: NextRequest) {
-  if (!isSameOrigin(req)) {
+  if (!isSameOriginNavigation(req)) {
     return NextResponse.json({ error: "cross-origin sign-out is not allowed" }, { status: 403 });
   }
 

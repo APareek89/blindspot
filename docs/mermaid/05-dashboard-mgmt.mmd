@@ -1,6 +1,6 @@
-%% Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-21.
+%% Blindspot — dashboard + management API. Invite signup + session flow synced 2026-07-22.
 %% Management keeps bs_key server-only; invite signup is the explicit shown-once key-delivery boundary.
-%% files: apps/dashboard/lib/api.ts, apps/dashboard/app/signup/SignupFlow.tsx, apps/dashboard/app/signup/session/route.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/public/signup.ts, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/signup.ts
+%% files: apps/dashboard/lib/api.ts, apps/dashboard/lib/request-origin.ts, apps/dashboard/app/logout/route.ts, apps/dashboard/app/signup/SignupFlow.tsx, apps/dashboard/app/signup/session/route.ts, apps/dashboard/app/(app)/settings/SettingsView.tsx, apps/dashboard/app/(app)/routes/[name]/evals/page.tsx, apps/gateway/src/public/signup.ts, apps/gateway/src/manage/keys.ts, apps/gateway/src/manage/workflows.ts, packages/core/src/signup.ts
 %% granularity: full
 flowchart TD
   U["Browser (client components)<br/>ENTRY · forms, toggles, drawers"]:::term
@@ -11,6 +11,7 @@ flowchart TD
   VG["Public signup gate<br/>FUNCTION · signature + expiry + size checks<br/>out: verified claims"]:::fn
   AK["Atomic project creation<br/>FUNCTION · pair lock + metadata default + 5-minute lost-response retry<br/>out: recovery key + application key"]:::fn
   SK["Save keys and continue<br/>USER · recovery to password manager, app env copied<br/>out: signed-in Connect handoff"]:::ask
+  LO["Explicit sign out<br/>USER · same-origin POST navigation only<br/>out: bs_key cleared; GET/prefetch harmless"]:::ask
   SC["Next.js server (RSC + server actions)<br/>FUNCTION · reads bs_key from cookie, never exposes it"]:::fn
   API["Typed client lib/api.ts<br/>FUNCTION · Bearer bs_live_ key · fetch no-store"]:::fn
   MW["Gateway auth<br/>FUNCTION · requireProject · key hash to project_id"]:::fn
@@ -36,6 +37,7 @@ flowchart TD
   L -- "no" --> SI --> SC
   L -- "yes" --> SC
   IV --> SU --> VG --> AK --> SK --> SC
+  U -. "Sign out" .-> LO --> SI
   SC --> API --> MW
   MW --> ME
   MW --> RT

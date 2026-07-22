@@ -41,11 +41,47 @@ import {
 } from "@blindspot/core";
 import { Blindspot } from "@blindspot/sdk";
 import { BetaFeedbackInputSchema, loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
+import { isSameOrigin, isSameOriginNavigation } from "../apps/dashboard/lib/request-origin";
 
 loadRootEnv(import.meta.url);
 
 const SONNET = "anthropic:claude-sonnet-4-6";
 const HAIKU = "anthropic:claude-haiku-4-5-20251001";
+
+function assertDashboardOriginPolicy() {
+  type RequestInput = Parameters<typeof isSameOriginNavigation>[0];
+  const request = (headers: Record<string, string>) =>
+    ({
+      headers: new Headers(headers),
+      nextUrl: new URL("https://dashboard.blindspot.test/logout"),
+    }) as unknown as RequestInput;
+
+  const explicit = request({ origin: "https://dashboard.blindspot.test" });
+  assert.equal(isSameOrigin(explicit), true, "an explicit matching origin must be accepted");
+
+  const browserNavigation = request({
+    origin: "null",
+    "sec-fetch-site": "same-origin",
+    "sec-fetch-mode": "navigate",
+  });
+  assert.equal(isSameOrigin(browserNavigation), false, "JSON endpoints must reject an opaque origin");
+  assert.equal(
+    isSameOriginNavigation(browserNavigation),
+    true,
+    "same-origin browser form navigation must be allowed to clear its own session",
+  );
+
+  const forgedNavigation = request({
+    origin: "null",
+    "sec-fetch-site": "cross-site",
+    "sec-fetch-mode": "navigate",
+  });
+  assert.equal(
+    isSameOriginNavigation(forgedNavigation),
+    false,
+    "an opaque cross-site navigation must not clear the session",
+  );
+}
 
 async function assertSdkExecutionBoundary() {
   const originalFetch = globalThis.fetch;
@@ -104,6 +140,7 @@ async function assertSdkExecutionBoundary() {
 }
 
 async function main() {
+  assertDashboardOriginPolicy();
   await assertSdkExecutionBoundary();
   const db = getDb();
   const inviteOwner = `invite-test-${randomUUID()}@example.com`;
@@ -747,6 +784,7 @@ async function main() {
         inviteProjectAndKeySafe: true,
         signedSignupIdempotentAndHashOnly: true,
         concurrentSignupCreatesOneProject: true,
+        dashboardLogoutOriginPolicySafe: true,
         projectScopedFeedbackSafe: feedbackHistory[0]?.projectId === project.id,
       }),
     );

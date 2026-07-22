@@ -1,6 +1,6 @@
 # Blindspot — Architecture Flow
 
-> **Status: hosted invite-only beta verified through the truthful-evidence UX correction on 2026-07-21.**
+> **Status: hosted invite-only beta plus locally release-gated signup/session flow as of 2026-07-22.**
 > The SDK discovers real workflows, the dashboard separates every workflow node from model-only
 > Routes, golden sets are versioned and consent-aware, budgeted evals persist per-example evidence,
 > and production model recommendations require real workflow replay. Each beta company receives an

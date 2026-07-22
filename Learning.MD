@@ -6,6 +6,21 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-22 — Same-origin form logout can legitimately carry an opaque Origin
+**What happened:** the final Playwright signup journey reached every dashboard tab, but explicit
+Sign out returned 403 and left the httpOnly session cookie usable.
+**Why chain:** logout required an exact `Origin` match → Chromium submitted the same-origin form with
+`Origin: null` → the strict JSON-request rule rejected a real navigation. Deepest cause: `browser
+boundary` — login/signup fetches and user-activated form navigations do not always carry identical
+origin metadata.
+**Action:** JSON login/signup remain strict. Only the idempotent logout action also accepts an opaque
+origin when browser-controlled `Sec-Fetch-Site: same-origin` and `Sec-Fetch-Mode: navigate` both prove
+the navigation context. A cross-site opaque request is still rejected. Playwright now proves all nine
+tabs, refresh persistence, harmless GET logout, forged cross-site rejection, POST cookie deletion and
+post-logout protected-route redirect; the zero-token suite covers the origin policy directly.
+**Preventive action:** authentication acceptance must use a hydrated browser and assert cookie presence
+before and after logout. Do not infer browser request headers from server-side HTTP probes.
+
 ## 2026-07-21 — Smooth signup still needs a bounded credential and a retry-safe shown-once boundary
 **What changed:** beta onboarding moved from an operator-created project/key to a link the tester can
 open, confirm and continue directly into SDK connection.

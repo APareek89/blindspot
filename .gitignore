@@ -9,6 +9,7 @@ build/
 .next/
 out/
 coverage/
+output/
 *.tsbuildinfo
 
 # env (owned by the parallel secrets session — NEVER commit)
