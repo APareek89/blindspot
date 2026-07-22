@@ -1,6 +1,13 @@
 # Handoff.MD — Blindspot
-> last-synced: 1915846
+> last-synced: 37ae225
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
+
+## Active work — 2026-07-22 (Claude took over from codex)
+- Product reframe **Monitor → Insights → Evals + Supabase front door** brainstormed. Build order:
+  **Slice 1 Monitor (A) → 2 Insights (B) → 3 Eval polish/function-nodes (C) → 4 Supabase (D)**.
+  Rationale: A/B/C queries are all `projectId`-scoped, so Supabase slots under later with no rework.
+- Slice-1 spec (full): `docs/superpowers/specs/2026-07-22-monitor-insights-evals-reframe-design.md`
+  — **awaiting user review before any code**. Open decisions in its §4.
 
 ## Takeover checkpoint — 2026-07-22
 - Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.
