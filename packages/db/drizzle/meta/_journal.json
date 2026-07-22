@@ -50,6 +50,13 @@
       "when": 1784623737702,
       "tag": "0006_black_justice",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784704439455,
+      "tag": "0007_thankful_rage",
+      "breakpoints": true
     }
   ]
 }

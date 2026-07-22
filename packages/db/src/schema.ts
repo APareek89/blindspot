@@ -79,6 +79,11 @@ export const workflowExecutionStatus = bs.enum("workflow_execution_status", [
   "error",
 ]);
 export const workflowSpanStatus = bs.enum("workflow_span_status", ["ok", "error"]);
+export const executionFeedbackKind = bs.enum("execution_feedback_kind", [
+  "up",
+  "down",
+  "score",
+]);
 
 const createdAt = () =>
   timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -502,5 +507,31 @@ export const workflowSpans = bs.table(
   (t) => [
     uniqueIndex("workflow_spans_execution_external_idx").on(t.executionId, t.externalId),
     index("workflow_spans_node_created_idx").on(t.nodeId, t.createdAt),
+  ],
+);
+
+/**
+ * End-user feedback on an agent execution (👍/👎/score). App-supplied and metadata-safe:
+ * only the optional `comment` is content. Linked to a workflow by name+environment at write
+ * time; `executionExternalId` is the app's own execution id (matches workflowExecutions.externalId).
+ */
+export const executionFeedback = bs.table(
+  "execution_feedback",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    workflowId: uuid("workflow_id").references(() => workflows.id, { onDelete: "set null" }),
+    executionExternalId: text("execution_external_id").notNull(),
+    nodeName: text("node_name"),
+    kind: executionFeedbackKind("kind").notNull(),
+    value: real("value"),
+    comment: text("comment"),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("execution_feedback_project_created_idx").on(t.projectId, t.createdAt),
+    index("execution_feedback_workflow_created_idx").on(t.workflowId, t.createdAt),
   ],
 );
