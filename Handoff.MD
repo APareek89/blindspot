@@ -7,7 +7,13 @@
   **Slice 1 Monitor (A) → 2 Insights (B) → 3 Eval polish/function-nodes (C) → 4 Supabase (D)**.
   Rationale: A/B/C queries are all `projectId`-scoped, so Supabase slots under later with no rework.
 - Slice-1 spec (full): `docs/superpowers/specs/2026-07-22-monitor-insights-evals-reframe-design.md`
-  — **awaiting user review before any code**. Open decisions in its §4.
+  — **APPROVED 2026-07-22** (all §4 decisions confirmed). Decisions: Monitor screen is a new
+  top-level nav item; A.3 ships app-signaled (free) first, LLM-judge opt-in/paid later; A.5 adds
+  `execution_feedback` table + `blindspot.feedback()` SDK method + `POST /v1/feedback`.
+- Slice-1 implementation plan (9 TDD tasks): `docs/superpowers/plans/2026-07-22-monitor-slice-1.md`.
+  Adds `execution_feedback` table + `metrics.ts` + `GET /v1/metrics` + `POST /v1/feedback` + SDK
+  `feedback()` + `/monitor` screen. **Implementing inline against the dev `.env` DB; STOP before the
+  production push + Render migration (plan Task 9 Step 7 — user-gated).**
 
 ## Takeover checkpoint — 2026-07-22
 - Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.
