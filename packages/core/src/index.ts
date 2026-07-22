@@ -18,3 +18,5 @@ export * from "./feedback";
 export * from "./config-check";
 export * from "./workflows";
 export * from "./model-registry";
+export * from "./execution-feedback";
+export * from "./metrics";

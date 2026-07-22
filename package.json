@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test:auth-origin": "tsx --tsconfig apps/dashboard/tsconfig.json apps/dashboard/scripts/test-auth-origin.ts",
     "test:eval-plan": "pnpm --filter @blindspot/sdk build && tsx scripts/test-eval-plan.ts",
+    "test:metrics": "pnpm --filter @blindspot/sdk build && tsx scripts/test-metrics.ts",
     "start:gateway": "pnpm --filter @blindspot/gateway dev",
     "start:worker": "pnpm --filter @blindspot/worker dev",
     "start:dashboard": "pnpm --filter @blindspot/dashboard dev"
