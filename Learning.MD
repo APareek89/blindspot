@@ -6,6 +6,22 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-07-22 — Browser QA failures can echo authenticated request headers
+**What happened:** a hosted Playwright check used its API request client while the browser held
+GSTPilot's real project cookie. A local certificate-chain failure printed the failed request headers,
+including the cookie value, into the tool output.
+**Why chain:** production auth state entered a general QA harness → the request client failed before
+the assertion → its diagnostic helpfully included headers. Deepest cause: `test credential scope` — a
+real long-lived application key was used where a disposable browser credential was required.
+**Action:** stopped the session, deleted the permission-locked storage file, treated the key as
+compromised, minted and verified a replacement, saved it only to GSTPilot's local `.env` and clipboard,
+and reran hosted acceptance with page navigation only. The actual nine-tab + logout browser flow passed.
+The old key stays active only until GSTPilot's Render variable is replaced; the stored Render API key
+now returns 400, so automatic rotation is blocked on a fresh Render credential or one manual env edit.
+**Preventive action:** never combine production cookies with Playwright request/network/trace output.
+Use disposable projects for browser QA, log only status assertions, and rotate any credential that a
+diagnostic prints—even when the task is private.
+
 ## 2026-07-22 — Same-origin form logout can legitimately carry an opaque Origin
 **What happened:** the final Playwright signup journey reached every dashboard tab, but explicit
 Sign out returned 403 and left the httpOnly session cookie usable.
