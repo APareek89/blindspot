@@ -21,6 +21,7 @@ import { golden } from "./manage/golden";
 import { keysRouter } from "./manage/keys";
 import { metaRouter } from "./manage/meta";
 import { modelRegistryRouter } from "./manage/model-registry";
+import { monitorRouter } from "./manage/monitor";
 import { routesRouter } from "./manage/routes";
 import { workflowsRouter } from "./manage/workflows";
 import { publicSignupRouter } from "./public/signup";
@@ -43,7 +44,7 @@ app.get("/healthz", (c) =>
     ok: true,
     service: "gateway",
     apiVersion: "0.1.0",
-    features: ["workflow-spans-v2", "beta-feedback", "invite-signup-v1"],
+    features: ["workflow-spans-v2", "beta-feedback", "invite-signup-v1", "monitor-v1"],
   }),
 );
 
@@ -71,6 +72,7 @@ app.route("/v1", approvals);
 app.route("/v1", driftRouter);
 app.route("/v1", workflowsRouter);
 app.route("/v1", modelRegistryRouter);
+app.route("/v1", monitorRouter);
 
 /**
  * OpenAI-compatible chat completions (PRD §1, §12 Phase 1).
