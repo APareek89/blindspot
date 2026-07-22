@@ -9,6 +9,7 @@ import type {
   GatewayKey,
   GoldenExample,
   GoldenSet,
+  MetricsWindow,
   MintedKey,
   ModelRegistryOverview,
   Overview,
@@ -27,6 +28,7 @@ import type {
   EvalExecutionMode,
   RouteWorkflowContext,
   WorkflowDetail,
+  WorkflowMetrics,
   WorkflowSummary,
 } from "./types";
 
@@ -104,6 +106,10 @@ export function api(key: string) {
     // identity + summary
     me: (init?: RequestInit) => get<{ project: Project }>("/v1/me", init),
     overview: () => get<Overview>("/v1/overview"),
+    metrics: (p: { workflowId: string; nodeId?: string; window?: MetricsWindow }) =>
+      get<WorkflowMetrics>(
+        `/v1/metrics${qs({ workflowId: p.workflowId, nodeId: p.nodeId, window: p.window })}`,
+      ),
     settings: () => get<Settings>("/v1/settings"),
 
     // routes

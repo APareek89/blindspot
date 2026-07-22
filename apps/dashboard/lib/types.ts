@@ -458,3 +458,43 @@ export const PROVIDERS = [
   "ollama",
 ] as const;
 export type Provider = (typeof PROVIDERS)[number];
+
+// --- Monitor (Slice 1) -----------------------------------------------------
+export type MetricsWindow = "7d" | "30d" | "90d";
+
+export interface MetricPoint {
+  current: number | null;
+  previous: number | null;
+  deltaPct: number | null;
+}
+
+export interface TrendBucket {
+  month: string;
+  executions: number;
+  failures: number;
+  avgLatencyMs: number | null;
+  costCents: number;
+  feedbackUp: number;
+  feedbackDown: number;
+}
+
+export interface MonitorNode {
+  id: string;
+  name: string;
+  kind: "agent" | "generation" | "tool" | "retrieval" | "function";
+}
+
+export interface WorkflowMetrics {
+  window: MetricsWindow;
+  workflowId: string;
+  nodeId: string | null;
+  executions: MetricPoint;
+  failureRatePct: MetricPoint;
+  noAnswerRatePct: MetricPoint;
+  avgLatencyMs: MetricPoint;
+  p95LatencyMs: MetricPoint;
+  costCents: MetricPoint;
+  feedbackScorePct: MetricPoint;
+  trend: TrendBucket[];
+  nodes: MonitorNode[];
+}
