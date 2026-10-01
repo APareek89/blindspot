@@ -1,5 +1,8 @@
 "use client";
 
+import { boundedAction, GOLDEN_FILE_BYTES, validDraftCount } from "@/lib/client-input";
+import { useOwnerGuard } from "@/components/AccountShell";
+
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { Empty, LabelBadge, OriginBadge } from "@/components/ui";
@@ -14,6 +17,8 @@ function visibleInput(input: string): string {
 
 export function GoldenManager({
   route,
+  routeLabel,
+  readOnly = false,
   sets,
   selectedId,
   examples,
@@ -21,28 +26,33 @@ export function GoldenManager({
   workflowContext,
 }: {
   route: string;
+  routeLabel?: string;
+  readOnly?: boolean;
   sets: GoldenSet[];
   selectedId: string | null;
   examples: GoldenExample[];
   traces: Trace[];
   workflowContext: RouteWorkflowContext | null;
 }) {
+  const guard = useOwnerGuard();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<GoldenExample | null>(null);
   const selected = sets.find((s) => s.id === selectedId) ?? null;
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => {
+  const run = (fn: () => Promise<{ ok: boolean; error?: string } | null>, done?: () => void) => {
     setError(null);
     start(async () => {
+      const ticket = guard.capture();
       const r = await fn();
+      if (!r || !guard.current(ticket)) return;
       if (!r.ok) setError(r.error ?? "failed");
       else done?.();
     });
   };
 
   return (
-    <>
+    <fieldset disabled={readOnly} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       {/* version tabs */}
       {sets.length > 0 && (
         <div className="row between" style={{ marginBottom: 14, flexWrap: "wrap", gap: 10 }}>
@@ -119,11 +129,11 @@ export function GoldenManager({
                         </div>
                       </td>
                       <td>
-                        <select
+                        <select aria-label="Golden example label"
                           className="select"
                           value={ex.label}
                           disabled={pending}
-                          onChange={(e) => run(() => editEx(route, ex.id, { label: e.target.value }))}
+                          onChange={(e) => run(() => guard.run((ownerId) => boundedAction([route, ex.id, { label: e.target.value }, ownerId], () => editEx(route, ex.id, { label: e.target.value }, ownerId))))}
                         >
                           <option value="unlabeled">unlabeled</option>
                           <option value="pass">pass</option>
@@ -134,8 +144,8 @@ export function GoldenManager({
                         <button
                           className={`toggle ${ex.active ? "on" : ""}`}
                           disabled={pending}
-                          onClick={() => run(() => editEx(route, ex.id, { active: !ex.active }))}
-                          aria-label="toggle active"
+                          onClick={() => run(() => guard.run((ownerId) => boundedAction([route, ex.id, { active: !ex.active }, ownerId], () => editEx(route, ex.id, { active: !ex.active }, ownerId))))}
+                          role="switch" aria-checked={ex.active} aria-label="Active golden example"
                         />
                       </td>
                       <td className="num">
@@ -146,7 +156,7 @@ export function GoldenManager({
                           <button
                             className="btn sm danger-ghost"
                             disabled={pending}
-                            onClick={() => run(() => delEx(route, ex.id))}
+                            onClick={() => run(() => guard.run((ownerId) => boundedAction([route, ex.id, ownerId], () => delEx(route, ex.id, ownerId))))}
                           >
                             Del
                           </button>
@@ -184,17 +194,17 @@ export function GoldenManager({
       {editing && (
         <EditDrawer
           ex={editing}
-          route={route}
+          route={routeLabel ?? route}
           pending={pending}
           onClose={() => setEditing(null)}
-          onSave={(patch) => run(() => editEx(route, editing.id, patch), () => setEditing(null))}
+          onSave={(patch) => run(() => guard.run((ownerId) => boundedAction([route, editing.id, patch, ownerId], () => editEx(route, editing.id, patch, ownerId))), () => setEditing(null))}
         />
       )}
-    </>
+    </fieldset>
   );
 }
 
-type Run = (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => void;
+type Run = (fn: () => Promise<{ ok: boolean; error?: string } | null>, done?: () => void) => void;
 
 function SeedPanel({
   route,
@@ -209,6 +219,7 @@ function SeedPanel({
   workflowContext: RouteWorkflowContext | null;
   empty?: boolean;
 }) {
+  const guard = useOwnerGuard();
   type Source = "upload" | "agent" | "connected" | "live";
   type Format = "csv" | "json" | "jsonl";
   const [step, setStep] = useState(1);
@@ -261,39 +272,48 @@ function SeedPanel({
 
   const readDataset = async (file: File | undefined) => {
     if (!file) return;
-    if (file.size > 5_000_000) {
+    const ticket = guard.capture();
+    if (file.size > GOLDEN_FILE_BYTES) {
       setData("");
       setFileName("");
-      setFileError("Dataset is larger than the 5 MB upload limit.");
+      setFileError("Dataset is larger than the 400 KiB upload limit.");
       return;
     }
     setFileError(null);
     const extension = file.name.split(".").pop()?.toLowerCase();
     const nextFormat: Format = extension === "csv" ? "csv" : extension === "json" ? "json" : "jsonl";
+    setData("");
     setFormat(nextFormat);
     setFileName(file.name);
-    setData(await file.text());
+    try { const text = await guard.read(() => file.text()); if (text !== null && guard.current(ticket)) setData(text); }
+    catch { if (guard.current(ticket)) setFileError("The file could not be read."); }
   };
 
   const readContextDocuments = async (files: FileList | null) => {
     if (!files) return;
+    const ticket = guard.capture();
     setFileError(null);
     const selected = [...files].slice(0, 10);
-    const contents = await Promise.all(
+    let contents: string[];
+    try { const read = await guard.read(() => Promise.all(
       selected.map(async (file) => `# ${file.name}\n${await file.slice(0, 50_000).text()}`),
-    );
+    ));
+    if (read === null) return; contents = read;
+    } catch { if (guard.current(ticket)) setFileError("The files could not be read."); return; }
+    if (!guard.current(ticket)) return;
     setContextFiles(selected.map((file) => file.name));
     setProductBrief(contents.join("\n\n").slice(0, 50_000));
     setConsent(false);
   };
 
   const readyForReview =
-    source === "upload" ? Boolean(data.trim()) : Boolean(task.trim() || productBrief.trim());
+    source === "upload" ? Boolean(data.trim()) : validDraftCount(count) && Boolean(task.trim() || productBrief.trim());
   const needsConsent = source === "connected" || source === "live" || contextFiles.length > 0;
 
   const publish = () => {
+    if (source !== "upload" && !validDraftCount(count)) { setFileError("Choose a whole number from 1 to 20 draft examples."); return; }
     if (source === "upload") {
-      run(() => seedUpload(route, format, data), () => {
+      run(() => guard.run((ownerId) => boundedAction([route, format, data, ownerId], () => seedUpload(route, format, data, ownerId))), () => {
         setData("");
         setFileName("");
         setStep(4);
@@ -302,18 +322,24 @@ function SeedPanel({
     }
     run(
       () =>
-        seedGenerate(route, task, count, {
+        guard.run((ownerId) => boundedAction([route, task, count, {
           productBrief,
           systemPrompt,
           architecture,
           useLiveTraces: source === "live" && useLiveTraces,
-        }),
+        }, ownerId], () => seedGenerate(route, task, count, {
+          productBrief,
+          systemPrompt,
+          architecture,
+          useLiveTraces: source === "live" && useLiveTraces,
+        }, ownerId))),
       () => setStep(4),
     );
   };
 
   return (
     <div className="card">
+      {fileError && step >= 3 && <div className="alert danger" role="alert">{fileError}</div>}
       {empty ? (
         <Empty emoji="✷" title="No golden set yet">
           <p className="muted small" style={{ marginBottom: 4 }}>
@@ -361,19 +387,19 @@ function SeedPanel({
       {step === 2 && source === "upload" && (
         <div className="stack" style={{ gap: 10 }}>
           <div>
-            <label className="label">Golden-set file</label>
-            <input className="input" type="file" accept=".csv,.json,.jsonl,application/json,text/csv" onChange={(event) => void readDataset(event.target.files?.[0])} />
+            <label className="label">Golden-set file · maximum 400 KiB</label>
+            <input aria-label="Golden-set file" className="input" type="file" accept=".csv,.json,.jsonl,application/json,text/csv" onChange={(event) => void readDataset(event.target.files?.[0])} />
             {fileError && <div className="alert danger" style={{ marginTop: 8 }}>{fileError}</div>}
           </div>
           <div className="row wrap" style={{ gap: 8 }}>
-            <select className="select" value={format} onChange={(event) => setFormat(event.target.value as Format)}>
+            <select aria-label="Dataset format" className="select" value={format} onChange={(event) => setFormat(event.target.value as Format)}>
               <option value="csv">CSV</option>
               <option value="json">JSON</option>
               <option value="jsonl">JSONL</option>
             </select>
             <span className="hint" style={{ marginTop: 0 }}>{fileName || "You can also paste the file contents below."}</span>
           </div>
-          <textarea className="textarea mono" value={data} onChange={(event) => setData(event.target.value)} />
+          <textarea aria-label="Golden-set data" className="textarea mono" value={data} onChange={(event) => setData(event.target.value)} />
         </div>
       )}
 
@@ -381,12 +407,12 @@ function SeedPanel({
         <div className="stack" style={{ gap: 10 }}>
           <div>
             <label className="label">What should this node do?</label>
-            <textarea className="textarea" placeholder="Describe the task and the behavior a good answer must have." value={task} onChange={(event) => setTask(event.target.value)} />
+            <textarea aria-label="What should this node do?" className="textarea" placeholder="Describe the task and the behavior a good answer must have." value={task} onChange={(event) => setTask(event.target.value)} />
           </div>
           {source === "agent" && (
             <div>
               <label className="label">Product or prompt documents (.md or .txt)</label>
-              <input className="input" type="file" multiple accept=".md,.txt,text/markdown,text/plain" onChange={(event) => void readContextDocuments(event.target.files)} />
+              <input aria-label="Product or prompt documents (.md or .txt)" className="input" type="file" multiple accept=".md,.txt,text/markdown,text/plain" onChange={(event) => void readContextDocuments(event.target.files)} />
               <div className="hint">{contextFiles.join(", ") || "No document selected."}</div>
               {fileError && <div className="alert danger" style={{ marginTop: 8 }}>{fileError}</div>}
             </div>
@@ -395,9 +421,9 @@ function SeedPanel({
             <details open={source === "connected"}>
               <summary style={{ cursor: "pointer", fontWeight: 550 }}>Review shared context</summary>
               <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-                <textarea className="textarea" placeholder="Product brief" value={productBrief} onChange={(event) => setProductBrief(event.target.value)} />
-                <textarea className="textarea mono" placeholder="System prompt" value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} />
-                <textarea className="textarea" placeholder="Architecture" value={architecture} onChange={(event) => setArchitecture(event.target.value)} />
+                <textarea aria-label="Product brief" className="textarea" placeholder="Product brief" value={productBrief} onChange={(event) => setProductBrief(event.target.value)} />
+                <textarea aria-label="System prompt" className="textarea mono" placeholder="System prompt" value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} />
+                <textarea aria-label="Architecture" className="textarea" placeholder="Architecture" value={architecture} onChange={(event) => setArchitecture(event.target.value)} />
               </div>
             </details>
           )}
@@ -408,7 +434,7 @@ function SeedPanel({
           )}
           <div className="row" style={{ gap: 8 }}>
             <label className="label" style={{ margin: 0 }}>Draft examples</label>
-            <input className="input" type="number" min={1} max={50} style={{ width: 90 }} value={count} onChange={(event) => setCount(Number(event.target.value))} />
+            <input aria-label="Draft examples" className="input" type="number" min={1} max={20} style={{ width: 90 }} value={count} onChange={(event) => setCount(Number(event.target.value))} />
           </div>
         </div>
       )}
@@ -464,6 +490,7 @@ function SeedPanel({
 }
 
 function AddExampleForm({ route, setId, pending, run }: { route: string; setId: string; pending: boolean; run: Run }) {
+  const guard = useOwnerGuard();
   const [input, setInput] = useState("");
   const [ref, setRef] = useState("");
   const [rubric, setRubric] = useState("");
@@ -476,20 +503,20 @@ function AddExampleForm({ route, setId, pending, run }: { route: string; setId: 
       </div>
       <div className="field">
         <label className="label">Input (a self-contained task prompt)</label>
-        <textarea className="textarea" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Summarize the following in one sentence: ..." />
+        <textarea aria-label="Input (a self-contained task prompt)" className="textarea" value={input} onChange={(e) => setInput(e.target.value)} placeholder="Summarize the following in one sentence: ..." />
       </div>
       <div className="grid cols-2">
         <div className="field">
           <label className="label">Reference output (optional)</label>
-          <textarea className="textarea" style={{ minHeight: 54 }} value={ref} onChange={(e) => setRef(e.target.value)} />
+          <textarea aria-label="Reference output (optional)" className="textarea" style={{ minHeight: 54 }} value={ref} onChange={(e) => setRef(e.target.value)} />
         </div>
         <div className="field">
           <label className="label">Rubric (optional)</label>
-          <textarea className="textarea" style={{ minHeight: 54 }} value={rubric} onChange={(e) => setRubric(e.target.value)} />
+          <textarea aria-label="Rubric (optional)" className="textarea" style={{ minHeight: 54 }} value={rubric} onChange={(e) => setRubric(e.target.value)} />
         </div>
       </div>
       <div className="row" style={{ gap: 8 }}>
-        <select className="select" style={{ width: 130 }} value={label} onChange={(e) => setLabel(e.target.value)}>
+        <select aria-label="Example label" className="select" style={{ width: 130 }} value={label} onChange={(e) => setLabel(e.target.value)}>
           <option value="unlabeled">unlabeled</option>
           <option value="pass">pass</option>
           <option value="fail">fail</option>
@@ -500,12 +527,17 @@ function AddExampleForm({ route, setId, pending, run }: { route: string; setId: 
           onClick={() =>
             run(
               () =>
-                addEx(route, setId, {
+                guard.run((ownerId) => boundedAction([route, setId, {
                   input,
                   referenceOutput: ref.trim() || undefined,
                   rubric: rubric.trim() || undefined,
                   label,
-                }),
+                }, ownerId], () => addEx(route, setId, {
+                  input,
+                  referenceOutput: ref.trim() || undefined,
+                  rubric: rubric.trim() || undefined,
+                  label,
+                }, ownerId))),
               () => {
                 setInput("");
                 setRef("");
@@ -535,6 +567,7 @@ function PromoteTracePanel({
   pending: boolean;
   run: Run;
 }) {
+  const guard = useOwnerGuard();
   return (
     <div className="card">
       <div className="card-title" style={{ marginBottom: 4 }}>
@@ -560,7 +593,7 @@ function PromoteTracePanel({
                 <button
                   className="btn sm"
                   disabled={pending || !setId}
-                  onClick={() => setId && run(() => promote(route, setId, t.id))}
+                  onClick={() => setId && run(() => guard.run((ownerId) => boundedAction([route, setId, t.id, ownerId], () => promote(route, setId, t.id, ownerId))))}
                 >
                   Promote
                 </button>
@@ -602,26 +635,26 @@ function EditDrawer({
               {route} · <LabelBadge label={ex.label} />
             </div>
           </div>
-          <button className="drawer-close" onClick={onClose}>
+          <button aria-label="Close example editor" className="drawer-close" onClick={onClose}>
             ×
           </button>
         </div>
         <div className="drawer-body">
           <div className="field">
             <label className="label">Input</label>
-            <textarea className="textarea" style={{ minHeight: 110 }} value={input} onChange={(e) => setInput(e.target.value)} />
+            <textarea aria-label="Input" className="textarea" style={{ minHeight: 110 }} value={input} onChange={(e) => setInput(e.target.value)} />
           </div>
           <div className="field">
             <label className="label">Reference output</label>
-            <textarea className="textarea" value={ref} onChange={(e) => setRef(e.target.value)} />
+            <textarea aria-label="Reference output" className="textarea" value={ref} onChange={(e) => setRef(e.target.value)} />
           </div>
           <div className="field">
             <label className="label">Rubric</label>
-            <textarea className="textarea" style={{ minHeight: 54 }} value={rubric} onChange={(e) => setRubric(e.target.value)} />
+            <textarea aria-label="Rubric" className="textarea" style={{ minHeight: 54 }} value={rubric} onChange={(e) => setRubric(e.target.value)} />
           </div>
           <div className="field">
             <label className="label">Label</label>
-            <select className="select" value={label} onChange={(e) => setLabel(e.target.value as GoldenExample["label"])}>
+            <select aria-label="Label" className="select" value={label} onChange={(e) => setLabel(e.target.value as GoldenExample["label"])}>
               <option value="unlabeled">unlabeled</option>
               <option value="pass">pass</option>
               <option value="fail">fail</option>

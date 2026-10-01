@@ -128,6 +128,9 @@ export const apiKeys = bs.table(
       .references(() => projects.id, { onDelete: "cascade" }),
     prefix: text("prefix").notNull(),
     keyHash: text("key_hash").notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    scopes: text("scopes").array().notNull().default(["completion", "telemetry", "feedback"]),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("api_keys_key_hash_idx").on(t.keyHash)],
@@ -201,6 +204,7 @@ export const routes = bs.table(
     liveModel: text("live_model"),
     policyJson: jsonb("policy_json").$type<Policy>().notNull(),
     autoApprove: boolean("auto_approve").notNull().default(false),
+    exampleKind: text("example_kind"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("routes_project_name_idx").on(t.projectId, t.name)],
@@ -388,6 +392,7 @@ export const traces = bs.table(
   "traces",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id").notNull().references(() => projects.id),
     routeId: uuid("route_id").references(() => routes.id, {
       onDelete: "set null",
     }),
@@ -421,6 +426,7 @@ export const workflows = bs.table(
       .default("observe_only"),
     /** Discovered workflows are inert until the user selects them for optimization. */
     selected: boolean("selected").notNull().default(false),
+    exampleKind: text("example_kind"),
     contextManifestJson: jsonb("context_manifest_json").$type<WorkflowContextManifest>(),
     contextHash: text("context_hash"),
     contextSharedAt: timestamp("context_shared_at", { withTimezone: true }),

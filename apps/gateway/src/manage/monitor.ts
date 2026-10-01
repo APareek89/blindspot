@@ -27,5 +27,6 @@ monitorRouter.post("/feedback", async (c) => {
       400,
     );
   }
-  return c.json({ feedback: await recordExecutionFeedback(c.get("projectId"), parsed.data) }, 201);
+  try{return c.json({ feedback: await recordExecutionFeedback(c.get("projectId"), parsed.data) }, 201);}
+  catch(error){if((error as {code?:string}).code==='PREPARED_READ_ONLY')return c.json({error:{message:'Prepared examples do not accept feedback edits.'}},409);throw error;}
 });

@@ -2,7 +2,11 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
-import { generateText } from "ai";
+import { generateText, generateObject } from "ai";
+import type { z } from "zod";
+import { meteredCall } from "./metering";
+import { providerTimeoutSignal, providerMockMode } from "./transport";
+export { providerTimeoutSignal } from "./transport";
 import type { ChatMessage, Provider } from "@blindspot/shared";
 import { estimateCostCents } from "./prices";
 
@@ -32,6 +36,7 @@ export function normalizeModelRef(ref: string): string {
 
 /** Parse "provider:model" (e.g. "anthropic:claude-haiku-4-5-20251001"). */
 export function parseModelRef(ref: string): ModelRef {
+  if (typeof ref !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,199}$/.test(ref) || ref.includes("..")) throw new Error("Invalid provider model reference");
   const idx = ref.indexOf(":");
   if (idx === -1) {
     throw new Error(`model ref must be "provider:model", got "${ref}"`);
@@ -39,48 +44,33 @@ export function parseModelRef(ref: string): ModelRef {
   return { provider: ref.slice(0, idx) as Provider, model: ref.slice(idx + 1) };
 }
 
-/** Build a Vercel AI SDK model from a "provider:model" ref + the caller's API key. */
-export function getLanguageModel(modelRef: string, apiKey: string) {
-  return buildModel(parseModelRef(modelRef), apiKey);
-}
-
 /** Build a Vercel AI SDK model from a ref + the caller's (decrypted) API key. */
-function buildModel(ref: ModelRef, apiKey: string) {
+function buildModel(ref: ModelRef, apiKey: string, transport: typeof fetch) {
   switch (ref.provider) {
     case "anthropic":
-      return createAnthropic({ apiKey })(ref.model);
+      return createAnthropic({ apiKey, fetch: transport })(ref.model);
     case "openai":
-      return createOpenAI({ apiKey })(ref.model);
+      return createOpenAI({ apiKey, fetch: transport })(ref.model, { structuredOutputs: true });
     case "gemini":
-      return createGoogleGenerativeAI({ apiKey })(ref.model);
+      return createGoogleGenerativeAI({ apiKey, fetch: transport })(ref.model);
     case "groq":
-      return createGroq({ apiKey })(ref.model);
+      return createGroq({ apiKey, fetch: transport })(ref.model);
     case "hf":
-      // HuggingFace exposes an OpenAI-compatible router; base URL is overridable.
+      // Fixed provider endpoint; credentials never follow caller-controlled origins.
       return createOpenAI({
-        apiKey,
-        baseURL: process.env.HF_BASE_URL ?? "https://router.huggingface.co/v1",
+        apiKey, fetch: transport,
+        baseURL: "https://router.huggingface.co/v1",
       })(ref.model);
     case "fireworks":
       // Fireworks exposes an OpenAI-compatible inference endpoint.
       return createOpenAI({
-        apiKey,
+        apiKey, fetch: transport,
         baseURL:
-          process.env.FIREWORKS_BASE_URL ?? "https://api.fireworks.ai/inference/v1",
+          "https://api.fireworks.ai/inference/v1",
       })(ref.model);
     default:
       throw new Error(`provider "${ref.provider}" is not wired yet`);
   }
-}
-
-/** Abort signal that fires after PROVIDER_TIMEOUT_MS (default 60s) so calls can't hang. */
-export function providerTimeoutSignal(): AbortSignal {
-  const configured = Number(process.env.PROVIDER_TIMEOUT_MS ?? 60_000);
-  const timeoutMs =
-    Number.isFinite(configured) && configured >= 1_000
-      ? Math.min(configured, 120_000)
-      : 60_000;
-  return AbortSignal.timeout(timeoutMs);
 }
 
 export interface RunResult {
@@ -89,36 +79,33 @@ export interface RunResult {
   completionTokens: number;
   latencyMs: number;
   costCents: number | null;
+  fixture?: true;
 }
 
-/** Run one chat completion through a provider and report tokens + cost + latency. */
+/** One provider dispatch, budgeted before transport and settled before response validation. */
 export async function runChat(opts: {
-  modelRef: string;
-  apiKey: string;
-  messages: ChatMessage[];
-  temperature?: number;
-  maxTokens?: number;
+  modelRef: string; apiKey: string; messages: ChatMessage[]; temperature?: number; maxTokens?: number; shared?: boolean;
 }): Promise<RunResult> {
-  const ref = parseModelRef(opts.modelRef);
-  const model = buildModel(ref, opts.apiKey);
-
+  if (!Array.isArray(opts.messages) || opts.messages.length < 1 || opts.messages.length > 100 || opts.messages.some(m => typeof m.content !== "string" || !["system", "user", "assistant"].includes(m.role))) throw new Error("Only bounded text messages are supported");
+  const maxTokens = opts.maxTokens ?? 2048;
+  if (providerMockMode()) return { text: `Sample response (no provider call): ${opts.messages.filter(m => m.role === "user").at(-1)?.content.slice(0,240) ?? "Prepared example"}`, promptTokens: 0, completionTokens: 0, latencyMs: 0, costCents: 0, fixture: true };
   const started = Date.now();
-  const res = await generateText({
-    model,
-    messages: opts.messages,
-    temperature: opts.temperature,
-    maxTokens: opts.maxTokens,
-    abortSignal: providerTimeoutSignal(),
-  });
-  const latencyMs = Date.now() - started;
+  const { result, usage } = await meteredCall({ kind: "chat", modelRef: opts.modelRef, input: opts.messages, maxOutputTokens: maxTokens, shared: opts.shared }, transport =>
+    generateText({ model: buildModel(parseModelRef(opts.modelRef), opts.apiKey, transport), messages: opts.messages,
+      temperature: opts.temperature, maxTokens, maxRetries: 0, maxSteps: 1, abortSignal: providerTimeoutSignal() }));
+  return { text: result.text, promptTokens: usage.inputTokens, completionTokens: usage.outputTokens,
+    latencyMs: Date.now() - started, costCents: estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens) };
+}
 
-  const promptTokens = res.usage.promptTokens ?? 0;
-  const completionTokens = res.usage.completionTokens ?? 0;
-  return {
-    text: res.text,
-    promptTokens,
-    completionTokens,
-    latencyMs,
-    costCents: estimateCostCents(opts.modelRef, promptTokens, completionTokens),
-  };
+/** Shared path for judge and golden generation; malformed paid output still settles its usage. */
+export async function runStructured<T>(opts: {
+  kind: "judge" | "golden"; modelRef: string; apiKey: string; prompt: string; schema: z.Schema<T>; maxTokens: number; shared?: boolean; mockValue: () => T;
+}) {
+  if (providerMockMode()) return { object: opts.schema.parse(opts.mockValue()), promptTokens: 0, completionTokens: 0, costCents: 0, fixture: true };
+  const { result, usage } = await meteredCall({ kind: opts.kind, modelRef: opts.modelRef,
+    input: { prompt: opts.prompt, schemaDescription: "structured JSON output" }, maxOutputTokens: opts.maxTokens, shared: opts.shared }, transport =>
+    generateObject({ model: buildModel(parseModelRef(opts.modelRef), opts.apiKey, transport), schema: opts.schema,
+      prompt: opts.prompt, maxTokens: opts.maxTokens, maxRetries: 0, abortSignal: providerTimeoutSignal() }));
+  return { object: result.object, promptTokens: usage.inputTokens, completionTokens: usage.outputTokens,
+    costCents: estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens) };
 }

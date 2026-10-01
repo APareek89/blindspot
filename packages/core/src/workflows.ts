@@ -14,6 +14,7 @@ import {
   workflowNodes,
   workflowSpans,
   workflows,
+  fixtureMode,requireExecution,getSql,
 } from "@blindspot/db";
 import {
   CaptureModeSchema,
@@ -34,6 +35,12 @@ import {
 const CAPTURE_RANK: Record<CaptureMode, number> = { metadata: 0, inputs: 1, full: 2 };
 const REDACTED = "[REDACTED]";
 const SENSITIVE_KEY = /(^|[_-])(api[_-]?key|authorization|secret|password|access[_-]?token|refresh[_-]?token|cookie)$/i;
+async function denyPreparedMutation(projectId:string,name:string,environment:string){
+ if(fixtureMode())return;
+ const actor=requireExecution();if(actor.projectId!==projectId)throw new Error('Project not found');
+ const row=(await getSql()`SELECT id FROM blindspot.workflows WHERE project_id=${projectId} AND name=${name} AND environment=${environment} AND example_kind='prepared'`)[0];
+ if(row)throw new Error('Prepared workflow is immutable');
+}
 
 function safeWorkflow<T extends typeof workflows.$inferSelect>(workflow: T) {
   const { replaySecretEncrypted: _secret, ...safe } = workflow;
@@ -49,8 +56,13 @@ function effectiveCapture(project: CaptureMode, sdk: CaptureMode): CaptureMode {
 }
 
 /** Remove common credential fields even when the user selected full content capture. */
-function redactSecrets(value: unknown): unknown {
+export function redactSecrets(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redactSecrets);
+  if(typeof value==='string')return value
+    .replace(/\b(?:bs_live_|sk-(?:ant-)?|gsk_)[A-Za-z0-9_-]{12,}\b/g,REDACTED)
+    .replace(/\bAIza[A-Za-z0-9_-]{20,}\b/g,REDACTED)
+    .replace(/\bBearer\s+[A-Za-z0-9._~+\/-]{12,}/gi,`Bearer ${REDACTED}`)
+    .replace(/((?:api[_ -]?key|password|secret|access[_ -]?token)\s*[=:]\s*)[^\s,;]+/gi,`$1${REDACTED}`);
   if (!value || typeof value !== "object") return value;
   return Object.fromEntries(
     Object.entries(value as Record<string, unknown>).map(([key, child]) => [
@@ -166,6 +178,12 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
   const stored: { spanId: string; workflowId: string; nodeId: string }[] = [];
   for (const item of batch) {
     const result = await db.transaction(async (tx) => {
+      if(!fixtureMode()){
+        const actor=requireExecution();if(actor.projectId!==projectId)throw new Error('Project not found');
+        const prior=(await tx.select({id:workflows.id,exampleKind:workflows.exampleKind}).from(workflows).where(and(eq(workflows.projectId,projectId),eq(workflows.name,item.workflow.name),eq(workflows.environment,item.workflow.environment))))[0];
+        if(prior?.exampleKind==='prepared'&&(actor.mode!=='prepared'||actor.exampleId!==prior.id))throw new Error('Prepared workflow is immutable');
+        if(actor.mode==='prepared'&&(!prior||actor.exampleId!==prior.id))throw new Error('Prepared telemetry must use its fixed workflow');
+      }
       const now = new Date();
       const workflowUpdate = {
         lastSeenAt: now,
@@ -379,6 +397,7 @@ export async function ingestWorkflowSpans(projectId: string, batch: WorkflowSpan
           await tx
             .insert(traces)
             .values({
+              projectId,
               routeId,
               model: modelRef,
               input:
@@ -542,6 +561,7 @@ export async function shareWorkflowContext(
   projectId: string,
   input: WorkflowContextShareInput,
 ) {
+  await denyPreparedMutation(projectId,input.workflow.name,input.workflow.environment);
   const manifest = WorkflowContextManifestSchema.parse(input.manifest);
   const contextHash = createHash("sha256").update(JSON.stringify(manifest)).digest("hex");
   const now = new Date();
@@ -593,6 +613,7 @@ export async function getRouteWorkflowContext(projectId: string, routeId: string
 
 /** Resolve an SDK-managed generation node to its currently approved concrete model. */
 export async function resolveWorkflowModel(projectId: string, input: WorkflowModelResolveInput) {
+  await denyPreparedMutation(projectId,input.workflow,input.environment);
   const fallback = canonicalObservedModel(input.fallbackModel) ?? input.fallbackModel;
   if (!fallback.includes(":")) {
     throw new Error("fallbackModel must identify a provider, for example anthropic:claude-…");

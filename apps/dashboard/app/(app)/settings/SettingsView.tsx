@@ -1,5 +1,7 @@
 "use client";
 
+import { useOwnerGuard } from "@/components/AccountShell";
+
 import { useState, useTransition } from "react";
 import { Copy } from "@/components/Copy";
 import { dateTime } from "@/lib/format";
@@ -29,6 +31,7 @@ export function SettingsView({
   settings: Settings;
   registry: ModelRegistryOverview;
 }) {
+  const guard = useOwnerGuard();
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [provider, setProvider] = useState<string>("anthropic");
@@ -37,10 +40,12 @@ export function SettingsView({
 
   const configured = new Set(providerKeys.map((p) => p.provider));
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, done?: () => void) => {
+  const run = (fn: () => Promise<{ ok: boolean; error?: string } | null>, done?: () => void) => {
     setError(null);
     start(async () => {
+      const ticket = guard.capture();
       const r = await fn();
+      if (!r || !guard.current(ticket)) return;
       if (!r.ok) setError(r.error ?? "failed");
       else done?.();
     });
@@ -79,7 +84,7 @@ export function SettingsView({
                       <button
                         className="btn sm danger-ghost"
                         disabled={pending}
-                        onClick={() => run(() => deleteProviderKeyA(p.provider))}
+                        onClick={() => run(() => guard.run((ownerId) => deleteProviderKeyA(p.provider, ownerId)))}
                       >
                         Remove
                       </button>
@@ -94,7 +99,7 @@ export function SettingsView({
         <div className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}>
           <div>
             <label className="label">Provider</label>
-            <select className="select" style={{ width: 150 }} value={provider} onChange={(e) => setProvider(e.target.value)}>
+            <select aria-label="Provider" className="select" style={{ width: 150 }} value={provider} onChange={(e) => setProvider(e.target.value)}>
               {PROVIDERS.map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -105,7 +110,7 @@ export function SettingsView({
           </div>
           <div style={{ flex: "1 1 260px" }}>
             <label className="label">API key {configured.has(provider) && "(replaces existing)"}</label>
-            <input
+            <input aria-label="API key"
               className="input mono"
               type="password"
               autoComplete="off"
@@ -117,7 +122,7 @@ export function SettingsView({
           <button
             className="btn primary"
             disabled={pending || !value.trim()}
-            onClick={() => run(() => setProviderKeyA(provider, value), () => setValue(""))}
+            onClick={() => run(() => guard.run((ownerId) => setProviderKeyA(provider, value, ownerId)), () => setValue(""))}
           >
             Save key
           </button>
@@ -150,8 +155,8 @@ export function SettingsView({
                 <tr key={item.provider}>
                   <td style={{ fontWeight: 550 }}>{item.provider}</td>
                   <td>
-                    <span className={`badge ${item.keyConfigured ? "pass" : "warn"}`}>
-                      {item.keyConfigured ? "Key configured" : "Needs key"}
+                    <span className={`badge ${item.keyConfigured || item.serverConfigured ? "pass" : "warn"}`}>
+                      {item.keyConfigured ? "Your key configured" : item.serverConfigured ? "Server configured" : "Needs key"}
                     </span>
                   </td>
                   <td className="num mono">{item.modelCount}</td>
@@ -161,8 +166,8 @@ export function SettingsView({
                   <td className="num">
                     <button
                       className="btn sm"
-                      disabled={pending || !item.keyConfigured}
-                      onClick={() => run(() => syncModelRegistryA(item.provider))}
+                      disabled={pending || (!item.keyConfigured && !item.serverConfigured)}
+                      onClick={() => run(() => guard.run((ownerId) => syncModelRegistryA(item.provider, ownerId)))}
                     >
                       {pending ? "Syncing…" : "Sync models"}
                     </button>
@@ -183,8 +188,9 @@ export function SettingsView({
         <div className="row between" style={{ marginBottom: 4 }}>
           <span className="card-title">Gateway keys</span>
           <button className="btn sm" disabled={pending} onClick={() => run(async () => {
-            const r = await mintKeyA();
-            if (r.ok) setMinted(r.key);
+            const ticket = guard.capture();
+            const r = await guard.run((ownerId) => mintKeyA(ownerId));
+            if (r?.ok && guard.current(ticket)) setMinted(r.key);
             return r;
           })}>
             Mint new key
@@ -197,7 +203,7 @@ export function SettingsView({
 
         {minted && (
           <div className="alert warn" style={{ marginBottom: 14 }}>
-            <div style={{ marginBottom: 8 }}>Save this now — it won’t be shown again:</div>
+            <div className="row between" style={{ marginBottom: 8 }}><span>Save this now — it won’t be shown again:</span><button className="btn sm" onClick={() => setMinted(null)}>Hide key</button></div>
             <div className="row between" style={{ gap: 8 }}>
               <span className="mono" style={{ wordBreak: "break-all" }}>
                 {minted}
@@ -224,11 +230,11 @@ export function SettingsView({
                   <td className="num">
                     <button
                       className="btn sm danger"
-                      disabled={pending || gatewayKeys.length === 1}
-                      title={gatewayKeys.length === 1 ? "Mint a replacement before revoking the final key" : "Revoke this key immediately"}
+                      disabled={pending}
+                      title="Revoke this SDK key immediately; your email/password account remains available"
                       onClick={() => {
                         if (window.confirm(`Revoke gateway key ${k.prefix}…? Apps using it will stop connecting immediately.`)) {
-                          run(() => revokeKeyA(k.id));
+                          run(() => guard.run((ownerId) => revokeKeyA(k.id, ownerId)));
                         }
                       }}
                     >

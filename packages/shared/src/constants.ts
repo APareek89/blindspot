@@ -2,7 +2,7 @@
 export const EVAL_QUEUE = "bs:evals";
 
 /** Default judge model when JUDGE_MODEL is unset (configurable per PRD §11). */
-export const DEFAULT_JUDGE_MODEL = "anthropic:claude-haiku-4-5-20251001";
+export const DEFAULT_JUDGE_MODEL = "openai:gpt-4o-mini";
 
 /** Default port the gateway listens on when PORT is unset. */
 export const DEFAULT_GATEWAY_PORT = 8787;

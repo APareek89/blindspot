@@ -39,6 +39,7 @@ export async function resolveOrCreateRoute(
 
   const found = existing[0];
   if (found) {
+    if(found.exampleKind==='prepared')throw new Error('Prepared routes cannot dispatch models');
     return { id: found.id, modelRef: found.liveModel ?? defaultModel, created: false };
   }
 

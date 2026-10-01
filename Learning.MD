@@ -6,6 +6,26 @@
 
 <!-- Newest first. Entry format: -->
 
+## 2026-10-01 — Completion, telemetry and quality need separate evidence
+**Verified:** a normal paid SDK completion returned16 input/5 output tokens, then the shipped SDK persisted a matching owner/project metadata span. One usage row settled at estimatedUSD0.0000054. The UI rounded the corresponding0.00054 cents to0.001 cents. There were no retries, judges or evaluation calls.
+**Rule:** retain the full stored unit and distinguish a transport/metering proof from model quality. Prepared90% evaluation scores are fixed illustrative fixtures, even though their SDK ingestion and persistence are real. A live completion does not validate an approval or production model swap.
+
+
+## 2026-10-01 — Mixed database access needs actual integration tests
+**What happened:** isolated helpers passed, but compiled Server Actions failed after ordinary database access. Drizzle [the SQL mapping library] changes serializers on its shared postgres-js connection. A later raw SQL call passed a JavaScript Date for a bridge nonce and an object for usage pricing, which no longer encoded as expected.
+**Action:** the raw nonce expiry uses an ISO timestamp string, and pricing uses an explicit JSON string cast to jsonb. Regression setup initializes the ORM first, then exercises the real bridge and usage path against PostgreSQL.
+**Preventive action:** test the order of database APIs used by a real request. A helper tested before shared connection initialization does not prove its behavior afterward.
+
+## 2026-10-01 — Account success and browser navigation are separate gates
+**What happened:** overlapping anonymous session reads could replace the signup CSRF cookie before submission. After the protocol fix, a successful Credentials callback could still land on a cached anonymous login redirect in Next's client router.
+**Action:** anonymous CSRF uses a stable signed anonymous subject; authenticated CSRF remains session-bound. Verified login and successful fenced signout now replace the full document, clearing the previous account's router cache. Cross-tab changes invalidate pending work immediately. Root verified the hydrated signup/signin/signout journey, not only HTTP response codes.
+**Preventive action:** include concurrent initial session reads and full browser account transitions in acceptance. Keep localhost versus127.0.0.1 origin configuration consistent; do not weaken exact-origin checks to cover a preview mismatch.
+
+## 2026-10-01 — Prepared evidence needs permanent provenance and honest controls
+**What changed:** Try example now sends a real span through the shipped SDK, then persists two model-only evaluations with fixed responses and illustrative90% judgments. It makes no provider request. Ordinary workflows retain their existing budget, replay and approval behavior.
+**Why:** fixed display names could collide with ordinary work, UUID spelling could bypass a boundary check, and ordinary feedback could alter prepared Monitor metrics. The implementation now reserves an owner-scoped UUID namespace, checks canonical UUID syntax case-insensitively, and rejects prepared mutations including feedback. Tests preserve pre-existing ordinary names and deny another owner.
+**UI rule:** hide namespace UUIDs only in labels carrying the server's prepared marker. Keep values and URLs intact. Disable prepared mutation controls and show a read-only explanation while keeping evidence navigation usable. A fixture score is not live model quality, and an observed node is not the application's complete source topology.
+
 ## 2026-07-22 — Observed node inventory was mistaken for the application's full topology
 **What happened:** hosted GSTPilot showed 3 production nodes while development showed 7, so the user
 reasonably asked whether the hosted app was connected and why Blindspot had lost nodes.
@@ -395,3 +415,9 @@ suppressed. Postgres, Redis and the Anthropic credential then validated without 
 **Preventive action:** validate URL scheme/host before constructing network clients; treat copied
 CLI snippets as user input; attach a redacting error listener before the first connection attempt.
 Rotate credentials whenever any diagnostic output contains them, even in a local session.
+
+## 2026-10-01 — Metrics fixtures must use the same explicit clock
+**What happened:** the original metrics test returned null feedback percentage while expecting100%.
+**Root cause:** executions and measurement windows used a fixed July22 clock, but feedback inserted through the real service retained today's PostgreSQL timestamp. Those rows correctly fell outside the measured window.
+**Fix:** explicitly date all four synthetic feedback rows into the fixture window before the existing down-vote backdate. Keep the fixed clock, runtime filtering and every assertion unchanged. The native metrics check now passes.
+**Watch for later:** every timestamped record participating in a fixed-clock integration test must use that fixture clock; a wall-clock default makes otherwise deterministic tests expire.

@@ -1,4 +1,5 @@
 import type { CostQualityPoint, TrendBucket } from "@/lib/types";
+import { preparedName } from "@/lib/format";
 
 /** Score-over-time line with a dashed policy bar and golden-set version markers. */
 export function ScoreChart({
@@ -113,7 +114,7 @@ export function CostQualityChart({ points }: { points: CostQualityPoint[] }) {
         <g key={i}>
           <circle cx={xFor(p.costPer1kCents as number)} cy={yFor(p.quality as number)} r={5} fill={color(p.status)} />
           <text x={xFor(p.costPer1kCents as number) + 8} y={yFor(p.quality as number) + 3} fontSize="10" fill="var(--muted)">
-            {p.routeName}
+            {preparedName(p.routeName, p)}
           </text>
         </g>
       ))}

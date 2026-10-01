@@ -29,6 +29,7 @@ export interface ConfigWarning {
  * of at first traffic. Returns warnings; the caller decides whether to log or fail.
  */
 export function checkModelKeyConfig(): ConfigWarning[] {
+  if(process.env.BLINDSPOT_MOCK_MODE==='1')return [];
   const settings: Array<[string, string | undefined]> = [
     ["BLINDSPOT_DEFAULT_MODEL", process.env.BLINDSPOT_DEFAULT_MODEL],
     ["JUDGE_MODEL", process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL],

@@ -118,6 +118,7 @@ interface QueuedSpan {
 
 const MAX_BATCH_BYTES = 900_000;
 const MAX_QUEUE_SIZE = 1_000;
+const MAX_QUEUE_BYTES = 4 * 1024 * 1024;
 
 function id(): string {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -156,6 +157,11 @@ export class Blindspot {
   private sending: Promise<void> | null = null;
 
   constructor(config: BlindspotConfig) {
+    if (config.baseUrl) {
+      const url = new URL(config.baseUrl);
+      const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+      if ((url.protocol !== "https:" && !(loopback && url.protocol === "http:")) || url.username || url.password || url.search || url.hash || !["/", "/v1", "/v1/"].includes(url.pathname)) throw new Error("Blindspot requires an HTTPS origin or loopback /v1 base URL");
+    }
     this.config = {
       ...config,
       environment: config.environment ?? "production",
@@ -271,6 +277,7 @@ export class Blindspot {
     try {
       const response = await fetch(apiEndpoint(this.config.baseUrl!, "/workflows/resolve-model"), {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${this.config.apiKey}`,
           "content-type": "application/json",
@@ -284,7 +291,10 @@ export class Blindspot {
         signal: controller.signal,
       });
       if (!response.ok) throw new Error(`Blindspot model resolution returned ${response.status}`);
-      const body = (await response.json()) as { modelRef?: string };
+      const reader=response.body?.getReader(); const chunks: Uint8Array[]=[]; let bytes=0;
+      if(reader)while(true){const item=await reader.read();if(item.done)break;bytes+=item.value.length;if(bytes>8192){await reader.cancel();throw new Error("Blindspot resolution response exceeds limit");}chunks.push(item.value);}
+      const data=new Uint8Array(bytes);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length;}
+      const body = JSON.parse(new TextDecoder().decode(data)) as { modelRef?: string };
       if (!body.modelRef) throw new Error("Blindspot model resolution returned no model");
       return body.modelRef;
     } catch (error) {
@@ -306,6 +316,7 @@ export class Blindspot {
     try {
       const response = await fetch(apiEndpoint(this.config.baseUrl!, "/workflow-context"), {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${this.config.apiKey}`,
           "content-type": "application/json",
@@ -348,6 +359,7 @@ export class Blindspot {
     try {
       const response = await fetch(apiEndpoint(this.config.baseUrl!, "/feedback"), {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${this.config.apiKey}`,
           "content-type": "application/json",
@@ -411,6 +423,11 @@ export class Blindspot {
       };
       this.report(new Error("Blindspot span exceeded 900 KB; stored metadata without content"));
     }
+    const size=this.encodedBytes(safeSpan);
+    if(size>MAX_BATCH_BYTES){this.report(new Error("Blindspot span metadata exceeds limit; span dropped"));return;}
+    while(this.queue.length && this.queue.reduce((total,item)=>total+this.encodedBytes(item.span),0)+size>MAX_QUEUE_BYTES) {
+      this.queue.shift();this.report(new Error("Blindspot telemetry byte limit reached; oldest span dropped"));
+    }
     this.queue.push({ span: safeSpan, attempts: 0 });
     if (this.queue.length >= 100) {
       void this.flush();
@@ -439,6 +456,7 @@ export class Blindspot {
     try {
       const response = await fetch(endpoint(this.config.baseUrl!), {
         method: "POST",
+        redirect: "error",
         headers: {
           authorization: `Bearer ${this.config.apiKey}`,
           "content-type": "application/json",

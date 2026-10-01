@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { KEY_COOKIE } from "@/lib/auth-cookie";
 
 export function middleware(req: NextRequest) {
-  if (req.cookies.has(KEY_COOKIE)) return NextResponse.next();
+  // Only a navigation hint; every server page/action rechecks the durable session.
+  if (req.cookies.has('blindspot-session') || req.cookies.has('__Secure-blindspot-session')) return NextResponse.next();
 
   const login = new URL("/login", req.url);
   login.searchParams.set("next", `${req.nextUrl.pathname}${req.nextUrl.search}`);
@@ -20,5 +20,6 @@ export const config = {
     "/connect/:path*",
     "/feedback/:path*",
     "/settings/:path*",
+    "/monitor/:path*",
   ],
 };

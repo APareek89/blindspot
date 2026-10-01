@@ -7,7 +7,7 @@ application.
 ## Private-beta install
 
 ```bash
-pnpm add https://blindspot-dashboard.onrender.com/blindspot-sdk-0.1.0.tgz
+pnpm add https://blindspot.3-6-183-210.sslip.io/blindspot-sdk-0.1.0.tgz
 ```
 
 Published archive SHA-256:
@@ -20,7 +20,7 @@ Published archive SHA-256:
 
 ```dotenv
 BLINDSPOT_API_KEY=<server-only application key>
-BLINDSPOT_BASE_URL=https://blindspot-gateway.onrender.com
+BLINDSPOT_BASE_URL=https://blindspot.3-6-183-210.sslip.io
 BLINDSPOT_ENVIRONMENT=production
 BLINDSPOT_CAPTURE=metadata
 BLINDSPOT_ROUTING=observe_only

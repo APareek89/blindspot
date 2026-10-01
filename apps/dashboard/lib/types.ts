@@ -44,6 +44,7 @@ export interface Project {
 }
 
 export interface CostQualityPoint {
+  exampleKind?: "prepared" | null;
   routeName: string;
   costPer1kCents: number | null;
   quality: number | null;
@@ -59,6 +60,7 @@ export interface Activity {
 }
 
 export interface Overview {
+  containsPrepared?: boolean;
   avgQuality: number | null;
   savedCentsPer1kRealized: number;
   savedCentsPer1kPending: number;
@@ -74,6 +76,7 @@ export interface Overview {
 }
 
 export interface RouteSummary {
+  exampleKind?: string | null;
   id: string;
   name: string;
   liveModel: string | null;
@@ -111,6 +114,7 @@ export interface GoldenSet {
 
 export interface RouteDetail {
   route: {
+    exampleKind?: string | null;
     id: string;
     name: string;
     liveModel: string | null;
@@ -230,7 +234,7 @@ export type CompatibilityStatus =
 
 export interface ModelCompatibility {
   modelRef: string;
-  provider: "anthropic" | "hf" | "fireworks";
+  provider: "anthropic" | "openai" | "hf" | "fireworks";
   displayName: string;
   status: CompatibilityStatus;
   reasons: string[];
@@ -268,8 +272,9 @@ export interface RouteModelCompatibility {
 
 export interface ModelRegistryOverview {
   providers: Array<{
-    provider: "anthropic" | "hf" | "fireworks";
+    provider: "anthropic" | "openai" | "hf" | "fireworks";
     keyConfigured: boolean;
+    serverConfigured?: boolean;
     modelCount: number;
     verifiedCount: number;
     lastSyncedAt: string | null;
@@ -356,6 +361,7 @@ export interface EvalExampleEvidence {
 }
 
 export interface EvalRunEvidence {
+  exampleKind?: string | null;
   id: string;
   routeId: string;
   planId: string | null;
@@ -378,6 +384,7 @@ export interface EvalRunEvidence {
 }
 
 export interface WorkflowSummary {
+  exampleKind?: string | null;
   id: string;
   projectId: string;
   name: string;

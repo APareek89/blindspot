@@ -1,15 +1,17 @@
+import { OwnedForm } from "@/components/OwnedForm";
 import { Copy } from "@/components/Copy";
-import { GATEWAY_URL } from "@/lib/api";
+const APP_ORIGIN = process.env.APP_ORIGIN || "https://blindspot.3-6-183-210.sslip.io";
+const GATEWAY_URL = APP_ORIGIN;
 import { PageError } from "@/components/PageError";
 import { requireApi } from "@/lib/session";
-import { dateTime } from "@/lib/format";
+import { dateTime, preparedName } from "@/lib/format";
 import type { CaptureMode } from "@/lib/types";
 import { setCaptureMode } from "./actions";
 
 export const dynamic = "force-dynamic";
 
 const BASE = `${GATEWAY_URL}/v1`;
-const SDK_URL = "https://blindspot-dashboard.onrender.com/blindspot-sdk-0.1.0.tgz";
+const SDK_URL = `${APP_ORIGIN}/blindspot-sdk-0.1.0.tgz`;
 const INSTALL = `pnpm add ${SDK_URL}`;
 
 const CURL = `curl ${BASE}/chat/completions \\
@@ -24,7 +26,7 @@ const PY = `from openai import OpenAI
 
 client = OpenAI(
     base_url="${BASE}",
-    api_key="bs_live_…",          # your Blindspot project key
+    api_key="bs_live_…",          # your Blindspot SDK key
 )
 
 resp = client.chat.completions.create(
@@ -36,7 +38,7 @@ const JS = `import OpenAI from "openai";
 
 const client = new OpenAI({
   baseURL: "${BASE}",
-  apiKey: process.env.BLINDSPOT_API_KEY, // your Blindspot project key
+  apiKey: process.env.BLINDSPOT_API_KEY, // your Blindspot SDK key
 });
 
 const resp = await client.chat.completions.create({
@@ -162,8 +164,8 @@ const STEPS = [
 const ONBOARDING = [
   {
     n: 1,
-    title: "Create a separate app key",
-    body: "Keep the invite key as recovery. In Settings, mint a second key for the application so it can be revoked independently.",
+    title: "Mint your first SDK key",
+    body: "Sign in with email and password. In Settings, mint an SDK key for your application; it can be revoked without affecting your account.",
   },
   {
     n: 2,
@@ -185,8 +187,8 @@ const ONBOARDING = [
 const SIGNUP_ONBOARDING = [
   {
     n: 1,
-    title: "Add the copied environment",
-    body: "Paste the application environment from signup into your hosted app. Keep the recovery key out of the app.",
+    title: "Create an SDK key in Settings",
+    body: "Mint a key in Settings, copy it once into your server-only application environment, then hide it. Your email/password sign-in stays separate.",
   },
   {
     n: 2,
@@ -257,19 +259,18 @@ export default async function ConnectPage({
 
       {welcome && (
         <div className="alert info" style={{ marginBottom: 14 }}>
-          <strong>Workspace created and signed in.</strong> Your app key is separate from the recovery
-          key. Complete the four steps below; Blindspot will confirm only after it receives a real trace.
+          <strong>Workspace created and signed in.</strong> Your SDK key is separate from your email/password account. Complete the four steps below; Blindspot will confirm only after it receives a real trace.
         </div>
       )}
 
       <div className={`alert ${connectionIsFresh ? "success" : "warn"}`} style={{ marginBottom: 14 }}>
         {connectionIsFresh && latest ? (
           <>
-            <strong>Connected:</strong> <span className="mono">{latest.name}</span> · {latest.environment} · {latest.nodeCount} nodes · last seen {dateTime(latest.lastSeenAt)}
+            <strong>Connected:</strong> <span className="mono">{preparedName(latest.name, latest)}</span> · {latest.environment} · {latest.nodeCount} observed nodes · last seen {dateTime(latest.lastSeenAt)}
           </>
         ) : latest ? (
           <>
-            <strong>Workflow found, but no recent request.</strong> <span className="mono">{latest.name}</span> was last seen {dateTime(latest.lastSeenAt)}. Send a request through the connected app, then reload this page.
+            <strong>Workflow found, but no recent request.</strong> <span className="mono">{preparedName(latest.name, latest)}</span> was last seen {dateTime(latest.lastSeenAt)}. Send a request through the connected app, then reload this page.
           </>
         ) : (
           <>
@@ -278,7 +279,7 @@ export default async function ConnectPage({
         )}
       </div>
 
-      <h2 style={{ margin: "26px 0 14px", fontSize: 16 }}>Five-minute beta setup</h2>
+      <h2 style={{ margin: "26px 0 14px", fontSize: 16 }}>Connect your agent in four steps</h2>
       <div className="grid cols-2" style={{ marginBottom: 14 }}>
         {(welcome ? SIGNUP_ONBOARDING : ONBOARDING).map((step) => (
           <div className="card" key={step.n}>
@@ -334,7 +335,7 @@ export default async function ConnectPage({
           const active = captureMode === choice.mode;
           const action = setCaptureMode.bind(null, choice.mode);
           return (
-            <form action={action} className="card" key={choice.mode} style={{ borderColor: active ? "var(--accent)" : undefined }}>
+            <OwnedForm action={action} className="card" key={choice.mode} style={{ borderColor: active ? "var(--accent)" : undefined }}>
               <div className="row between" style={{ marginBottom: 8 }}>
                 <span className="card-title">{choice.title}</span>
                 {active && <span className="badge pass">Active</span>}
@@ -344,7 +345,7 @@ export default async function ConnectPage({
               <button className={`btn sm ${active ? "" : "primary"}`} disabled={active} style={{ marginTop: 12 }}>
                 {active ? "Selected" : "Use this mode"}
               </button>
-            </form>
+            </OwnedForm>
           );
         })}
       </div>

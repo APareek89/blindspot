@@ -96,7 +96,7 @@ async function assertSdkExecutionBoundary() {
   try {
     const client = new Blindspot({
       apiKey: "test-only-api-key",
-      baseUrl: "http://blindspot.test",
+      baseUrl: "https://blindspot.test",
       workflow: "sdk-lifecycle-test",
       environment: "test",
       flushIntervalMs: 60_000,

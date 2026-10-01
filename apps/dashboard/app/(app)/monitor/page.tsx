@@ -1,9 +1,10 @@
+import { PreparedBadge, PreparedNotice, isPrepared } from "@/components/PreparedNotice";
 import Link from "next/link";
 import { TrendChart } from "@/components/charts";
 import { PageError } from "@/components/PageError";
 import { Empty } from "@/components/ui";
 import { requireApi } from "@/lib/session";
-import { cents, ms, pct } from "@/lib/format";
+import { cents, ms, pct, preparedName } from "@/lib/format";
 import type { MetricPoint, MetricsWindow, WorkflowMetrics } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -93,6 +94,7 @@ export default async function MonitorPage({
         </div>
       </div>
 
+      {isPrepared(workflows.find(w => w.id === workflowId)) && <PreparedNotice />}
       {/* workflow + window selectors (server-rendered links) */}
       <div className="row" style={{ gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         {workflows.map((w) => (
@@ -101,7 +103,7 @@ export default async function MonitorPage({
             href={qp({ workflowId: w.id, nodeId: undefined })}
             className={`badge ${w.id === workflowId ? "accent" : "neutral"}`}
           >
-            {w.name} · {w.environment}
+            {preparedName(w.name, w)} · {w.environment} <PreparedBadge record={w} />
           </Link>
         ))}
         <span style={{ flex: 1 }} />

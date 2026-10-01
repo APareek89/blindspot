@@ -28,7 +28,7 @@ modelRegistryRouter.post("/model-registry/sync", async (c) => {
     }
     console.error(
       `[gateway] ${parsed.data.provider} registry sync failed:`,
-      error instanceof Error ? error.message : "unknown error",
+      "provider_or_storage_failure",
     );
     return c.json({ error: { message: `${parsed.data.provider} model sync failed` } }, 502);
   }

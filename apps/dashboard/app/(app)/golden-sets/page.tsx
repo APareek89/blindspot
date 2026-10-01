@@ -1,4 +1,6 @@
+import { PreparedBadge } from "@/components/PreparedNotice";
 import Link from "next/link";
+import { preparedName } from "@/lib/format";
 import { PageError } from "@/components/PageError";
 import { Empty } from "@/components/ui";
 import { modelName } from "@/lib/format";
@@ -50,7 +52,7 @@ export default async function GoldenIndex() {
             <tbody>
               {routes.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ fontWeight: 550 }}>{r.name}</td>
+                  <td style={{ fontWeight: 550 }}>{preparedName(r.name, r)} <PreparedBadge record={r} /></td>
                   <td>
                     {r.liveModel ? <span className="model-ref">{modelName(r.liveModel)}</span> : "—"}
                   </td>

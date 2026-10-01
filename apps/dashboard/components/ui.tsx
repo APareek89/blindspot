@@ -1,3 +1,4 @@
+import { CircleDashed } from "lucide-react";
 import type { RouteStatus, GoldenOrigin, RecStatus } from "@/lib/types";
 
 export function StatusBadge({ status }: { status: RouteStatus }) {
@@ -106,7 +107,7 @@ export function Empty({
 }) {
   return (
     <div className="empty">
-      <div className="emoji">{emoji}</div>
+      <div className="emoji" aria-hidden="true"><CircleDashed size={28} /></div>
       <h3>{title}</h3>
       {children}
     </div>

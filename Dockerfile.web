@@ -1,0 +1,21 @@
+FROM node:24.8.0-bookworm-slim AS build
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages ./packages
+COPY apps/dashboard ./apps/dashboard
+COPY apps/gateway/package.json ./apps/gateway/package.json
+COPY apps/worker/package.json ./apps/worker/package.json
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @blindspot/sdk build && pnpm --filter @blindspot/dashboard build
+RUN chmod -R a=rX /app/apps/dashboard/.next/standalone /app/apps/dashboard/.next/static /app/apps/dashboard/public
+FROM node:24.8.0-bookworm-slim AS runtime
+WORKDIR /app
+COPY --from=build /app/apps/dashboard/.next/standalone ./
+COPY --from=build /app/apps/dashboard/.next/static ./apps/dashboard/.next/static
+COPY --from=build /app/apps/dashboard/public ./apps/dashboard/public
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
+USER 1000:1000
+EXPOSE 3000
+HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/api/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node","apps/dashboard/server.js"]

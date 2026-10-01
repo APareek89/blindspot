@@ -1,9 +1,4 @@
-import { generateObject } from "ai";
-import {
-  estimateCostCents,
-  getLanguageModel,
-  providerTimeoutSignal,
-} from "@blindspot/providers";
+import { runStructured } from "@blindspot/providers";
 import { JudgeVerdictSchema, type JudgeVerdict } from "@blindspot/shared";
 import { JUDGE_MAX_OUTPUT_TOKENS } from "./cost";
 
@@ -21,6 +16,7 @@ export interface JudgeResult {
 export async function judgeOutput(opts: {
   modelRef: string;
   apiKey: string;
+  shared?: boolean;
   input: string;
   referenceOutput: string | null;
   rubric: string | null;
@@ -33,17 +29,17 @@ export async function judgeOutput(opts: {
 export async function judgeOutputDetailed(opts: {
   modelRef: string;
   apiKey: string;
+  shared?: boolean;
   input: string;
   referenceOutput: string | null;
   rubric: string | null;
   output: string;
 }): Promise<JudgeResult> {
-  const model = getLanguageModel(opts.modelRef, opts.apiKey);
-  const { object, usage } = await generateObject({
-    model,
+  const result = await runStructured({
+    kind: "judge", modelRef: opts.modelRef, apiKey: opts.apiKey, shared: opts.shared,
     schema: JudgeVerdictSchema,
+    mockValue: () => ({ score: 0.9, reasoning: "Sample evaluation only; no provider judgment was requested.", perCriterion: [{ criterion: "Prepared correctness", score: 0.9 }, { criterion: "Prepared clarity", score: 0.9 }] }),
     maxTokens: JUDGE_MAX_OUTPUT_TOKENS,
-    abortSignal: providerTimeoutSignal(),
     prompt:
       `You are grading an AI output against a golden example. Be strict and consistent.\n\n` +
       `INPUT:\n${opts.input}\n\n` +
@@ -55,12 +51,5 @@ export async function judgeOutputDetailed(opts: {
       `compatibility. Blindspot deterministically uses the equal-weight mean of perCriterion ` +
       `as the displayed and policy score, so the breakdown must be complete.`,
   });
-  const promptTokens = usage.promptTokens ?? 0;
-  const completionTokens = usage.completionTokens ?? 0;
-  return {
-    verdict: object,
-    promptTokens,
-    completionTokens,
-    costCents: estimateCostCents(opts.modelRef, promptTokens, completionTokens),
-  };
+  return { verdict: JudgeVerdictSchema.parse(result.object), promptTokens: result.promptTokens, completionTokens: result.completionTokens, costCents: result.costCents };
 }

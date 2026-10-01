@@ -1,20 +1,19 @@
 "use server";
+import { actionFailure } from "@/lib/action-error";
 
 import { revalidatePath } from "next/cache";
 import { requireApi } from "@/lib/session";
 import type { BetaFeedbackImpact, BetaFeedbackStage, CaptureMode } from "@/lib/types";
 
-export type FeedbackState = { ok: boolean; error?: string };
+export type FeedbackState = { ok: boolean; code?:string; error?: string };
 
-export async function submitFeedback(
-  _previous: FeedbackState,
-  formData: FormData,
+export async function submitFeedback(_previous: FeedbackState, formData: FormData, expectedOwnerId: string
 ): Promise<FeedbackState> {
   if (formData.get("confirmSafe") !== "yes") {
     return { ok: false, error: "Confirm that you removed secrets and customer data." };
   }
-  const client = await requireApi();
   try {
+    const client = await requireApi(expectedOwnerId);
     await client.submitBetaFeedback({
       stage: String(formData.get("stage")) as BetaFeedbackStage,
       attempted: String(formData.get("attempted") ?? ""),
@@ -29,6 +28,6 @@ export async function submitFeedback(
     revalidatePath("/feedback");
     return { ok: true };
   } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "feedback could not be saved" };
+    return actionFailure(error);
   }
 }

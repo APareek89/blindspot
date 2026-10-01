@@ -14,6 +14,7 @@ import { getRouteControlState } from "../workflows";
 
 /** A route with its live model, its latest quality score, and a health verdict. */
 export interface RouteSummary {
+  exampleKind?:string|null;
   id: string;
   name: string;
   liveModel: string | null;
@@ -137,6 +138,7 @@ export async function listRoutes(
     const hasGoldenSet = (setCount.get(r.id) ?? 0) > 0;
     const pendingRecs = pendingCount.get(r.id) ?? 0;
     return {
+      exampleKind:r.exampleKind,
       id: r.id,
       name: r.name,
       liveModel,
@@ -242,6 +244,7 @@ export async function getRouteDetail(projectId: string, name: string) {
 
   return {
     route: {
+      exampleKind:route.exampleKind,
       id: route.id,
       name: route.name,
       liveModel: effectiveLiveModel,
@@ -319,8 +322,8 @@ export async function listTraces(
   const { limit, offset } = clampPagination(opts?.limit, opts?.offset);
 
   const where = opts?.routeName
-    ? and(eq(routes.projectId, projectId), eq(routes.name, opts.routeName))
-    : eq(routes.projectId, projectId);
+    ? and(eq(traces.projectId, projectId),eq(routes.projectId, projectId), eq(routes.name, opts.routeName))
+    : eq(traces.projectId, projectId);
 
   const rows = await db
     .select({
@@ -335,7 +338,7 @@ export async function listTraces(
       createdAt: traces.createdAt,
     })
     .from(traces)
-    .innerJoin(routes, eq(traces.routeId, routes.id))
+    .leftJoin(routes, eq(traces.routeId, routes.id))
     .where(where)
     .orderBy(desc(traces.createdAt))
     .limit(limit)

@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, desc, eq } from "drizzle-orm";
-import { apiKeys, getDb } from "@blindspot/db";
+import { and, desc, eq,isNull } from "drizzle-orm";
+import { apiKeys, getDb,getSql,fixtureMode,requireExecution } from "@blindspot/db";
 
 /** Project-issued gateway keys look like `bs_live_<48 hex chars>`. */
 export const GATEWAY_KEY_PREFIX = "bs_live_";
@@ -22,6 +22,11 @@ export function mintGatewayKeyMaterial() {
 
 /** Mint a new gateway key for a project. Returns the raw key ONCE (never stored/retrievable). */
 export async function createGatewayKey(projectId: string) {
+  if(!fixtureMode()){
+    const actor=requireExecution();if(actor.projectId!==projectId||actor.authKind!=='session')throw new Error('Human sign-in is required');
+    const count=(await getSql()`SELECT count(*)::int AS n FROM blindspot.api_keys WHERE project_id=${projectId} AND revoked_at IS NULL`)[0]!.n;
+    if(Number(count)>=10)throw new Error('Revoke an old application key before creating another.');
+  }
   const material = mintGatewayKeyMaterial();
   const row = (
     await getDb()
@@ -41,7 +46,7 @@ export async function listGatewayKeys(projectId: string) {
   return getDb()
     .select({ id: apiKeys.id, prefix: apiKeys.prefix, createdAt: apiKeys.createdAt })
     .from(apiKeys)
-    .where(eq(apiKeys.projectId, projectId))
+    .where(and(eq(apiKeys.projectId, projectId),isNull(apiKeys.revokedAt)))
     .orderBy(desc(apiKeys.createdAt));
 }
 
@@ -50,6 +55,11 @@ export async function listGatewayKeys(projectId: string) {
  * accidentally lock itself out of the dashboard and key-management API.
  */
 export async function deleteGatewayKey(projectId: string, keyId: string) {
+  if(!fixtureMode()){
+    const actor=requireExecution();if(actor.projectId!==projectId||actor.authKind!=='session')throw new Error('Human sign-in is required');
+    const rows=await getSql()`UPDATE blindspot.api_keys SET revoked_at=now() WHERE id=${keyId} AND project_id=${projectId} AND revoked_at IS NULL RETURNING id`;
+    return rows.length?'deleted' as const:'not_found' as const;
+  }
   return getDb().transaction(async (tx) => {
     // Lock the project's key rows so two concurrent revocations cannot both observe two keys
     // and leave the project with none.

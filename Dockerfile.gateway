@@ -1,0 +1,19 @@
+FROM node:24.8.0-bookworm-slim AS build
+WORKDIR /app
+RUN corepack enable && corepack prepare pnpm@11.10.0 --activate
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
+COPY packages ./packages
+COPY apps/gateway ./apps/gateway
+COPY apps/worker/package.json ./apps/worker/package.json
+COPY apps/dashboard/package.json ./apps/dashboard/package.json
+RUN pnpm install --frozen-lockfile --ignore-scripts && pnpm --filter @blindspot/sdk build
+# The gateway executes workspace TypeScript via the pinned tsx loader; no credentials at build.
+RUN chmod -R a=rX /app
+FROM node:24.8.0-bookworm-slim AS runtime
+WORKDIR /app
+COPY --from=build /app /app
+ENV NODE_ENV=production PORT=8787 HOST=0.0.0.0
+USER 1000:1000
+EXPOSE 8787
+HEALTHCHECK --interval=20s --timeout=5s --start-period=20s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+process.env.PORT+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+CMD ["node","--import","tsx","apps/gateway/src/index.ts"]

@@ -1,5 +1,5 @@
 import { and, desc, eq } from "drizzle-orm";
-import { getDb, modelRegistry, providerKeys } from "@blindspot/db";
+import { getDb, modelRegistry, providerKeys, fixtureMode,requireExecution } from "@blindspot/db";
 import { PROVIDERS, decryptSecret, encryptSecret, type Provider } from "@blindspot/shared";
 
 /** Fetch + decrypt a project's BYO key for a provider (in-memory only), or null. */
@@ -7,6 +7,10 @@ export async function getProviderKey(
   projectId: string,
   provider: Provider,
 ): Promise<string | null> {
+  return (await providerCredential(projectId,provider))?.key??null;
+}
+export async function providerCredential(projectId:string,provider:Provider):Promise<{key:string;shared:boolean}|null>{
+  if(!fixtureMode()&&requireExecution().projectId!==projectId)throw new Error('Project not found');
   const row = (
     await getDb()
       .select({ encryptedKey: providerKeys.encryptedKey })
@@ -14,7 +18,11 @@ export async function getProviderKey(
       .where(and(eq(providerKeys.projectId, projectId), eq(providerKeys.provider, provider)))
       .limit(1)
   )[0];
-  return row ? decryptSecret(row.encryptedKey) : null;
+  if(row)return {key:decryptSecret(row.encryptedKey),shared:false};
+  if(process.env.BLINDSPOT_MOCK_MODE==='1')return {key:'blindspot-internal-mock-credential',shared:true};
+  // One configured server reference; never copied into a new user's encrypted BYOK rows.
+  if(provider==='openai'&&process.env.OPENAI_API_KEY)return {key:process.env.OPENAI_API_KEY,shared:true};
+  return null;
 }
 
 /** True if `p` is a provider we support (guards untrusted input from the API). */

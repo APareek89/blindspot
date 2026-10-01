@@ -1,6 +1,5 @@
-import { generateObject } from "ai";
 import { z } from "zod";
-import { getLanguageModel, providerTimeoutSignal } from "@blindspot/providers";
+import { runStructured } from "@blindspot/providers";
 import { GeneratedGoldenSchema, type GeneratedGolden } from "@blindspot/shared";
 
 const ResultSchema = z.object({
@@ -28,6 +27,7 @@ function boundedSampleInputs(inputs: string[] | undefined): string[] {
 export async function generateGoldenExamples(opts: {
   modelRef: string;
   apiKey: string;
+  shared?: boolean;
   taskDescription: string;
   productBrief?: string;
   systemPrompt?: string;
@@ -35,7 +35,7 @@ export async function generateGoldenExamples(opts: {
   count: number;
   sampleInputs?: string[];
 }): Promise<GeneratedGolden[]> {
-  const model = getLanguageModel(opts.modelRef, opts.apiKey);
+  if (!Number.isInteger(opts.count) || opts.count < 1 || opts.count > 20) throw new Error("Golden generation count must be between1 and20");
 
   const sampleInputs = boundedSampleInputs(opts.sampleInputs);
   const seed = sampleInputs.length
@@ -51,10 +51,11 @@ export async function generateGoldenExamples(opts: {
     .filter(Boolean)
     .join("\n\n");
 
-  const { object } = await generateObject({
-    model,
+  const { object } = await runStructured({
+    kind: "golden", modelRef: opts.modelRef, apiKey: opts.apiKey, shared: opts.shared,
+    maxTokens: Math.min(8192, Math.max(1024, opts.count * 512)),
     schema: ResultSchema,
-    abortSignal: providerTimeoutSignal(),
+    mockValue: () => ({ examples: Array.from({ length: opts.count }, (_, i) => ({ input: `Sample ${i+1}: ${opts.taskDescription.slice(0,200)}`, referenceOutput: "Sample expected answer; no provider generation.", rubric: "Synthetic sample correctness and clarity." })) }),
     prompt:
       `You are building an evaluation golden set for an AI route.\n` +
       `Route task: ${opts.taskDescription}\n\n` +

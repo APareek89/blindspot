@@ -1,5 +1,7 @@
 "use client";
 
+import { useOwnerGuard } from "@/components/AccountShell";
+
 import { useState, useTransition } from "react";
 import { Meter, RecStatusBadge } from "@/components/ui";
 import { modelName, pct, qualityPct, signedMs } from "@/lib/format";
@@ -15,15 +17,18 @@ function DeltaCost({ v }: { v: number | null }) {
 }
 
 export function ApprovalsInbox({ recommendations }: { recommendations: Recommendation[] }) {
+  const guard = useOwnerGuard();
   const [open, setOpen] = useState<Recommendation | null>(null);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
-  const act = (fn: () => Promise<{ ok: boolean; error?: string }>) => {
+  const act = (fn: () => Promise<{ ok: boolean; error?: string } | null>) => {
     setError(null);
     start(async () => {
+      const ticket = guard.capture();
       const r = await fn();
+      if (!r || !guard.current(ticket)) return;
       if (!r.ok) setError(r.error ?? "failed");
       else setOpen(null);
     });
@@ -65,13 +70,13 @@ export function ApprovalsInbox({ recommendations }: { recommendations: Recommend
                 </button>
                 {r.status === "pending" && (
                   <>
-                    <button className="btn sm pass" disabled={pending} onClick={() => act(() => approveRec(r.id))}>
+                    <button className="btn sm pass" disabled={pending} onClick={() => act(() => guard.run((ownerId) => approveRec(r.id, ownerId)))}>
                       {r.integrationMode === "managed" ? "Approve & apply" : "Approve recommendation"}
                     </button>
                     <button
                       className="btn sm danger-ghost"
                       disabled={pending}
-                      onClick={() => act(() => rejectRec(r.id))}
+                      onClick={() => act(() => guard.run((ownerId) => rejectRec(r.id, undefined, ownerId)))}
                     >
                       Reject
                     </button>
@@ -94,8 +99,8 @@ export function ApprovalsInbox({ recommendations }: { recommendations: Recommend
             setOpen(null);
             setError(null);
           }}
-          onApprove={() => act(() => approveRec(open.id))}
-          onReject={() => act(() => rejectRec(open.id, rejectReason))}
+          onApprove={() => act(() => guard.run((ownerId) => approveRec(open.id, ownerId)))}
+          onReject={() => act(() => guard.run((ownerId) => rejectRec(open.id, rejectReason, ownerId)))}
         />
       )}
     </>
@@ -141,7 +146,7 @@ function EvidenceDrawer({
               <span className="model-ref">{modelName(rec.toModel)}</span>
             </div>
           </div>
-          <button className="drawer-close" onClick={onClose}>
+          <button aria-label="Close evidence" className="drawer-close" onClick={onClose}>
             ×
           </button>
         </div>
@@ -251,7 +256,7 @@ function EvidenceDrawer({
               <div className="divider" />
               <div className="field">
                 <label className="label">Rejection reason (optional — tunes future recs)</label>
-                <textarea
+                <textarea aria-label="Rejection reason (optional — tunes future recs)"
                   className="textarea"
                   style={{ minHeight: 56, fontFamily: "var(--sans)" }}
                   value={rejectReason}

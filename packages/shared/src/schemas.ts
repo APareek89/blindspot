@@ -99,7 +99,7 @@ export const CompatibilityStatusSchema = z.enum([
 export type CompatibilityStatus = z.infer<typeof CompatibilityStatusSchema>;
 
 /** Only the provider adapters wired for the agent-workspace prototype may be synchronized. */
-export const RegistryProviderSchema = z.enum(["anthropic", "hf", "fireworks"]);
+export const RegistryProviderSchema = z.enum(["anthropic", "openai", "hf", "fireworks"]);
 export type RegistryProvider = z.infer<typeof RegistryProviderSchema>;
 
 export const ModelRegistrySyncInputSchema = z.object({ provider: RegistryProviderSchema });
@@ -366,17 +366,17 @@ export type Evidence = z.infer<typeof EvidenceSchema>;
 /** Minimal OpenAI-compatible chat-completions request (permissive; PRD §8 gateway). */
 export const ChatMessageSchema = z.object({
   role: z.enum(["system", "user", "assistant"]),
-  content: z.string(),
+  content: z.string().max(50000),
 });
 export type ChatMessage = z.infer<typeof ChatMessageSchema>;
 
 export const ChatCompletionRequestSchema = z
   .object({
-    model: z.string(),
-    messages: z.array(ChatMessageSchema).min(1),
-    temperature: z.number().optional(),
-    max_tokens: z.number().int().positive().optional(),
-    stream: z.boolean().optional(),
+    model: z.string().min(1).max(200),
+    messages: z.array(ChatMessageSchema).min(1).max(32).refine(v=>v.reduce((n,m)=>n+Buffer.byteLength(m.content,'utf8'),0)<=100000,'Messages exceed the input limit'),
+    temperature: z.number().min(0).max(2).optional(),
+    max_tokens: z.number().int().positive().max(2048).default(256),
+    stream: z.literal(false).optional(),
   })
   .passthrough();
 export type ChatCompletionRequest = z.infer<typeof ChatCompletionRequestSchema>;
@@ -399,7 +399,7 @@ export const GoldenGenerateInputSchema = z.object({
   systemPrompt: z.string().trim().max(50_000).optional(),
   architecture: z.string().trim().max(50_000).optional(),
   useLiveTraces: z.boolean().default(false),
-  count: z.number().int().min(1).max(50).default(20),
+  count: z.number().int().min(1).max(20).default(20),
 });
 export type GoldenGenerateInput = z.infer<typeof GoldenGenerateInputSchema>;
 
@@ -434,7 +434,7 @@ export type RoutePatch = z.infer<typeof RoutePatchSchema>;
 
 /** Set a project's BYO provider key (value is encrypted at rest; never echoed back). */
 export const ProviderKeyInputSchema = z.object({
-  value: z.string().min(1),
+  value: z.string().min(1).max(4096),
 });
 export type ProviderKeyInput = z.infer<typeof ProviderKeyInputSchema>;
 

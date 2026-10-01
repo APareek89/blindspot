@@ -35,6 +35,7 @@ export async function getOverview(projectId: string) {
 
   if (ids.length === 0) {
     return {
+      containsPrepared:false,
       avgQuality: null as number | null,
       savedCentsPer1kRealized: 0,
       savedCentsPer1kPending: 0,
@@ -136,6 +137,7 @@ export async function getOverview(projectId: string) {
     }
     return {
       routeName: r.name,
+      exampleKind:r.exampleKind,
       costPer1kCents: liveModel ? costPer1kCents(liveModel) : null,
       quality: q,
       status,
@@ -185,6 +187,7 @@ export async function getOverview(projectId: string) {
     .slice(0, 15);
 
   return {
+    containsPrepared:projectRoutes.some(row=>row.exampleKind==='prepared'),
     avgQuality,
     savedCentsPer1kRealized: realized,
     savedCentsPer1kPending: pending,

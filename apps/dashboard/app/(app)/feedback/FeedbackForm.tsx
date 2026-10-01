@@ -1,12 +1,14 @@
 "use client";
 
+import { useOwnerGuard } from "@/components/AccountShell";
 import { useActionState } from "react";
 import { submitFeedback, type FeedbackState } from "./actions";
 
 const initial: FeedbackState = { ok: false };
 
 export function FeedbackForm() {
-  const [state, action, pending] = useActionState(submitFeedback, initial);
+  const guard = useOwnerGuard();
+  const [state, action, pending] = useActionState(async (previous: FeedbackState, data: FormData): Promise<FeedbackState> => { const ticket = guard.capture(); const result = await guard.run(owner => submitFeedback(previous, data, owner)); return guard.current(ticket) ? result ?? initial : initial; }, initial);
   return (
     <form action={action} className="card">
       <div className="grid cols-2">

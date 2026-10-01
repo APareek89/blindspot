@@ -1,21 +1,6 @@
+import Link from "next/link";
 import { ApiError } from "@/lib/api";
-
-/** Renders an API failure inline instead of crashing the page. */
 export function PageError({ error }: { error: unknown }) {
-  const msg =
-    error instanceof ApiError
-      ? error.status === 0
-        ? "Can't reach the gateway — start it with `pnpm start:gateway`."
-        : `${error.message} (${error.status})`
-      : error instanceof Error
-        ? error.message
-        : "Something went wrong.";
-  return (
-    <div className="card" style={{ borderColor: "var(--danger)" }}>
-      <div className="row" style={{ gap: 8 }}>
-        <span className="badge danger">Error</span>
-        <span>{msg}</span>
-      </div>
-    </div>
-  );
+  const auth = error instanceof ApiError && error.status === 401;
+  return <div className="card alert danger" role="alert"><span>{auth ? "Your session has expired. Sign in to continue." : "This view could not be loaded. Reload the page to try again."}</span>{auth && <Link className="btn" href="/login">Sign in</Link>}</div>;
 }

@@ -118,6 +118,13 @@ async function main() {
         ).id,
       );
     }
+    // Keep all synthetic feedback inside the explicit fixture clock's window.
+    for (const feedbackId of currentFeedbackIds) {
+      await db
+        .update(executionFeedback)
+        .set({ createdAt: inWindow })
+        .where(eq(executionFeedback.id, feedbackId));
+    }
     // Backdate one feedback row (a 'down') into the previous window so deltas are exercised.
     await db
       .update(executionFeedback)

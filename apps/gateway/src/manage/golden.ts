@@ -21,7 +21,7 @@ import {
   GoldenExampleInputSchema,
   GoldenExamplePatchSchema,
 } from "@blindspot/shared";
-import { getProviderKey } from "../keys";
+import { providerCredential } from "../keys";
 import { getRouteByName } from "../route-resolver";
 import type { Env } from "../types";
 
@@ -74,7 +74,8 @@ golden.post("/routes/:name/golden-sets/generate", async (c) => {
     process.env.GOLDEN_MODEL ?? process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL,
   );
   const { provider } = parseModelRef(modelRef);
-  const apiKey = await getProviderKey(projectId, provider);
+  const credential = await providerCredential(projectId, provider);
+  const apiKey=credential?.key;
   if (!apiKey) {
     return c.json(
       { error: { message: `no ${provider} key configured for golden generation` } },
@@ -100,6 +101,7 @@ golden.post("/routes/:name/golden-sets/generate", async (c) => {
     generated = await generateGoldenExamples({
       modelRef,
       apiKey,
+      shared:credential!.shared,
       taskDescription,
       productBrief: body.productBrief,
       systemPrompt: body.systemPrompt,

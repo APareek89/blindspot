@@ -35,9 +35,8 @@ export async function goldenExampleProjectId(exampleId: string): Promise<string 
 /** Project that owns a trace (via its route), or null. */
 export async function traceProjectId(traceId: string): Promise<string | null> {
   const rows = await getDb()
-    .select({ pid: routes.projectId })
+    .select({ pid: traces.projectId })
     .from(traces)
-    .innerJoin(routes, eq(traces.routeId, routes.id))
     .where(eq(traces.id, traceId))
     .limit(1);
   return rows[0]?.pid ?? null;

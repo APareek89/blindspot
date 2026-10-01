@@ -1,7 +1,8 @@
+import { PreparedBadge, PreparedNotice, isPrepared } from "@/components/PreparedNotice";
 import Link from "next/link";
 import { PageError } from "@/components/PageError";
 import { StatusBadge } from "@/components/ui";
-import { modelName } from "@/lib/format";
+import { modelName, preparedName } from "@/lib/format";
 import { requireApi } from "@/lib/session";
 import type { RouteStatus } from "@/lib/types";
 import { RouteDetailView } from "./RouteDetailView";
@@ -31,12 +32,12 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ na
     return (
       <>
         <div className="crumb">
-          <Link href="/routes">Routes &amp; Models</Link> / {name}
+          <Link href="/routes">Routes &amp; Models</Link> / {preparedName(name, detail.route)}
         </div>
         <div className="page-head">
           <div>
             <div className="row" style={{ gap: 10 }}>
-              <h1>{name}</h1>
+              <h1>{preparedName(name, detail.route)}</h1>
               <StatusBadge status={status} />
             </div>
             <p>
@@ -53,6 +54,7 @@ export default async function RouteDetailPage({ params }: { params: Promise<{ na
           </Link>
         </div>
 
+        {isPrepared(detail.route) && <PreparedNotice />}
         <RouteTabs route={name} active="experiment" />
 
         <RouteDetailView

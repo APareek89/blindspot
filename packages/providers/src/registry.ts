@@ -12,6 +12,7 @@ import {
   type RegistryProvider,
 } from "@blindspot/shared";
 import { pricePerMillion } from "./prices";
+import { boundedProviderFetch, providerMockMode } from "./transport";
 
 export interface DiscoveredModel {
   provider: RegistryProvider;
@@ -111,7 +112,7 @@ async function checkedJson(
       : 60_000;
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await boundedProviderFetch(url, {
       ...init,
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -206,7 +207,7 @@ async function listAnthropic(apiKey: string): Promise<DiscoveredModel[]> {
 }
 
 async function listFireworks(apiKey: string): Promise<DiscoveredModel[]> {
-  const base = (process.env.FIREWORKS_BASE_URL ?? "https://api.fireworks.ai/inference/v1").replace(
+  const base = "https://api.fireworks.ai/inference/v1".replace(
     /\/+$/,
     "",
   );
@@ -273,10 +274,30 @@ async function listHuggingFace(apiKey: string): Promise<DiscoveredModel[]> {
   });
 }
 
+async function listOpenAI(apiKey: string): Promise<DiscoveredModel[]> {
+  const json = await checkedJson("openai", "https://api.openai.com/v1/models", { headers: { authorization: `Bearer ${apiKey}` } });
+  const parsed = OpenAIModelListSchema.safeParse(json);
+  if (!parsed.success) throw new ProviderRegistryError("openai",200,"openai model catalog shape changed");
+  return parsed.data.data.filter(m => ["gpt-4o-mini", "gpt-4o"].includes(m.id)).map(m => {
+    const modelRef = `openai:${m.id}`; const p = pricePerMillion(modelRef)!;
+    return { provider: "openai", modelRef, providerModelId: m.id, displayName: m.id, source: "provider", availability: "available",
+      capabilities: ModelCapabilitiesSchema.parse({ inputModalities: ["text", "image"], outputModalities: ["text"],
+        toolCalling: true, structuredOutput: true, streaming: true, systemMessages: true, contextTokens: 128000, maxOutputTokens: 16384 }),
+      inputUsdPerMillion: p.input, outputUsdPerMillion: p.output, providerCreatedAt: m.created ? new Date(m.created * 1000) : null,
+      deprecatedAt: null, probeStatus: "verified" } satisfies DiscoveredModel;
+  });
+}
+
 export async function listProviderModels(
   provider: RegistryProvider,
   apiKey: string,
 ): Promise<DiscoveredModel[]> {
+  if (providerMockMode()) return provider === "openai" ? ["gpt-4o-mini","gpt-4o"].map(id => ({
+    provider: "openai", modelRef: `openai:${id}`, providerModelId: id, displayName: `${id} (sample catalog)`, source: "curated",
+    availability: "available", capabilities: ModelCapabilitiesSchema.parse({ inputModalities:["text"], outputModalities:["text"], toolCalling:true, structuredOutput:true, streaming:true, systemMessages:true, contextTokens:128000,maxOutputTokens:16384 }),
+    inputUsdPerMillion: pricePerMillion(`openai:${id}`)!.input, outputUsdPerMillion: pricePerMillion(`openai:${id}`)!.output,
+    providerCreatedAt:null,deprecatedAt:null,probeStatus:"unverified" })) : [];
+  if (provider === "openai") return listOpenAI(apiKey);
   if (provider === "anthropic") return listAnthropic(apiKey);
   if (provider === "fireworks") return listFireworks(apiKey);
   return listHuggingFace(apiKey);

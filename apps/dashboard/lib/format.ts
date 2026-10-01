@@ -1,5 +1,13 @@
 // Small presentation helpers. All money is in USD cents (gateway convention).
 
+/** Display only: stored names, request arguments and links retain their full identity. */
+export function preparedName(name: string, record: unknown): string {
+  if (typeof record !== "object" || record === null || !("exampleKind" in record) || record.exampleKind !== "prepared") return name;
+  const match = /^(.*?) · [0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}(?:@prepared:(.+))?$/i.exec(name);
+  if (!match) return name;
+  return match[2] ? `${match[1]} → ${match[2].replace(/-/g, " ")}` : match[1]!;
+}
+
 export function quality(score: number | null | undefined): string {
   if (score == null) return "—";
   return score.toFixed(2);

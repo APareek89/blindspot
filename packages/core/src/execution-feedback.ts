@@ -14,7 +14,7 @@ export async function recordExecutionFeedback(
   const db = getDb();
   const workflow = (
     await db
-      .select({ id: workflows.id })
+      .select({ id: workflows.id, exampleKind: workflows.exampleKind })
       .from(workflows)
       .where(
         and(
@@ -25,6 +25,7 @@ export async function recordExecutionFeedback(
       )
       .limit(1)
   )[0];
+  if(workflow?.exampleKind==='prepared')throw Object.assign(new Error('Prepared examples do not accept feedback edits.'),{code:'PREPARED_READ_ONLY'});
   const row = (
     await db
       .insert(executionFeedback)

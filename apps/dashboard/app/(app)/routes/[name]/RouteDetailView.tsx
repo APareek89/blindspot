@@ -1,9 +1,12 @@
 "use client";
 
+import { useOwnerGuard } from "@/components/AccountShell";
+
+import { isPrepared } from "@/components/PreparedNotice";
 import Link from "next/link";
 import { useState, useTransition } from "react";
 import { ScoreChart } from "@/components/charts";
-import { costPer1k, modelName, ms, qualityPct } from "@/lib/format";
+import { costPer1k, modelName, ms, qualityPct, preparedName } from "@/lib/format";
 import type {
   EvalPlan,
   EvalRunEvidence,
@@ -52,7 +55,9 @@ export function RouteDetailView({
   compatibility: RouteModelCompatibility;
   evidence: EvalRunEvidence[];
 }) {
+  const guard = useOwnerGuard();
   const route = detail.route.name;
+  const prepared = isPrepared(detail.route);
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
@@ -71,11 +76,13 @@ export function RouteDetailView({
     compatibility.eligible.map((candidate) => candidate.modelRef),
   );
 
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, ok?: string) => {
+  const run = (fn: () => Promise<{ ok: boolean; error?: string } | null>, ok?: string) => {
     setError(null);
     setMsg(null);
     start(async () => {
+      const ticket = guard.capture();
       const r = await fn();
+      if (!r || !guard.current(ticket)) return;
       if (!r.ok) setError(r.error ?? "failed");
       else if (ok) setMsg(ok);
     });
@@ -95,7 +102,9 @@ export function RouteDetailView({
     setMsg(null);
     setPlan(null);
     start(async () => {
-      const result = await estimateEvalA(route, selectedModels, budgetUsd, executionMode);
+      const ticket = guard.capture();
+      const result = await guard.run((ownerId) => estimateEvalA(route, selectedModels, budgetUsd, executionMode, ownerId));
+      if (!result || !guard.current(ticket)) return;
       if (!result.ok) setError(result.error);
       else setPlan(result.plan);
     });
@@ -106,7 +115,9 @@ export function RouteDetailView({
     setError(null);
     setMsg(null);
     start(async () => {
-      const result = await runEvalPlanA(route, plan.id);
+      const ticket = guard.capture();
+      const result = await guard.run((ownerId) => runEvalPlanA(route, plan.id, ownerId));
+      if (!result || !guard.current(ticket)) return;
       if (!result.ok) {
         setError(result.error ?? "eval failed");
         return;
@@ -117,7 +128,7 @@ export function RouteDetailView({
   };
 
   return (
-    <>
+    <fieldset disabled={prepared} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       {error && (
         <div className="alert danger" style={{ marginBottom: 14 }}>
           {error}
@@ -145,7 +156,7 @@ export function RouteDetailView({
           <div className="field">
             <label className="label">Quality bar — cheapest candidate scoring ≥</label>
             <div className="row" style={{ gap: 8 }}>
-              <input
+              <input aria-label="Quality bar — cheapest candidate scoring ≥"
                 className="input mono"
                 type="number"
                 min={0}
@@ -158,7 +169,7 @@ export function RouteDetailView({
               <button
                 className="btn"
                 disabled={pending || minScore === detail.route.policy.minScore}
-                onClick={() => run(() => savePolicy(route, { minScore }), "Policy updated.")}
+                onClick={() => run(() => guard.run((ownerId) => savePolicy(route, { minScore }, ownerId)), "Policy updated.")}
               >
                 Save bar
               </button>
@@ -177,11 +188,11 @@ export function RouteDetailView({
               disabled={pending}
               onClick={() =>
                 run(
-                  () => savePolicy(route, { autoApprove: !detail.route.autoApprove }),
+                  () => guard.run((ownerId) => savePolicy(route, { autoApprove: !detail.route.autoApprove }, ownerId)),
                   `Auto-approve ${detail.route.autoApprove ? "disabled" : "enabled"}.`,
                 )
               }
-              aria-label="toggle auto-approve"
+              role="switch" aria-checked={detail.route.autoApprove} aria-label="Auto-approve"
             />
           </div>
         </div>
@@ -210,7 +221,7 @@ export function RouteDetailView({
       {/* score over time */}
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="card-title" style={{ marginBottom: 4 }}>
-          Live-model score over time
+          {prepared ? "Illustrative score over time" : "Live-model score over time"}
         </div>
         <div className="card-sub" style={{ marginBottom: 12 }}>
           Dashed line = policy bar. Vertical marks = golden-set version changes.
@@ -222,7 +233,7 @@ export function RouteDetailView({
       <div className="card pad-0" style={{ marginBottom: 14 }}>
         <div className="row between" style={{ padding: "14px 16px" }}>
           <span className="card-title">Candidate pool</span>
-          <span className="muted small">quality evidence appears after an approved eval</span>
+          <span className="muted small">{prepared ? "Prepared fixture scores · no model call" : "quality evidence appears after an approved eval"}</span>
         </div>
         <table className="table">
           <thead>
@@ -242,13 +253,13 @@ export function RouteDetailView({
                   <span className="model-ref">{modelName(c.modelRef)}</span>
                   {c.isLive && (
                     <span className="badge pass" style={{ marginLeft: 8 }}>
-                      live
+                      {prepared ? "prepared baseline" : "live"}
                     </span>
                   )}
                 </td>
                 <td className="muted small">{c.source}</td>
-                <td className="num mono">{qualityPct(c.score)}</td>
-                <td className="num mono">{costPer1k(c.costPer1kCents)}</td>
+                <td className="num mono">{qualityPct(c.score)}{prepared && <div className="small muted">illustrative</div>}</td>
+                <td className="num mono">{costPer1k(c.costPer1kCents)}{prepared && <div className="small muted">no provider charge</div>}</td>
                 <td className="num mono">{ms(c.latencyMs)}</td>
                 <td className="num">
                   <div className="row" style={{ gap: 6, justifyContent: "flex-end" }}>
@@ -269,7 +280,7 @@ export function RouteDetailView({
                       <button
                         className="btn sm danger-ghost"
                         disabled={pending}
-                        onClick={() => run(() => removeCandidateA(route, c.modelRef), "Candidate removed.")}
+                        onClick={() => run(() => guard.run((ownerId) => removeCandidateA(route, c.modelRef, ownerId)), "Candidate removed.")}
                       >
                         Remove
                       </button>
@@ -317,7 +328,7 @@ export function RouteDetailView({
         <div className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}>
           <div>
             <label className="label">Maximum spend (USD)</label>
-            <input
+            <input aria-label="Maximum spend (USD)"
               className="input mono"
               type="number"
               min={0.001}
@@ -458,7 +469,7 @@ export function RouteDetailView({
 
         {compatibility.workflow && (
           <div className="hint" style={{ marginBottom: 12 }}>
-            Source: <span className="mono">{compatibility.workflow.name}</span> →{" "}
+            Source: <span className="mono">{preparedName(compatibility.workflow.name, detail.route)}</span> →{" "}
             <span className="mono">{compatibility.workflow.nodeName}</span>
           </div>
         )}
@@ -502,7 +513,7 @@ export function RouteDetailView({
                     disabled={pending || inPool || !compatibility.optimizationAllowed}
                     onClick={() =>
                       run(
-                        () => addCandidateA(route, model.modelRef),
+                        () => guard.run((ownerId) => addCandidateA(route, model.modelRef, ownerId)),
                         "Candidate added. No eval spend yet — budget approval comes next.",
                       )
                     }
@@ -541,6 +552,6 @@ export function RouteDetailView({
         </div>
       </div>
 
-    </>
+    </fieldset>
   );
 }

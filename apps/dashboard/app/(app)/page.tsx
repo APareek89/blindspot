@@ -1,3 +1,5 @@
+import { PreparedNotice } from "@/components/PreparedNotice";
+import { PreparedExample } from "@/components/PreparedExample";
 import Link from "next/link";
 import { CostQualityChart } from "@/components/charts";
 import { PageError } from "@/components/PageError";
@@ -50,6 +52,8 @@ export default async function OverviewPage() {
         </div>
       </div>
 
+      <PreparedExample />
+      {ov.containsPrepared && <PreparedNotice />}
       <div className="grid cols-5" style={{ marginBottom: 14 }}>
         <Kpi label="Avg quality" value={qualityPct(ov.avgQuality)} foot="across live models" />
         <Kpi

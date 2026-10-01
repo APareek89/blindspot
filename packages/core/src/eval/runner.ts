@@ -26,7 +26,7 @@ import {
   type EvalPlannedExample,
 } from "@blindspot/shared";
 import { listExamples } from "../golden/service";
-import { getProviderKey } from "../keys";
+import { providerCredential } from "../keys";
 import { getRouteReplayTarget } from "../workflows";
 import { CANDIDATE_MAX_OUTPUT_TOKENS } from "./cost";
 import { judgeOutputDetailed, type JudgeResult } from "./judge";
@@ -241,7 +241,7 @@ async function defaultRuntime(
   judgeModel: string,
   executionMode: "model_only" | "workflow_replay",
 ) {
-  const judgeKey = await getProviderKey(projectId, parseModelRef(judgeModel).provider);
+  const judgeKey = await providerCredential(projectId, parseModelRef(judgeModel).provider);
   if (!judgeKey) throw new Error(`no key configured for judge ${judgeModel}`);
   const replayTarget =
     executionMode === "workflow_replay"
@@ -252,7 +252,7 @@ async function defaultRuntime(
   }
   const candidateKey =
     executionMode === "model_only"
-      ? await getProviderKey(projectId, parseModelRef(modelRef).provider)
+      ? await providerCredential(projectId, parseModelRef(modelRef).provider)
       : null;
   if (executionMode === "model_only" && !candidateKey) {
     throw new Error(`no ${parseModelRef(modelRef).provider} key configured`);
@@ -263,7 +263,8 @@ async function defaultRuntime(
         ? runWorkflowReplay(replayTarget, modelRef, input)
         : runChat({
             modelRef,
-            apiKey: candidateKey!,
+            apiKey: candidateKey!.key,
+            shared:candidateKey!.shared,
             messages: [{ role: "user", content: input }],
             maxTokens: CANDIDATE_MAX_OUTPUT_TOKENS,
           }),
@@ -273,7 +274,7 @@ async function defaultRuntime(
       referenceOutput: string | null;
       rubric: string | null;
       output: string;
-    }) => judgeOutputDetailed({ ...opts, apiKey: judgeKey }),
+    }) => judgeOutputDetailed({ ...opts, apiKey: judgeKey.key,shared:judgeKey.shared }),
   } satisfies EvalRuntime;
 }
 
@@ -547,6 +548,7 @@ export async function listEvalRunEvidence(projectId: string, routeId: string, li
   const labelById = new Map(labels.map((item) => [item.id, item.label]));
   return runRows.map((run) => ({
     ...run,
+    exampleKind:runs.find(row=>row.eval_runs.id===run.id)?.routes.exampleKind??null,
     examples: evidence
       .filter((item) => item.evalRunId === run.id)
       .sort((a, b) => (a.score ?? -1) - (b.score ?? -1))

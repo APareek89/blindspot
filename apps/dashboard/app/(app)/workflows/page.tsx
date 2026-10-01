@@ -1,7 +1,9 @@
+import { PreparedBadge, PreparedNotice, isPrepared } from "@/components/PreparedNotice";
+import { OwnedForm } from "@/components/OwnedForm";
 import Link from "next/link";
 import { Empty } from "@/components/ui";
 import { PageError } from "@/components/PageError";
-import { modelName } from "@/lib/format";
+import { modelName, preparedName } from "@/lib/format";
 import { requireApi } from "@/lib/session";
 import type { WorkflowDetail } from "@/lib/types";
 import { configureWorkflowReplay, setWorkflowSelected } from "./actions";
@@ -62,7 +64,7 @@ export default async function WorkflowsPage() {
                 <div className="row between wrap" style={{ marginBottom: 14 }}>
                   <div>
                     <div className="row wrap" style={{ marginBottom: 5 }}>
-                      <h2 style={{ fontSize: 17 }}>{workflow.name}</h2>
+                      <h2 style={{ fontSize: 17 }}>{preparedName(workflow.name, workflow)}</h2><PreparedBadge record={workflow} />
                       <span className={`badge ${workflow.selected ? "pass" : "neutral"}`}>
                         {workflow.selected ? "Selected for evaluation" : "Not selected"}
                       </span>
@@ -75,16 +77,17 @@ export default async function WorkflowsPage() {
                     <div className="card-sub">
                       {[workflow.framework, workflow.language].filter(Boolean).join(" · ") ||
                         "Custom instrumentation"}
-                      {` · ${workflow.executionCount} executions · ${workflow.nodeCount} nodes`}
+                      {` · ${workflow.executionCount} executions · ${workflow.nodeCount} observed nodes`}
                     </div>
                   </div>
-                  <form action={action}>
+                  <OwnedForm action={action} disabled={isPrepared(workflow)}>
                     <button className={`btn ${workflow.selected ? "danger-ghost" : "primary"}`}>
                       {workflow.selected ? "Stop evaluating" : "Select for evaluation"}
                     </button>
-                  </form>
+                  </OwnedForm>
                 </div>
 
+                {isPrepared(workflow) && <PreparedNotice />}
                 <details className="card" style={{ marginBottom: 14 }}>
                   <summary style={{ cursor: "pointer", fontWeight: 600 }}>
                     Actual workflow replay {workflow.replayEnabled && workflow.replayConfigured ? "· enabled" : "· not configured"}
@@ -94,15 +97,15 @@ export default async function WorkflowsPage() {
                     callback. The app executes the real prompt, retrieval, tools and deterministic
                     gates, then returns only the target node output and usage.
                   </p>
-                  <form action={configureWorkflowReplay.bind(null, workflow.id)}>
+                  <OwnedForm action={configureWorkflowReplay.bind(null, workflow.id)} disabled={isPrepared(workflow)}>
                     <div className="grid cols-2">
                       <div className="field">
                         <label className="label">HTTPS replay callback</label>
-                        <input className="input" name="url" type="url" required defaultValue={workflow.replayUrl ?? ""} placeholder="https://your-app.onrender.com/api/blindspot/replay" />
+                        <input aria-label="HTTPS replay callback" className="input" name="url" type="url" required defaultValue={workflow.replayUrl ?? ""} placeholder="https://your-app.example/api/blindspot/replay" />
                       </div>
                       <div className="field">
                         <label className="label">Replay secret {workflow.replayConfigured ? "(leave blank to keep)" : ""}</label>
-                        <input className="input" name="secret" type="password" minLength={16} placeholder="Stored encrypted; never returned" />
+                        <input aria-label="Replay secret" className="input" name="secret" type="password" minLength={16} placeholder="Stored encrypted; never returned" />
                       </div>
                     </div>
                     <label className="row small" style={{ gap: 8, cursor: "pointer", marginBottom: 10 }}>
@@ -110,7 +113,7 @@ export default async function WorkflowsPage() {
                       Enable replay-grade evals for this workflow
                     </label>
                     <button className="btn">Save replay configuration</button>
-                  </form>
+                  </OwnedForm>
                 </details>
 
                 <div className="card pad-0">

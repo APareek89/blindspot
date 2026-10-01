@@ -1,9 +1,11 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { ApiError } from "@/lib/api";
-import { requireApi } from "@/lib/session";
+import { WorkspaceBoundary } from "@/components/AccountShell";
+import { requireApi, requireUser } from "@/lib/session";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser();
   const client = await requireApi();
 
   let project = "";
@@ -19,17 +21,16 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="shell">
+    <WorkspaceBoundary ownerId={user.id}><div className="shell">
       <Sidebar pending={pending} project={project} />
       <main className="main">
         {gatewayDown && (
           <div className="alert danger" style={{ marginBottom: 18 }}>
-            Can&apos;t reach the gateway. Start it with{" "}
-            <span className="mono">pnpm start:gateway</span> and reload.
+            The workspace service is unavailable. Please reload to try again.
           </div>
         )}
         {children}
       </main>
-    </div>
+    </div></WorkspaceBoundary>
   );
 }

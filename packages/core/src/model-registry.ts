@@ -13,6 +13,7 @@ import {
   providerKeys,
   workflowNodes,
   workflows,
+  fixtureMode,requireExecution,
 } from "@blindspot/db";
 import { listProviderModels, pricePerMillion } from "@blindspot/providers";
 import {
@@ -25,8 +26,10 @@ import {
   type RegistryProvider,
 } from "@blindspot/shared";
 import { getOwnedRoute } from "./routes/service";
+import { providerCredential } from './keys/provider';
 
 export const PROTOTYPE_MODEL_REFS = [
+  'openai:gpt-4o-mini','openai:gpt-4o',
   "anthropic:claude-sonnet-4-6",
   "anthropic:claude-haiku-4-5-20251001",
 ] as const;
@@ -40,6 +43,7 @@ interface CuratedModel {
 }
 
 const CURATED_MODELS: CuratedModel[] = [
+  ...(['openai:gpt-4o-mini','openai:gpt-4o'] as const).map(modelRef=>({modelRef,provider:'openai' as const,providerModelId:modelRef.slice(7),displayName:modelRef.slice(7),capabilities:ModelCapabilitiesSchema.parse({inputModalities:['text','image'],outputModalities:['text'],toolCalling:true,structuredOutput:true,streaming:true,systemMessages:true,contextTokens:128000,maxOutputTokens:16384})})),
   {
     modelRef: "anthropic:claude-sonnet-4-6",
     provider: "anthropic",
@@ -90,9 +94,9 @@ export async function syncModelRegistry(projectId: string, provider: RegistryPro
       .where(and(eq(providerKeys.projectId, projectId), eq(providerKeys.provider, provider)))
       .limit(1)
   )[0];
-  if (!keyAtStart) throw new MissingProviderKeyError(provider);
-
-  const discovered = await listProviderModels(provider, decryptSecret(keyAtStart.encryptedKey));
+  const credential=await providerCredential(projectId,provider);
+  if (!credential) throw new MissingProviderKeyError(provider);
+  const discovered = await listProviderModels(provider, credential.key);
   if (discovered.length === 0) {
     throw new Error(`${provider} returned an empty model catalog; existing entries were preserved`);
   }
@@ -109,7 +113,7 @@ export async function syncModelRegistry(projectId: string, provider: RegistryPro
         .limit(1)
         .for("update")
     )[0];
-    if (!currentKey || currentKey.encryptedKey !== keyAtStart.encryptedKey) {
+    if ((currentKey?.encryptedKey??null)!==(keyAtStart?.encryptedKey??null)) {
       throw new Error("provider key changed during model sync; retry the sync");
     }
     const seen = discovered.map((model) => model.modelRef);
@@ -189,11 +193,13 @@ export async function listModelRegistry(projectId: string) {
       .where(eq(providerKeys.projectId, projectId)),
   ]);
   const configured = new Set(keyRows.map((row) => row.provider));
-  const providers = (["anthropic", "hf", "fireworks"] as const).map((provider) => {
+  const serverConfigured=Boolean(process.env.OPENAI_API_KEY)||process.env.BLINDSPOT_MOCK_MODE==='1';
+  const providers = (["openai","anthropic", "hf", "fireworks"] as const).map((provider) => {
     const providerModels = models.filter((model) => model.provider === provider);
     return {
       provider,
       keyConfigured: configured.has(provider),
+      serverConfigured:provider==='openai'&&serverConfigured,
       modelCount: providerModels.filter((model) => model.availability === "available").length,
       verifiedCount: providerModels.filter((model) => model.probeStatus === "verified").length,
       lastSyncedAt: providerModels[0]?.lastSyncedAt ?? null,
@@ -348,13 +354,17 @@ export async function getRouteModelCompatibility(projectId: string, routeName: s
   ]);
   const byRef = new Map(rows.map((row) => [row.modelRef, row]));
   const configured = new Set(keyRows.map((row) => row.provider));
+  if(process.env.OPENAI_API_KEY||process.env.BLINDSPOT_MOCK_MODE==='1')configured.add('openai');
+  const trustedPrepared=route.exampleKind==='prepared'&&!fixtureMode()&&requireExecution().mode==='prepared';
 
   const models: ModelCompatibility[] = CURATED_MODELS.map((curated) => {
     const row = byRef.get(curated.modelRef);
     const capabilities = row?.capabilitiesJson ?? curated.capabilities;
     const reasons: string[] = [];
     let status: CompatibilityStatus;
-    if (!configured.has(curated.provider)) {
+    if(trustedPrepared&&curated.provider==='openai'){
+      status='compatible';reasons.push('Prepared fixed fixture only; provider access is not implied');
+    } else if (!configured.has(curated.provider)) {
       status = "needs_provider_key";
       reasons.push(`Add a ${curated.provider} key in Settings`);
     } else if (row?.availability === "unavailable" || row?.availability === "deprecated") {
@@ -368,9 +378,9 @@ export async function getRouteModelCompatibility(projectId: string, routeName: s
       const match = evaluateRequirements(observed.requirements, capabilities);
       reasons.push(...match.incompatible, ...match.unknown);
       if (match.incompatible.length > 0) status = "incompatible";
-      else if (!row || row.probeStatus !== "verified" || match.unknown.length > 0) {
+      else if ((!row || row.probeStatus !== "verified") && process.env.BLINDSPOT_MOCK_MODE!=='1' || match.unknown.length > 0) {
         status = "needs_verification";
-        if (!row) reasons.push("Sync Anthropic in Settings to verify account access");
+        if (!row) reasons.push(`Sync ${curated.provider} in Settings to list available models`);
         else if (row.probeStatus !== "verified") reasons.push("Provider access probe is not verified");
       } else {
         status = "compatible";

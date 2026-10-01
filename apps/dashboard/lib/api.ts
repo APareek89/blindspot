@@ -31,6 +31,7 @@ import type {
   WorkflowMetrics,
   WorkflowSummary,
 } from "./types";
+import { signActor, type SessionActor } from '@blindspot/db';
 
 export const GATEWAY_URL = process.env.BLINDSPOT_GATEWAY_URL ?? "http://localhost:8787";
 
@@ -52,22 +53,31 @@ export class ApiError extends Error {
   }
 }
 
-async function req<T>(key: string, path: string, init?: RequestInit): Promise<T> {
+type Connection={actor:SessionActor;writeAllowed:boolean};
+async function req<T>(connection:Connection, path: string, init?: RequestInit): Promise<T> {
+  const method=init?.method??'GET';const body=typeof init?.body==='string'?init.body:'';
+  if(Buffer.byteLength(body,'utf8')>512*1024)throw new ApiError(413,'The combined request must be at most 512 KiB.');
+  if(method!=='GET'&&!connection.writeAllowed)throw new ApiError(403,'Refresh your account before changing data.');
+  if(!path.startsWith('/v1/')||path.includes('#'))throw new ApiError(400,'Invalid gateway path');
   let res: Response;
   try {
     res = await fetch(`${GATEWAY_URL}${path}`, {
       ...init,
       headers: {
-        authorization: `Bearer ${key}`,
+        'x-blindspot-actor':signActor(connection.actor,method,path,body),
         "content-type": "application/json",
         ...(init?.headers ?? {}),
       },
       cache: "no-store",
+      redirect:'error',
+      signal:AbortSignal.timeout(method==='GET'?15000:120000),
     });
   } catch {
-    throw new ApiError(0, `cannot reach the gateway at ${GATEWAY_URL}`);
+    throw new ApiError(503, 'The private gateway is unavailable.');
   }
-  const text = await res.text();
+  const reader=res.body?.getReader();const chunks:Uint8Array[]=[];let size=0;
+  if(reader)while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>8*1024*1024){await reader.cancel();throw new ApiError(502,'Gateway response is too large.');}chunks.push(value);}
+  const text=Buffer.concat(chunks).toString('utf8');
   let data: unknown = {};
   if (text) {
     try {
@@ -97,12 +107,14 @@ export interface Page {
 }
 
 /** Build a typed client bound to one project key. */
-export function api(key: string) {
+export function api(actor:SessionActor,writeAllowed=false) {
+  const key:Connection={actor,writeAllowed};
   const get = <T>(path: string, init?: RequestInit) => req<T>(key, path, init);
   const send = <T>(method: string, path: string, body?: unknown) =>
     req<T>(key, path, { method, body: body === undefined ? undefined : JSON.stringify(body) });
 
   return {
+    createExample:()=>send<{workflowId:string;routeName:string;prepared:true}>('POST','/v1/examples',{}),
     // identity + summary
     me: (init?: RequestInit) => get<{ project: Project }>("/v1/me", init),
     overview: () => get<Overview>("/v1/overview"),
@@ -266,7 +278,7 @@ export function api(key: string) {
     deleteProviderKey: (provider: string) =>
       send<{ ok: true }>("DELETE", `/v1/provider-keys/${provider}`),
     modelRegistry: () => get<ModelRegistryOverview>("/v1/model-registry"),
-    syncModelRegistry: (provider: "anthropic" | "hf" | "fireworks") =>
+    syncModelRegistry: (provider: "anthropic" | "openai" | "hf" | "fireworks") =>
       send<{
         sync: {
           provider: string;

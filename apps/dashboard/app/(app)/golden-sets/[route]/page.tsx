@@ -1,4 +1,6 @@
+import { PreparedBadge, PreparedNotice, isPrepared } from "@/components/PreparedNotice";
 import Link from "next/link";
+import { preparedName } from "@/lib/format";
 import { PageError } from "@/components/PageError";
 import { requireApi } from "@/lib/session";
 import type { GoldenExample, Trace } from "@/lib/types";
@@ -43,15 +45,14 @@ export default async function RouteGoldenPage({
     return (
       <>
         <div className="crumb">
-          <Link href="/golden-sets">Golden Sets</Link> / {route}
+          <Link href="/golden-sets">Golden Sets</Link> / {preparedName(route, detail.route)}
         </div>
         <div className="page-head">
           <div>
-            <h1>{route}</h1>
+            <h1>{preparedName(route, detail.route)}</h1>
             <p>
               Judge: <span className="model-ref">{settings.judgeModel ?? "default"}</span> · policy
-              bar <span className="mono">{detail.route.policy.minScore.toFixed(2)}</span>. Deleting
-              entries is always allowed; versions keep score history comparable.
+              bar <span className="mono">{detail.route.policy.minScore.toFixed(2)}</span>. {isPrepared(detail.route) ? "Prepared entries are read-only." : "Deleting entries is always allowed; versions keep score history comparable."}
             </p>
           </div>
           <Link href={`/routes/${encodeURIComponent(route)}`} className="btn sm">
@@ -59,8 +60,11 @@ export default async function RouteGoldenPage({
           </Link>
         </div>
 
+        {isPrepared(detail.route) && <PreparedNotice />}
         <GoldenManager
           route={route}
+          routeLabel={preparedName(route, detail.route)}
+          readOnly={isPrepared(detail.route)}
           sets={sets}
           selectedId={selected?.id ?? null}
           examples={examples}

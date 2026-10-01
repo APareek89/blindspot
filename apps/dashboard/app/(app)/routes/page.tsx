@@ -1,7 +1,8 @@
+import { PreparedBadge, PreparedNotice, isPrepared } from "@/components/PreparedNotice";
 import Link from "next/link";
 import { PageError } from "@/components/PageError";
 import { Empty, Sparkline, StatusBadge } from "@/components/ui";
-import { costPer1k, modelName, qualityPct } from "@/lib/format";
+import { costPer1k, modelName, qualityPct, preparedName } from "@/lib/format";
 import { requireApi } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
@@ -54,7 +55,7 @@ export default async function RoutesPage() {
               {data.routes.map((r) => (
                 <tr key={r.id} className="clickable">
                   <td style={{ fontWeight: 550 }}>
-                    <Link href={`/routes/${encodeURIComponent(r.name)}`}>{r.name}</Link>
+                    <Link href={`/routes/${encodeURIComponent(r.name)}`}>{preparedName(r.name, r)}</Link> <PreparedBadge record={r} />
                     {r.pendingRecs > 0 && (
                       <span className="badge warn" style={{ marginLeft: 8 }}>
                         {r.pendingRecs} pending

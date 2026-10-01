@@ -60,7 +60,7 @@ workflowsRouter.post("/ingest/spans", async (c) => {
   try {
     return c.json(await ingestWorkflowSpans(c.get("projectId"), parsed.data.spans));
   } catch (error) {
-    console.error("[gateway] workflow ingest failed:", (error as Error).message);
+    console.error("[gateway] workflow ingest failed");
     return c.json({ error: { message: "workflow telemetry could not be stored" } }, 500);
   }
 });

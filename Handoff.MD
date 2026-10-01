@@ -1,3 +1,25 @@
+# Current portfolio launch checkpoint — 2026-10-01
+
+This section supersedes the historical July deployment/auth plans below. Current canonical baseline is `52a3fef5a35c76449bbc651aa3a753df7401c584`.
+
+The original mocked SDK/gateway/evaluation baseline is accepted (root browser plus 28 HTTP checks). Integrated local acceptance now passes Auth.js email/password, separate owner-scoped SDK credentials, the actual SDK-ingested prepared workflow, two illustrative evaluations, Monitor, signout/signin, desktop dark and 390 px light layouts, with no browser errors or provider calls. Twelve focused frontend tests pass; the compiled Auth.js/Server Action harness passed 26 checks across 45 requests, alongside 19 real-PostgreSQL checks. These are distinct receipts, not a claim that every product path was exercised.
+
+AWS's fresh `blindspot` database install is complete: 28 admin-owned tables, a DML-only application role, verified TLS 1.3 and a create-only web/gateway secret split. Runtime source is frozen and the reviewed Linux images are live with authentication enabled and mock mode disabled: gateway `759306459c8c37a5` / image `fe12ed3659c364e29a83d4d10db7006401c97cc764d3702b11e376581c4178ef`, web `bdfa9bece954b8d9` / image `3a0bc38d3534c913044dc4ddd245a2ad128f754e030c311a3c4174d865454408`. Live free acceptance passed 13 groups/33 requests, two isolated accounts and zero provider usage. Root verified the live prepared UI in desktop dark / 390 px light with no console errors. **Live and paid acceptance passed.** Final aggregate evidence is recorded in operator receipt `paid-sdk-verified.json`; the final read-only audit retained exactly one usage row and matching span.
+
+Frontend ownership is pages/components/styles/client helpers and public documentation. Backend owns server actions/auth/middleware/API and prepared fixture execution. Infrastructure owns package/lock/config and deployment. Preserve baseline ports 8974/8975; coordinate integrated 8976/8977 and test 8978/8979. No provider calls during development. Root alone controls browser QA and any paid proof.
+
+Verified live URL: https://blindspot.3-6-183-210.sslip.io. Connect snippets use the public application origin and same-origin `/v1` SDK routes, never a private gateway hostname. SDK tarball is served from the dashboard.
+
+Retain observed-node semantics, golden lifecycle, explicit budgets, replay versus model-only evidence, and approval gates. Human project-key/invite login is retired by this launch; historical records below describe prior deployments only. Google OAuth/password recovery are not configured. See `docs/PORTFOLIO-UI.md` for exact UI boundaries.
+
+Prepared records remain server-marked and read-only. The UI hides their namespace UUID only in display labels; values, URLs and ownership checks retain their full identity. Golden imports are bounded at 400 KiB per file and 512 KiB serialized action payload; draft counts are 1–20. Runtime evaluations remain inline without a Redis worker. Shared-provider lifetime caps default to USD 0.25 per owner/USD 2 per app.
+
+One paid proof used one ordinary OpenAI `gpt-4o-mini` SDK completion: HTTP 200 at 08:55:23.449–08:55:25.639 UTC on 1 October 2026, 16 input/5 output tokens, estimated USD 0.0000054. One usage row matched the SDK key/project and observed metadata span. No retry, judge, evaluation or golden-generation request ran. Monitor rounded stored 0.00054 cents to 0.001 cents. The two prepared evaluations retain fixed illustrative 90% scores; neither is paid model-quality evidence. Two low AI SDK 4 dependency advisories remain mitigated by text-only input and bounded transport, not dependency upgrades.
+
+---
+
+## Historical handoff (preserved)
+
 # Handoff.MD — Blindspot
 > last-synced: 49eb569
 > Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**

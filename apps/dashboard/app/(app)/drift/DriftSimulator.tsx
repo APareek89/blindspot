@@ -1,11 +1,16 @@
 "use client";
 
+import { useOwnerGuard } from "@/components/AccountShell";
+import { isPrepared } from "@/components/PreparedNotice";
+
 import { useState, useTransition } from "react";
+import { preparedName } from "@/lib/format";
 import type { RouteSummary } from "@/lib/types";
 import { simulateDrift } from "./actions";
 
 export function DriftSimulator({ routes }: { routes: RouteSummary[] }) {
-  const evaluable = routes.filter((r) => r.liveModel && r.hasGoldenSet);
+  const guard = useOwnerGuard();
+  const evaluable = routes.filter((r) => r.liveModel && r.hasGoldenSet && !isPrepared(r));
   const [route, setRoute] = useState(evaluable[0]?.name ?? "");
   const [score, setScore] = useState(0.4);
   const [pending, start] = useTransition();
@@ -29,17 +34,17 @@ export function DriftSimulator({ routes }: { routes: RouteSummary[] }) {
           <div className="row wrap" style={{ gap: 8, alignItems: "flex-end" }}>
             <div>
               <label className="label">Route</label>
-              <select className="select" style={{ width: 180 }} value={route} onChange={(e) => setRoute(e.target.value)}>
+              <select aria-label="Route" className="select" style={{ width: 180 }} value={route} onChange={(e) => setRoute(e.target.value)}>
                 {evaluable.map((r) => (
                   <option key={r.id} value={r.name}>
-                    {r.name}
+                    {preparedName(r.name, r)}
                   </option>
                 ))}
               </select>
             </div>
             <div>
               <label className="label">Simulated new score</label>
-              <input
+              <input aria-label="Simulated new score"
                 className="input mono"
                 type="number"
                 min={0}
@@ -57,9 +62,11 @@ export function DriftSimulator({ routes }: { routes: RouteSummary[] }) {
                 setMsg(null);
                 setError(null);
                 start(async () => {
-                  const r = await simulateDrift(route, score);
+                  const ticket = guard.capture();
+                  const r = await guard.run((ownerId) => simulateDrift(route, score, ownerId));
+                  if (!r || !guard.current(ticket)) return;
                   if (!r.ok) setError(r.error);
-                  else setMsg("Drift check ran — see the timeline and Approvals.");
+                  else setMsg("Simulation recorded. It does not change evaluation evidence or create an approval.");
                 });
               }}
             >
