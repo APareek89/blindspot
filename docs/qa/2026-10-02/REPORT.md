@@ -2,7 +2,7 @@
 
 The review contains **112 distinct failure scenarios across 12 categories**, not 112 defects: 24 fixed, 51 verified, 34 source-checked, two residual and one unverified. Severity/occurrence/detection values are ordinal estimates, not measured incident rates. See [JSON](fmea.json), [CSV](fmea.csv) and [coverage](coverage.json).
 
-The Oct1 service remains live. This correction has a coherent local production build and scanned gateway/web archives; root's final hydrated browser acceptance passed; exact-image deployment is pending. This workstream made **zero paid/provider requests** and no production mutations.
+The corrected Oct2 gateway and dashboard are live. Root completed final hydrated browser acceptance and exact-image deployment after the secret-free production build and scanned archives. This workstream made **zero paid/provider requests**; root's only production changes were the reviewed image replacements.
 
 ## Demonstrated changes
 
@@ -30,3 +30,9 @@ The Oct1 service remains live. This correction has a coherent local production b
 Oct1's paid SDK completion (16 input/5 output tokens, estimated USD0.0000054) proved completion/metering and telemetry, not evaluation quality. Prepared scores remain explicitly illustrative.
 
 Root's release helper must use the scanned exact immutable images, preserve live environment/configuration except image, and confirm idle dispatch/evaluation work before either restart. Package-template mock environments must not replace live configuration. Source publication and deployment status belong to the final external release receipt, not an implied result of these free checks.
+
+## Exact-image release — verified
+
+[Sanitized AWS release evidence](aws-release.json) binds both root activation receipts to the reviewed runtime commit, scanned archive hashes and immutable images. Gateway `ce859de00b32` and web `3d8574350208` passed network-none Linux checks before sequential activation. Both retain authentication and ordinary live mode; no provider was called by release checks. Dispatches/evaluations/plans were idle before each restart, and existing environment, mounts, resource bounds, credentials, budgets and unrelated app containers were preserved. No migration, SSM value or provider allowance changed.
+
+The exact local files still preserve the preexisting `.next-integrated` typing-path change outside the commit; the web archive uses Next's normal generated `.next` path. This documented generated-file difference does not alter the tested runtime. Live release does not upgrade the authored judge/golden proxies into paid quality evidence.

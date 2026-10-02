@@ -1,0 +1,68 @@
+{
+  "status": "verified",
+  "scope": "root-operated image-only release; no new live provider validation",
+  "runtime_source_commit": "70453b87e20e9b40c3cfbcabe34dbc41e4bdfc71",
+  "services": [
+    {
+      "service": "gateway",
+      "image_id": "sha256:ce859de00b32616f70934a72d17af442a2b70ffc31c7fb251bf69b6469eca6c2",
+      "archive_sha256": "3e8c1a8d251848769285556d9cf6a97293a8641b78a9c47507f62184f98cbec2",
+      "activated_at": "2026-10-02T09:01:26.113495+00:00",
+      "auth": true,
+      "mock": false,
+      "environment_mounts_bounds_preserved": true,
+      "config_preserved_except_image": true,
+      "other_apps_unchanged": true,
+      "idle_before": {
+        "dispatches": 0,
+        "evals": 0,
+        "plans": 0
+      },
+      "linux_probe": "network none, nonroot, read-only, no credentials",
+      "provider_calls": 0
+    },
+    {
+      "service": "web",
+      "image_id": "sha256:3d85743502082b795d6cb610b6cf621aeb2a79c9df77ba4c0eb39ece85cb9438",
+      "archive_sha256": "7d85eb25ff13dcf35097e4824399ff0a2ccdcbe5ff481f55554a96b852008d29",
+      "activated_at": "2026-10-02T09:04:10.428040+00:00",
+      "auth": true,
+      "mock": false,
+      "environment_mounts_bounds_preserved": true,
+      "config_preserved_except_image": true,
+      "other_apps_unchanged": true,
+      "idle_before": {
+        "dispatches": 0,
+        "evals": 0,
+        "plans": 0
+      },
+      "linux_probe": "network none, nonroot, read-only, no credentials",
+      "provider_calls": 0
+    }
+  ],
+  "source_receipts": [
+    {
+      "path": "blindspot-gateway-activation.json",
+      "sha256": "a5426b69416703b4588c0680fbdaed85c73ca3c74b2ab0faed2aea47e1cd57ea"
+    },
+    {
+      "path": "blindspot-gateway-smoke.json",
+      "sha256": "c81f299789cf9eb62e056c272f629f6bd9d27912b42cf363879ebe6986a2cbf6"
+    },
+    {
+      "path": "blindspot-web-activation.json",
+      "sha256": "0d5b8fd4d569728d49369f4cbbe505a72438ce27f263e5d6fb68116c88a8b069"
+    },
+    {
+      "path": "blindspot-web-smoke.json",
+      "sha256": "a436e16e47647b219eb23d83280567ac8e0d9bb46088d350e9f81db3b5002a06"
+    }
+  ],
+  "provider_calls": 0,
+  "schema_secret_budget_changes": false,
+  "limitations": [
+    "Prior Oct1 paid completion is distinct historical evidence",
+    "Current judge and generation quality tested with authored free proxies, not new paid requests",
+    "Local preexisting next-env typing path preserved outside commit"
+  ]
+}

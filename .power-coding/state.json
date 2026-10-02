@@ -8,6 +8,7 @@
     "scope": "uncommitted working tree over recorded base",
     "scenario_count": 112,
     "evidence": "docs/qa/2026-10-02/fmea.json",
-    "runtime_published": false
+    "runtime_published": true,
+    "release_evidence": "docs/qa/2026-10-02/aws-release.json"
   }
 }
