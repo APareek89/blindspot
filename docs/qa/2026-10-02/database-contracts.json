@@ -1,0 +1,27 @@
+{
+  "status": "passed",
+  "checks": [
+    "session_owner_binding",
+    "unicode_signatures_fail_closed",
+    "bridge_method_body_and_replay_binding",
+    "bridge_timestamp_after_drizzle_initialization",
+    "missing_actor_denied",
+    "revocation_before_dispatch_denied",
+    "undispatched_capacity_released",
+    "foreign_usage_settlement_denied",
+    "known_usage_survives_later_failure",
+    "ambiguous_dispatch_retains_reservation",
+    "owner_cap_denied_before_insert",
+    "cap_rejection_does_not_drain_shared_ledger",
+    "owner_concurrency_bounded",
+    "prepared_provider_reservation_denied",
+    "storage_admission_owner_binding",
+    "concurrent_storage_bytes_enforce_owner_cap",
+    "rejected_storage_write_releases_no_user_data",
+    "runtime_cannot_truncate",
+    "runtime_cannot_create_table"
+  ],
+  "actualPostgres": true,
+  "role": "DML only",
+  "providerCalls": 0
+}

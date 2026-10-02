@@ -7,18 +7,21 @@ flowchart TD
   DOC["Read selected context documents<br/>FUNCTION · Markdown or text<br/>out: bounded context for generation"]:::fn
   CTX["Load explicitly shared app manifest<br/>DATA · product brief, prompts, architecture and selected documents"]:::data
   LIVE{"Use retained live inputs?<br/>USER · separate consent; metadata-only cannot provide content"}:::ask
-  UV["Validate preview rows<br/>FUNCTION · Zod<br/>out: examples or row-level error"]:::fn
+  UV["Validate exact row keys and reference aliases<br/>FUNCTION · Zod<br/>out: examples or row-level error"]:::fn
   AG["Generate diverse draft examples<br/>AGENT · GOLDEN_MODEL or JUDGE_MODEL<br/>in: task + consented bounded context · out: inputs, references and rubrics"]:::agent
-  AV["Schema-validate generated object<br/>FUNCTION · Zod GeneratedGolden"]:::fn
+  AV["Validate exact count and unique prompts<br/>FUNCTION · Zod GeneratedGolden"]:::fn
   REVIEW{"Review source, consent and example count; publish?<br/>USER"}:::ask
   NV["Lock parent Route + allocate next version<br/>FUNCTION · serialized max version plus one"]:::fn
   STORE["Insert version and examples<br/>DATA · golden_sets + golden_examples"]:::data
   CUR["Curate examples<br/>FUNCTION · add, edit, delete, label, activate and version"]:::fn
-  PT["Promote same-route production trace<br/>FUNCTION · only retained content; user reviews result"]:::fn
+  PT["Promote same-route production trace<br/>FUNCTION · reject unavailable metadata; user reviews retained content"]:::fn
   RUN["Continue to budgeted experiment<br/>FUNCTION · no provider calls before estimate + confirmation"]:::term
   GROW["Planned suggested-additions queue<br/>AGENT proposes uncertain, drifted and diverse live cases<br/>USER accepts, edits or rejects"]:::term
 
-  S -- "dataset" --> U --> UV --> REVIEW
+  PENDING{"Current file reads finished without error?<br/>FUNCTION"}:::dec
+  S -- "dataset" --> U --> UV --> PENDING
+  PENDING -- "yes" --> REVIEW
+  PENDING -- "no" --> U
   S -- "documents" --> DOC --> AG
   S -- "connected context" --> CTX --> AG
   S -- "live traces" --> LIVE

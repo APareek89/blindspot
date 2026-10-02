@@ -1,82 +1,39 @@
-# Current portfolio launch checkpoint — 2026-10-01
+# Blindspot — current handoff
+last-synced: `f0e6c235cabf6e7e1f0eef08dbd3851e71801b3f`; free review 2026-10-02
+Continue in `/Users/macbook/Documents/Codex/portfolio/blindspot`.
 
-This section supersedes the historical July deployment/auth plans below. Current canonical baseline is `52a3fef5a35c76449bbc651aa3a753df7401c584`.
+## Current state
+The Oct1 AWS launch is live; this Oct2 runtime correction is locally built/tested but not yet released.
+Root owns final browser acceptance, source publication and image-only deployment; this review made zero provider calls or cloud mutations.
+Normal human access is Auth.js email/password with durable owner sessions; SDK credentials remain separate and revocable.
+Hosted PostgreSQL uses the per-app DML role and verified CA; public same-origin /v1 routes expose only the SDK allowlist.
+The private gateway holds provider/encryption secrets; the dashboard has only DB/Auth/bridge secrets.
+Evaluations run inline in two containers, with no idle worker or Redis; SDK assets and licensed fonts are packaged locally.
 
-The original mocked SDK/gateway/evaluation baseline is accepted (root browser plus 28 HTTP checks). Integrated local acceptance now passes Auth.js email/password, separate owner-scoped SDK credentials, the actual SDK-ingested prepared workflow, two illustrative evaluations, Monitor, signout/signin, desktop dark and 390 px light layouts, with no browser errors or provider calls. Twelve focused frontend tests pass; the compiled Auth.js/Server Action harness passed 26 checks across 45 requests, alongside 19 real-PostgreSQL checks. These are distinct receipts, not a claim that every product path was exercised.
+## Current corrections
+Provider completion status remains truthful; truncated/empty candidates cannot be judged as complete.
+Known usage survives structured parse or persistence failure and is counted once.
+Unknown dispatched usage stops the plan; example, run and plan costs remain unknown, not zero/subtotal.
+The evaluated judge is the exact model in the reviewed immutable plan, regardless of later configuration.
+Golden imports reject wrong types, empty/whitespace cases and duplicate CSV headings; BOM and code indentation are preserved.
+Generated counts are exact and duplicate prompts fail; this is schema/proxy evidence, not a diversity/quality guarantee.
+Expected upload aliases persist; unknown/conflicting fields reject and metadata-only traces cannot be promoted.
+Golden input text is displayed without cropping at “question:”; oversized context is rejected explicitly.
+File generations invalidate stale reads; pending dataset/context reads and errors block Review/Publish, and edits invalidate consent.
+Prepared examples remain immutable, labelled illustrative and provider-free; model-only screening cannot authorize a production swap.
 
-AWS's fresh `blindspot` database install is complete: 28 admin-owned tables, a DML-only application role, verified TLS 1.3 and a create-only web/gateway secret split. Runtime source is frozen and the reviewed Linux images are live with authentication enabled and mock mode disabled: gateway `759306459c8c37a5` / image `fe12ed3659c364e29a83d4d10db7006401c97cc764d3702b11e376581c4178ef`, web `bdfa9bece954b8d9` / image `3a0bc38d3534c913044dc4ddd245a2ad128f754e030c311a3c4174d865454408`. Live free acceptance passed 13 groups/33 requests, two isolated accounts and zero provider usage. Root verified the live prepared UI in desktop dark / 390 px light with no console errors. **Live and paid acceptance passed.** Final aggregate evidence is recorded in operator receipt `paid-sdk-verified.json`; the final read-only audit retained exactly one usage row and matching span.
+## Evidence and limits
+`docs/qa/2026-10-02/REPORT.md` links all evidence;112 scenarios/12 categories are not112 discovered bugs.
+50 input tests,23 actual SDK/transport contracts, four actual-prompt session-authored proxies, native eval/metrics and typecheck/build passed.
+Independent fresh actual-PG19 checks and compiled Auth.js/Server Actions26 checks/46 requests passed on the compiled release (final build `6CYJcwrMiW8KvXWTY85ug`).
+Two independent review findings (unknown aggregate cost, pending read publication) were corrected; no remaining scoped review blocker.
+Root browser verified reference alias publication, full input edit/reload, disabled metadata promotion and desktop/mobile layout; no provider or usage change.
+Lifetime included provider caps remain USD0.25 per owner/USD2 shared; unknown reservations are retained, no daily reset implied.
+Current free checks do not validate real judge quality, production replay correctness, load at10× or restart-resumable evaluation workers.
+Oct1 paid evidence was one gpt-4o-mini SDK completion (16 input/5 output, estimatedUSD0.0000054), not judge/golden quality evidence.
+Two low AI SDK4 advisories remain documented with reachable-path mitigations; do not claim an audit-free dependency tree.
 
-Frontend ownership is pages/components/styles/client helpers and public documentation. Backend owns server actions/auth/middleware/API and prepared fixture execution. Infrastructure owns package/lock/config and deployment. Preserve baseline ports 8974/8975; coordinate integrated 8976/8977 and test 8978/8979. No provider calls during development. Root alone controls browser QA and any paid proof.
-
-Verified live URL: https://blindspot.3-6-183-210.sslip.io. Connect snippets use the public application origin and same-origin `/v1` SDK routes, never a private gateway hostname. SDK tarball is served from the dashboard.
-
-Retain observed-node semantics, golden lifecycle, explicit budgets, replay versus model-only evidence, and approval gates. Human project-key/invite login is retired by this launch; historical records below describe prior deployments only. Google OAuth/password recovery are not configured. See `docs/PORTFOLIO-UI.md` for exact UI boundaries.
-
-Prepared records remain server-marked and read-only. The UI hides their namespace UUID only in display labels; values, URLs and ownership checks retain their full identity. Golden imports are bounded at 400 KiB per file and 512 KiB serialized action payload; draft counts are 1–20. Runtime evaluations remain inline without a Redis worker. Shared-provider lifetime caps default to USD 0.25 per owner/USD 2 per app.
-
-One paid proof used one ordinary OpenAI `gpt-4o-mini` SDK completion: HTTP 200 at 08:55:23.449–08:55:25.639 UTC on 1 October 2026, 16 input/5 output tokens, estimated USD 0.0000054. One usage row matched the SDK key/project and observed metadata span. No retry, judge, evaluation or golden-generation request ran. Monitor rounded stored 0.00054 cents to 0.001 cents. The two prepared evaluations retain fixed illustrative 90% scores; neither is paid model-quality evidence. Two low AI SDK 4 dependency advisories remain mitigated by text-only input and bounded transport, not dependency upgrades.
-
----
-
-## Historical handoff (preserved)
-
-# Handoff.MD — Blindspot
-> last-synced: 49eb569
-> Continue with: **Refer to Handoff.MD in `/Users/anandpareek/Documents/Projects/blindspot` and begin**
-
-## Active work — 2026-07-22 (Claude took over from codex)
-Reframe **Monitor → Insights → Evals + Supabase front door**. Order: **Slice 1 Monitor (A) →
-2 Insights (B) → 3 Eval-polish/function-nodes (C) → 4 Supabase (D)** (A/B/C are `projectId`-scoped
-so Supabase slots under later, no rework). Spec (APPROVED) + plan under `docs/superpowers/`.
-Env note: this repo needs **Node 22** — prepend `~/.nvm/versions/node/v22.22.0/bin` to PATH or pnpm breaks.
-
-- **Slice 1 Monitor — SHIPPED & LIVE (deployed `49eb569`, 2026-07-22; on `main` + `origin/main`).**
-  `execution_feedback` table (migration `0007_thankful_rage.sql`, applied to Render DB) ·
-  `packages/core/src/metrics.ts` (7/30/90d + previous-period + node filter + p95 + monthly trend,
-  **project-ownership enforced**) · `GET /v1/metrics` + `POST /v1/feedback` (`monitor-v1`) · SDK
-  `feedback()` · `/monitor` screen+nav · `test:metrics` (Loop F4). Verified live: healthz has
-  `monitor-v1`; `/v1/metrics` + `/v1/feedback` 401-gated; `/monitor`→login; prod DB migrated.
-- **FMEA (scan `0ef862a`, state stamped `1add5d2`):** P0 cross-tenant metrics IDOR — **FIXED +
-  regression test**. P2 backlog (open): feedback orphaned when its workflow isn't seen yet
-  (`workflowId=null`, uncounted); no feedback idempotency (double-submit double-counts); metrics
-  rollup/materialization at scale (Phase 8).
-- **Next:** Slice 2 **Insights (B)** — agentic hypothesis→evidence→recommendation over Monitor
-  signals. Then C eval-polish/function-nodes, D Supabase. Still open from takeover: rotate the
-  exposed GSTPilot prod key; declared-vs-observed topology.
-
-## Takeover checkpoint — 2026-07-22
-- Branch: `main`; `1915846` is the last pre-takeover HEAD and is on `origin/main`.
-- Read order: `AGENTS.md` → this file → `Loop.MD` → `README.md` → `Blindspot-PRD.md` → `docs/ARCHITECTURE_FLOW.md`.
-- Architecture was approved 2026-07-16. Do not restart Phase 0 or re-litigate the stack.
-- All 13 Markdown files and all 9 Mermaid sources were reconciled for Claude takeover; the root `README.md` is now the map.
-
-## Live product truth
-- Render gateway/dashboard are live; invite signup, project-key sessions, Connect, workflows, golden
-  lifecycle, budgeted evidence, approvals, drift and feedback are deployed.
-- Auth is **signed invite + Blindspot project keys**, not Supabase Auth; signup-first human identity,
-  organizations and scoped human/app credentials remain a product/architecture decision.
-- Current beta eval mode is inline; Redis/durable retries, rate limits, OTel/Sentry and k6 remain
-  Phase 8; cold starts can surface temporary 502s. Approval gates and golden lifecycle remain fixed.
-
-## GSTPilot evidence and the node-count correction
-- Hosted `gstpilot / production` is connected in `metadata + observe_only`: 2 executions, 3 observed
-  nodes, last seen 2026-07-21 09:05:22 UTC. Development: 5 executions, 7 observed nodes.
-- `nodeCount` is the environment-scoped union of ingested node names—not a static/source topology.
-  GSTPilot emits the `pipeline` root plus wrapped LLM generations. Uninstrumented/unexecuted
-  deterministic branches are absent; the first root-only production request was not backfilled.
-- Next topology proof: declared startup manifest + declared/dev/prod/unseen coverage, explicit spans
-  for deterministic nodes, and UI wording “observed nodes.”
-
-## Immediate risks / next decisions
-1. **Rotate the exposed GSTPilot production key:** replacement is verified in GSTPilot's git-ignored
-   `.env` and clipboard. Replace Render `BLINDSPOT_API_KEY`, deploy, verify one safe request, then
-   revoke the old key. The old Render API token returns HTTP 400; never print either credential.
-2. Align signup-first Supabase Auth, organizations and scoped/expiring human vs application keys
-   before implementing broader beta identity.
-3. Build declared-vs-observed topology/coverage and instrument GSTPilot deterministic nodes.
-4. Add gateway cold-start retry/error UX, then Phase 8 durability/monitoring before production traffic.
-
-## Verification at this checkpoint
-- PASS: `pnpm typecheck`, `pnpm test:auth-origin`, `pnpm test:eval-plan`, `pnpm build`.
-- PASS: Mermaid 9/9 + rebuilt viewer; Markdown local links 13/13; 23-file secret scan; token cost 0.
-- Loop remains `off`; no paid eval ran. Documentation-only change; no runtime feature/FMEA delta.
+## Next steps
+Root reviews the unexecuted exact-image helper, packages/scans frozen source and deploys gateway then web.
+No new paid Blindspot request is authorized by this workstream; retain old receipts and existing live configuration/credentials/mounts.
+Loop remains off; standing paid consent and unrelated FMEA triggers are unchanged. No commits by the review worker.

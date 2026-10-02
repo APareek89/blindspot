@@ -1,0 +1,2 @@
+{"status":"passed","checks":23,"real_provider_calls":0,"actual_sdk":"AI4 text+structured OpenAI","compression":"actual loopback gzip decoded/capped"}
+$ tsx scripts/test-providers.ts

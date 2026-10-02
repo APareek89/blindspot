@@ -49,15 +49,15 @@
       "context_sources": {
         "prd_path": "Blindspot-PRD.md",
         "architecture_doc": "docs/ARCHITECTURE_FLOW.md",
-        "known_incidents": null,
-        "infra_constraints": null
+        "known_incidents": "Learning.MD",
+        "infra_constraints": "docs/qa/2026-10-02/REPORT.md"
       },
       "output": {
         "format": "markdown_table",
         "include_rpn": true,
         "include_recommended_actions": true,
         "include_priority_badges": true,
-        "max_failure_modes": 25,
+        "max_failure_modes": 112,
         "sort_by": "rpn_desc"
       }
     },

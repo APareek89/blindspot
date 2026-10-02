@@ -5,6 +5,15 @@ import { boundedProviderFetch } from "./transport";
 export type CallKind = "chat" | "judge" | "golden";
 export type CallScope = { kind: CallKind; modelRef: string; input: unknown; maxOutputTokens: number; shared?: boolean };
 export type Usage = { inputTokens: number; outputTokens: number; cachedInputTokens: number };
+/** Safe metadata only: provider bodies, headers and credentials are never carried. */
+export class ProviderDispatchError extends Error {
+  constructor(message: string, public readonly dispatched: boolean, public readonly costCents: number | null) {
+    super(message); this.name = "ProviderDispatchError";
+  }
+}
+function knownUsageCost(usage: Usage | null, price: { input: number; output: number; cachedInput?: number }): number | null {
+  return usage ? ((usage.inputTokens - usage.cachedInputTokens) * price.input + usage.cachedInputTokens * (price.cachedInput ?? price.input) + usage.outputTokens * price.output) / 10000 : null;
+}
 const integer = (v: unknown): v is number => Number.isSafeInteger(v) && Number(v) >= 0;
 export function responseUsage(value: unknown): Usage | null {
   if (!value || typeof value !== "object") return null;
@@ -58,6 +67,7 @@ export async function meteredCall<T>(scope: CallScope, call: (transport: typeof 
   } catch {
     if (id && !settled) await failDispatch(id, { dispatched });
     // Provider error objects can include request headers, keys or full prompts.
-    throw new Error(dispatched ? "Provider request failed; no automatic retry was attempted" : "Provider request was not dispatched");
+    const knownCost = knownUsageCost(usage, price);
+    throw new ProviderDispatchError(dispatched ? "Provider request failed; no automatic retry was attempted" : "Provider request was not dispatched", dispatched, dispatched ? knownCost : 0);
   }
 }

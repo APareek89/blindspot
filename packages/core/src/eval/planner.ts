@@ -508,7 +508,7 @@ export async function runAuthorizedEvalPlan(
     );
     await getDb()
       .update(evalPlans)
-      .set({ status: "failed", completedAt: new Date(), actualCostCents, failureReason: message })
+      .set({ status: "failed", completedAt: new Date(), actualCostCents: observedRuns.some(run => run.actualCostCents === null) ? null : actualCostCents, failureReason: message })
       .where(eq(evalPlans.id, planId));
     throw error;
   }

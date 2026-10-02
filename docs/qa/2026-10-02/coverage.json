@@ -1,0 +1,13 @@
+{
+  "scenarios": 112,
+  "categories": 12,
+  "statuses": {
+    "fixed": 24,
+    "residual": 2,
+    "source_checked": 34,
+    "unverified": 1,
+    "verified": 51
+  },
+  "paid_calls_this_task": 0,
+  "scope": "Code, API, actual SDK proxies, isolated database and UI; source checks are not runtime passes"
+}

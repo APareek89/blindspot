@@ -4,7 +4,8 @@ import { createGroq } from "@ai-sdk/groq";
 import { createOpenAI } from "@ai-sdk/openai";
 import { generateText, generateObject } from "ai";
 import type { z } from "zod";
-import { meteredCall } from "./metering";
+import { meteredCall, ProviderDispatchError } from "./metering";
+export { ProviderDispatchError } from "./metering";
 import { providerTimeoutSignal, providerMockMode } from "./transport";
 export { providerTimeoutSignal } from "./transport";
 import type { ChatMessage, Provider } from "@blindspot/shared";
@@ -75,6 +76,7 @@ function buildModel(ref: ModelRef, apiKey: string, transport: typeof fetch) {
 
 export interface RunResult {
   text: string;
+  finishReason?: string;
   promptTokens: number;
   completionTokens: number;
   latencyMs: number;
@@ -93,7 +95,8 @@ export async function runChat(opts: {
   const { result, usage } = await meteredCall({ kind: "chat", modelRef: opts.modelRef, input: opts.messages, maxOutputTokens: maxTokens, shared: opts.shared }, transport =>
     generateText({ model: buildModel(parseModelRef(opts.modelRef), opts.apiKey, transport), messages: opts.messages,
       temperature: opts.temperature, maxTokens, maxRetries: 0, maxSteps: 1, abortSignal: providerTimeoutSignal() }));
-  return { text: result.text, promptTokens: usage.inputTokens, completionTokens: usage.outputTokens,
+  if (!result.text.trim()) throw new ProviderDispatchError("Provider returned no text; review usage before retrying", true, estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens));
+  return { text: result.text, finishReason: result.finishReason, promptTokens: usage.inputTokens, completionTokens: usage.outputTokens,
     latencyMs: Date.now() - started, costCents: estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens) };
 }
 
@@ -106,6 +109,7 @@ export async function runStructured<T>(opts: {
     input: { prompt: opts.prompt, schemaDescription: "structured JSON output" }, maxOutputTokens: opts.maxTokens, shared: opts.shared }, transport =>
     generateObject({ model: buildModel(parseModelRef(opts.modelRef), opts.apiKey, transport), schema: opts.schema,
       prompt: opts.prompt, maxTokens: opts.maxTokens, maxRetries: 0, abortSignal: providerTimeoutSignal() }));
+  if (result.finishReason !== "stop") throw new ProviderDispatchError("Provider returned incomplete structured output; review usage before retrying", true, estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens));
   return { object: result.object, promptTokens: usage.inputTokens, completionTokens: usage.outputTokens,
     costCents: estimateCostCents(opts.modelRef, usage.inputTokens, usage.outputTokens, usage.cachedInputTokens) };
 }

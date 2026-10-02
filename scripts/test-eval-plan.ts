@@ -9,6 +9,7 @@ import {
   evalPlans,
   evalRuns,
   getDb,
+  goldenExamples,
   modelRegistry,
   projects,
   recommendations,
@@ -40,6 +41,7 @@ import {
   type EvalRuntime,
 } from "@blindspot/core";
 import { Blindspot } from "@blindspot/sdk";
+import { ProviderDispatchError } from "@blindspot/providers";
 import { BetaFeedbackInputSchema, loadRootEnv, ModelCapabilitiesSchema } from "@blindspot/shared";
 import { isSameOrigin, isSameOriginNavigation } from "../apps/dashboard/lib/request-origin";
 
@@ -473,6 +475,14 @@ async function main() {
       "a project-owned trace must still match the target golden set's route",
     );
 
+    for (const input of [{ unavailable: true, reason: "metadata capture" }, { captureMode: "metadata", unavailable: true }]) {
+      const metadataTrace = (await db.insert(traces).values({routeId: route.id, model: SONNET, input, output: null}).returning())[0]!;
+      const before = await db.select().from(goldenExamples).where(eq(goldenExamples.goldenSetId, goldenSet.id));
+      await assert.rejects(promoteTrace({ goldenSetId: goldenSet.id, traceId: metadataTrace.id }), /input was not retained/);
+      const after = await db.select().from(goldenExamples).where(eq(goldenExamples.goldenSetId, goldenSet.id));
+      assert.deepEqual(after, before, "metadata promotion must not insert or alter an example");
+    }
+
     // Legacy aggregate-only runs have no immutable plan or per-example evidence. They must
     // never be enough to create an approval, even if their aggregate scores look plausible.
     await db.insert(evalRuns).values([
@@ -555,12 +565,23 @@ async function main() {
       budgetUsd: 1,
       executionMode: "workflow_replay",
     });
+    const configuredJudge = process.env.JUDGE_MODEL;
+    process.env.JUDGE_MODEL = "openai:gpt-4o";
+    const frozenJudgeRuntime: EvalRuntime = {
+      ...runtime,
+      async judge(opts) {
+        assert.equal(opts.modelRef, candidateOnly.judgeModel, "execution must use the disclosed judge even after an environment change");
+        return runtime.judge(opts);
+      },
+    };
     const candidateOnlyResult = await runAuthorizedEvalPlan(
       project.id,
       candidateOnly.id,
       true,
-      runtime,
+      frozenJudgeRuntime,
     );
+    if (configuredJudge === undefined) delete process.env.JUDGE_MODEL;
+    else process.env.JUDGE_MODEL = configuredJudge;
     assert.equal(
       candidateOnlyResult.recommendation,
       null,
@@ -596,6 +617,68 @@ async function main() {
       .from(recommendations)
       .where(eq(recommendations.routeId, route.id));
     assert.equal(recRows.length, 1);
+
+    const incompletePlan = await createEvalPlan(project.id, route.name, {
+      modelRefs: [HAIKU], budgetUsd: 1, executionMode: "model_only",
+    });
+    let skippedJudgeCalls = 0;
+    await assert.rejects(runAuthorizedEvalPlan(project.id, incompletePlan.id, true, {
+      async runCandidate() { return { text: "Cut off in the middle", finishReason: "length", promptTokens: 20, completionTokens: 384, latencyMs: 1, costCents: 0.001 }; },
+      async judge(opts) { skippedJudgeCalls++; return runtime.judge(opts); },
+    }), /all eval examples failed/);
+    assert.equal(skippedJudgeCalls, 0, "truncated candidates must not incur judge calls");
+    const incompleteRun = (await db.select().from(evalRuns).where(eq(evalRuns.planId, incompletePlan.id)))[0]!;
+    assert.equal(incompleteRun.status, "failed");
+    assert.equal(incompleteRun.examplesScored, 0);
+    assert.equal(incompleteRun.actualCostCents, incompletePlan.disclosure.selectedExampleIds.length * 0.001);
+    const incompleteEvidence = await db.select().from(evalExampleResults).where(eq(evalExampleResults.evalRunId, incompleteRun.id));
+    assert.ok(incompleteEvidence.every(row => row.score === null && row.candidateOutput === "Cut off in the middle" && row.judgeCostCents === 0));
+    await assert.rejects(runAuthorizedEvalPlan(project.id, incompletePlan.id, true, runtime), /already failed/);
+
+    const uncertainPlan = await createEvalPlan(project.id, route.name, {
+      modelRefs: [HAIKU], budgetUsd: 1, executionMode: "model_only",
+    });
+    let uncertainDispatches = 0;
+    await assert.rejects(runAuthorizedEvalPlan(project.id, uncertainPlan.id, true, {
+      async runCandidate() { uncertainDispatches++; throw new ProviderDispatchError("Provider connection ended; usage unconfirmed", true, null); },
+      async judge(opts) { return runtime.judge(opts); },
+    }), /usage unconfirmed/);
+    assert.equal(uncertainDispatches, 1, "unknown spend stops the remaining plan");
+    const uncertainRun = (await db.select().from(evalRuns).where(eq(evalRuns.planId, uncertainPlan.id)))[0]!;
+    const uncertainRows = await db.select().from(evalExampleResults).where(eq(evalExampleResults.evalRunId, uncertainRun.id));
+    assert.equal(uncertainRows.length, 1);
+    assert.equal(uncertainRows[0]!.candidateCostCents, null, "unknown cost must remain unknown");
+    assert.equal(uncertainRun.status, "failed");
+    assert.equal(uncertainRun.actualCostCents, null);
+    assert.equal((await db.select().from(evalPlans).where(eq(evalPlans.id, uncertainPlan.id)))[0]!.actualCostCents, null);
+
+    const uncertainJudgePlan = await createEvalPlan(project.id, route.name, {
+      modelRefs: [HAIKU], budgetUsd: 1, executionMode: "model_only",
+    });
+    let uncertainJudgeDispatches = 0;
+    await assert.rejects(runAuthorizedEvalPlan(project.id, uncertainJudgePlan.id, true, {
+      async runCandidate() { return { text: "Completed candidate", finishReason: "stop", promptTokens: 20, completionTokens: 5, latencyMs: 1, costCents: 0.001 }; },
+      async judge() { uncertainJudgeDispatches++; throw new ProviderDispatchError("Judge connection ended; usage unconfirmed", true, null); },
+    }), /usage unconfirmed/);
+    assert.equal(uncertainJudgeDispatches, 1);
+    const uncertainJudgeRun = (await db.select().from(evalRuns).where(eq(evalRuns.planId, uncertainJudgePlan.id)))[0]!;
+    assert.equal(uncertainJudgeRun.actualCostCents, null);
+    assert.equal((await db.select().from(evalPlans).where(eq(evalPlans.id, uncertainJudgePlan.id)))[0]!.actualCostCents, null);
+    const uncertainJudgeRows = await db.select().from(evalExampleResults).where(eq(evalExampleResults.evalRunId, uncertainJudgeRun.id));
+    assert.equal(uncertainJudgeRows[0]!.candidateCostCents, 0.001);
+    assert.equal(uncertainJudgeRows[0]!.judgeCostCents, null);
+
+    const malformedJudgePlan = await createEvalPlan(project.id, route.name, {
+      modelRefs: [HAIKU], budgetUsd: 1, executionMode: "model_only",
+    });
+    await assert.rejects(runAuthorizedEvalPlan(project.id, malformedJudgePlan.id, true, {
+      async runCandidate() { return { text: "Completed candidate", finishReason: "stop", promptTokens: 20, completionTokens: 5, latencyMs: 1, costCents: 0.001 }; },
+      async judge() { throw new ProviderDispatchError("Known billed malformed judge output", true, 0.002); },
+    }), /all eval examples failed/);
+    const malformedJudgeRun = (await db.select().from(evalRuns).where(eq(evalRuns.planId, malformedJudgePlan.id)))[0]!;
+    assert.ok(Math.abs(malformedJudgeRun.actualCostCents! - malformedJudgePlan.disclosure.selectedExampleIds.length * 0.003) < 1e-9);
+    const malformedJudgeRows = await db.select().from(evalExampleResults).where(eq(evalExampleResults.evalRunId, malformedJudgeRun.id));
+    assert.ok(malformedJudgeRows.every(row => row.candidateCostCents === 0.001 && row.judgeCostCents === 0.002 && row.score === null));
 
     await db.update(routes).set({ liveModel: HAIKU }).where(eq(routes.id, route.id));
     await assert.rejects(

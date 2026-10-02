@@ -1,0 +1,80 @@
+{
+  "status": "reviewed_no_remaining_blocker_in_scoped_paths",
+  "scope": "Independent bounded source review, actual isolated PG and compiled normal Auth/Server Actions; not live provider quality validation",
+  "buildId": "-3KPk0aAqjUjmx5FF6lQX",
+  "resolvedFindings": [
+    {
+      "finding": "Unknown dispatched provider cost was represented as a numeric run subtotal",
+      "resolution": "Run cost now null when dispatched cost is unknown; failed plan preserves null aggregate; root owns added candidate/judge contracts"
+    },
+    {
+      "finding": "Asynchronous context-file read could leave Review/Publish enabled for prior content",
+      "resolution": "Both read flags and file errors now block review/publish; version checks and edits cancel stale reads"
+    }
+  ],
+  "tests": {
+    "database": {
+      "status": "passed",
+      "checks": 19,
+      "receipt": "database-contracts.json"
+    },
+    "compiledHttp": {
+      "status": "passed",
+      "checks": 26,
+      "requests": 46,
+      "receipt": "auth-http.json"
+    },
+    "providerCalls": 0
+  },
+  "normalPreviewSeed": {
+    "receipt": "preview-golden-route.json",
+    "auth": "normal Auth.js and compiled key actions",
+    "sdk": "actual SDK observeGeneration with local authored constant callback",
+    "providerCalls": 0,
+    "mintedKeysRevoked": true
+  },
+  "files": [
+    {
+      "path": "packages/core/src/eval/runner.ts",
+      "sha256": "b7d1c96b167e3cf5bc7340f7378785351165dd3ac406b25bf8259ed7de91b656"
+    },
+    {
+      "path": "packages/core/src/eval/planner.ts",
+      "sha256": "47385d8df59e548eedfbe2ff1f365e87fd48bcc7168dc2fcdf9ccc9ba386442d"
+    },
+    {
+      "path": "packages/core/src/eval/judge.ts",
+      "sha256": "d9c2c0516b5c4a599123e7551ec69b9a6c9007f99cf86d62b068f0f56f36a27d"
+    },
+    {
+      "path": "packages/core/src/golden/agent.ts",
+      "sha256": "6bcf508d4dbe365ec89a460a5114d14e5537d7185c49213377888dfb620534fd"
+    },
+    {
+      "path": "packages/core/src/golden/upload.ts",
+      "sha256": "6906571c6d1227bc1f9cb8aa83ce6e09b7ba891632cc4f5725680623f8562860"
+    },
+    {
+      "path": "packages/providers/src/index.ts",
+      "sha256": "3406f3a271179abf7ee340f4a5d0c7bf6250a21b036fec0ab1cbc96e08897f93"
+    },
+    {
+      "path": "packages/providers/src/metering.ts",
+      "sha256": "70e802025a670ec0df8e70d00f975755e8b33ac362680e01e68a8b6e043490f9"
+    },
+    {
+      "path": "packages/shared/src/schemas.ts",
+      "sha256": "37d94f95f0c7b2a06374fbef5c26eb48fb16f8222e055685e5600562b0a9d62b"
+    },
+    {
+      "path": "apps/gateway/src/index.ts",
+      "sha256": "0e2d50abbcdbf943e65bf982b69291765755c831c23400f63cd059d307584d30"
+    },
+    {
+      "path": "apps/dashboard/app/(app)/golden-sets/[route]/GoldenManager.tsx",
+      "sha256": "803d4d445d21835a57b7cc17b91b681bc2c820809d58f3d8b4c6b2004a487d82"
+    }
+  ],
+  "runtimeEditsByReviewer": false,
+  "historicalReceiptsPreserved": true
+}

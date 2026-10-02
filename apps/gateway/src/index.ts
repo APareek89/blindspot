@@ -167,7 +167,7 @@ app.post("/v1/chat/completions", async (c) => {
     created: Math.floor(Date.now() / 1000),
     model: modelRef,
     choices: [
-      { index: 0, message: { role: "assistant", content: result.text }, finish_reason: "stop" },
+      { index: 0, message: { role: "assistant", content: result.text }, finish_reason: result.finishReason === "content-filter" ? "content_filter" : result.finishReason ?? "stop" },
     ],
     usage: {
       prompt_tokens: result.promptTokens,

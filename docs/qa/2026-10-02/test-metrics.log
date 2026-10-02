@@ -1,0 +1,3 @@
+{"passed":true,"executions":{"current":3,"previous":1,"deltaPct":200},"feedbackScorePct":100}
+$ pnpm --filter @blindspot/sdk build && tsx scripts/test-metrics.ts
+$ tsc -p tsconfig.build.json

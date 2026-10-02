@@ -178,6 +178,11 @@ export async function promoteTrace(opts: {
 
 /** Pull a plain-text input from a trace's stored messages (jsonb). */
 function extractInput(raw: unknown): string {
+  if (raw && typeof raw === "object" && !Array.isArray(raw) &&
+      ((raw as { unavailable?: unknown }).unavailable === true ||
+       (raw as { captureMode?: unknown }).captureMode === "metadata")) {
+    throw new Error("Trace input was not retained; add a golden example manually or use a trace with captured input");
+  }
   if (typeof raw === "string") return raw;
   if (Array.isArray(raw)) {
     const msgs = raw as Array<{ role?: string; content?: unknown }>;

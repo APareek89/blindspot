@@ -4,15 +4,14 @@ import { boundedAction, GOLDEN_FILE_BYTES, validDraftCount } from "@/lib/client-
 import { useOwnerGuard } from "@/components/AccountShell";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { Empty, LabelBadge, OriginBadge } from "@/components/ui";
 import { relTime } from "@/lib/format";
 import type { GoldenExample, GoldenSet, RouteWorkflowContext, Trace } from "@/lib/types";
 import { addEx, delEx, editEx, promote, seedGenerate, seedUpload } from "./actions";
 
 function visibleInput(input: string): string {
-  const marker = input.toLowerCase().lastIndexOf("question:");
-  return marker >= 0 ? input.slice(marker + "question:".length).trim() : input;
+  return input;
 }
 
 export function GoldenManager({
@@ -91,6 +90,7 @@ export function GoldenManager({
           pending={pending}
           run={run}
           workflowContext={workflowContext}
+          clearError={() => setError(null)}
           empty
         />
       ) : (
@@ -177,6 +177,7 @@ export function GoldenManager({
               pending={pending}
               run={run}
               workflowContext={workflowContext}
+              clearError={() => setError(null)}
             />
           </div>
           <div style={{ marginTop: 14 }}>
@@ -211,12 +212,14 @@ function SeedPanel({
   pending,
   run,
   workflowContext,
+  clearError,
   empty,
 }: {
   route: string;
   pending: boolean;
   run: Run;
   workflowContext: RouteWorkflowContext | null;
+  clearError: () => void;
   empty?: boolean;
 }) {
   const guard = useOwnerGuard();
@@ -236,6 +239,10 @@ function SeedPanel({
   const [contextFiles, setContextFiles] = useState<string[]>([]);
   const [consent, setConsent] = useState(false);
   const [fileError, setFileError] = useState<string | null>(null);
+  const [readingDataset, setReadingDataset] = useState(false);
+  const [readingContext, setReadingContext] = useState(false);
+  const datasetRead = useRef(0);
+  const contextRead = useRef(0);
 
   const connected = workflowContext?.context ?? null;
   const connectedContext = () => {
@@ -257,6 +264,11 @@ function SeedPanel({
   };
 
   const chooseSource = (next: Source) => {
+    clearError();
+    datasetRead.current++;
+    contextRead.current++;
+    setReadingDataset(false);
+    setReadingContext(false);
     setSource(next);
     setConsent(false);
     setFileError(null);
@@ -271,6 +283,9 @@ function SeedPanel({
   };
 
   const readDataset = async (file: File | undefined) => {
+    clearError();
+    const version = ++datasetRead.current;
+    setReadingDataset(false);
     if (!file) return;
     const ticket = guard.capture();
     if (file.size > GOLDEN_FILE_BYTES) {
@@ -285,32 +300,51 @@ function SeedPanel({
     setData("");
     setFormat(nextFormat);
     setFileName(file.name);
-    try { const text = await guard.read(() => file.text()); if (text !== null && guard.current(ticket)) setData(text); }
-    catch { if (guard.current(ticket)) setFileError("The file could not be read."); }
+    setReadingDataset(true);
+    try { const text = await guard.read(() => file.text()); if (text !== null && guard.current(ticket) && version === datasetRead.current) setData(text); }
+    catch { if (guard.current(ticket) && version === datasetRead.current) setFileError("The file could not be read."); }
+    finally { if (version === datasetRead.current) setReadingDataset(false); }
   };
 
   const readContextDocuments = async (files: FileList | null) => {
+    const version = ++contextRead.current;
+    setReadingContext(false);
+    setConsent(false);
     if (!files) return;
     const ticket = guard.capture();
     setFileError(null);
-    const selected = [...files].slice(0, 10);
+    const selected = [...files];
+    if (selected.length > 10 || selected.some(file => file.size > 50_000)) {
+      setFileError("Choose at most 10 documents, each at most 50 KB. No new document was loaded.");
+      return;
+    }
     let contents: string[];
+    setReadingContext(true);
     try { const read = await guard.read(() => Promise.all(
-      selected.map(async (file) => `# ${file.name}\n${await file.slice(0, 50_000).text()}`),
+      selected.map(async (file) => `# ${file.name}\n${await file.text()}`),
     ));
     if (read === null) return; contents = read;
-    } catch { if (guard.current(ticket)) setFileError("The files could not be read."); return; }
-    if (!guard.current(ticket)) return;
+    } catch { if (guard.current(ticket) && version === contextRead.current) setFileError("The files could not be read."); return; }
+    finally { if (version === contextRead.current) setReadingContext(false); }
+    if (!guard.current(ticket) || version !== contextRead.current) return;
+    if (contents.join("\n\n").length > 50_000) {
+      setFileError("Combined document content exceeds 50,000 characters. Reduce the selection; no new document was loaded.");
+      return;
+    }
     setContextFiles(selected.map((file) => file.name));
-    setProductBrief(contents.join("\n\n").slice(0, 50_000));
+    setProductBrief(contents.join("\n\n"));
     setConsent(false);
   };
 
-  const readyForReview =
-    source === "upload" ? Boolean(data.trim()) : validDraftCount(count) && Boolean(task.trim() || productBrief.trim());
+  const readingFile = readingDataset || readingContext;
+  const readyForReview = !readingFile && !fileError && (
+    source === "upload" ? Boolean(data.trim()) : validDraftCount(count) && Boolean(task.trim() || productBrief.trim()));
   const needsConsent = source === "connected" || source === "live" || contextFiles.length > 0;
 
   const publish = () => {
+    if (readingFile || fileError) return;
+    datasetRead.current++;
+    contextRead.current++;
     if (source !== "upload" && !validDraftCount(count)) { setFileError("Choose a whole number from 1 to 20 draft examples."); return; }
     if (source === "upload") {
       run(() => guard.run((ownerId) => boundedAction([route, format, data, ownerId], () => seedUpload(route, format, data, ownerId))), () => {
@@ -365,7 +399,7 @@ function SeedPanel({
         <div className="grid cols-2">
           <button className="card" style={{ textAlign: "left" }} onClick={() => chooseSource("upload")}>
             <div className="card-title">Upload a dataset</div>
-            <div className="card-sub">CSV, JSON or JSONL with input, expected output, rubric and label.</div>
+            <div className="card-sub">CSV, JSON or JSONL with input, reference_output (or expected), rubric and label.</div>
           </button>
           <button className="card" style={{ textAlign: "left" }} onClick={() => chooseSource("agent")}>
             <div className="card-title">Generate from documents</div>
@@ -392,14 +426,16 @@ function SeedPanel({
             {fileError && <div className="alert danger" style={{ marginTop: 8 }}>{fileError}</div>}
           </div>
           <div className="row wrap" style={{ gap: 8 }}>
-            <select aria-label="Dataset format" className="select" value={format} onChange={(event) => setFormat(event.target.value as Format)}>
+            <select aria-label="Dataset format" className="select" value={format} onChange={(event) => { clearError(); datasetRead.current++; setReadingDataset(false); setFormat(event.target.value as Format); }}>
               <option value="csv">CSV</option>
               <option value="json">JSON</option>
               <option value="jsonl">JSONL</option>
             </select>
             <span className="hint" style={{ marginTop: 0 }}>{fileName || "You can also paste the file contents below."}</span>
           </div>
-          <textarea aria-label="Golden-set data" className="textarea mono" value={data} onChange={(event) => setData(event.target.value)} />
+          <div className="hint">JSONL example (one object per line); label is pass, fail or unlabeled. Unknown fields are rejected.</div>
+          <pre className="mono small" style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{'{"input":"What is the monthly price?","reference_output":"$20 per month.","rubric":"Correct amount and billing period","label":"pass"}'}</pre>
+          <textarea aria-label="Golden-set data" className="textarea mono" value={data} onChange={(event) => { clearError(); datasetRead.current++; setReadingDataset(false); setFileError(null); setData(event.target.value); }} />
         </div>
       )}
 
@@ -421,7 +457,7 @@ function SeedPanel({
             <details open={source === "connected"}>
               <summary style={{ cursor: "pointer", fontWeight: 550 }}>Review shared context</summary>
               <div className="stack" style={{ gap: 8, marginTop: 8 }}>
-                <textarea aria-label="Product brief" className="textarea" placeholder="Product brief" value={productBrief} onChange={(event) => setProductBrief(event.target.value)} />
+                <textarea aria-label="Product brief" className="textarea" placeholder="Product brief" value={productBrief} onChange={(event) => { contextRead.current++; setReadingContext(false); setFileError(null); setProductBrief(event.target.value); setConsent(false); }} />
                 <textarea aria-label="System prompt" className="textarea mono" placeholder="System prompt" value={systemPrompt} onChange={(event) => setSystemPrompt(event.target.value)} />
                 <textarea aria-label="Architecture" className="textarea" placeholder="Architecture" value={architecture} onChange={(event) => setArchitecture(event.target.value)} />
               </div>
@@ -442,7 +478,7 @@ function SeedPanel({
       {step === 2 && (
         <div className="row between wrap" style={{ marginTop: 16 }}>
           <button className="btn" onClick={() => setStep(1)}>Back</button>
-          <button className="btn primary" disabled={!readyForReview} onClick={() => setStep(3)}>Review before publishing →</button>
+          <button className="btn primary" disabled={!readyForReview} onClick={() => setStep(3)}>{readingFile ? "Reading selected files…" : "Review before publishing →"}</button>
         </div>
       )}
 
@@ -471,7 +507,7 @@ function SeedPanel({
           )}
           <div className="row between wrap" style={{ marginTop: 16 }}>
             <button className="btn" onClick={() => setStep(2)}>Back</button>
-            <button className="btn primary" disabled={pending || (needsConsent && !consent)} onClick={publish}>
+            <button className="btn primary" disabled={pending || !readyForReview || (needsConsent && !consent)} onClick={publish}>
               {pending ? "Publishing…" : source === "upload" ? "Validate & publish" : "Generate & publish"}
             </button>
           </div>
@@ -581,7 +617,10 @@ function PromoteTracePanel({
       ) : (
         <div className="stack" style={{ gap: 0 }}>
           {traces.slice(0, 8).map((t) => {
-            const preview =
+            const unavailable = Boolean(t.input && typeof t.input === "object" && !Array.isArray(t.input) &&
+              ((t.input as { unavailable?: unknown }).unavailable === true ||
+               (t.input as { captureMode?: unknown }).captureMode === "metadata"));
+            const preview = unavailable ? "Input was not retained" :
               Array.isArray(t.input) && t.input.length
                 ? String((t.input[t.input.length - 1] as { content?: unknown })?.content ?? "")
                 : JSON.stringify(t.input);
@@ -592,7 +631,8 @@ function PromoteTracePanel({
                 </div>
                 <button
                   className="btn sm"
-                  disabled={pending || !setId}
+                  disabled={pending || !setId || unavailable}
+                  title={unavailable ? "Metadata-only traces cannot become golden prompts. Add an example manually." : undefined}
                   onClick={() => setId && run(() => guard.run((ownerId) => boundedAction([route, setId, t.id, ownerId], () => promote(route, setId, t.id, ownerId))))}
                 >
                   Promote

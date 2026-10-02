@@ -386,7 +386,7 @@ export const ROUTE_PREFIX = "route:";
 
 /** One golden example (PRD §7) — the unit that defines "good" for a route. */
 export const GoldenExampleInputSchema = z.object({
-  input: z.string().min(1),
+  input: z.string().min(1).refine((value) => value.trim().length > 0, "Example input cannot be blank"),
   referenceOutput: z.string().nullish(),
   rubric: z.string().nullish(),
   label: z.enum(["pass", "fail", "unlabeled"]).default("unlabeled"),
@@ -405,9 +405,9 @@ export type GoldenGenerateInput = z.infer<typeof GoldenGenerateInputSchema>;
 
 /** What the Golden Set Agent must return per generated example. */
 export const GeneratedGoldenSchema = z.object({
-  input: z.string().min(1),
-  referenceOutput: z.string().min(1),
-  rubric: z.string().min(1),
+  input: z.string().trim().min(1),
+  referenceOutput: z.string().trim().min(1),
+  rubric: z.string().trim().min(1),
 });
 export type GeneratedGolden = z.infer<typeof GeneratedGoldenSchema>;
 
@@ -440,7 +440,7 @@ export type ProviderKeyInput = z.infer<typeof ProviderKeyInputSchema>;
 
 /** Partial edit to a golden example (curate step, PRD §7). */
 export const GoldenExamplePatchSchema = z.object({
-  input: z.string().min(1).optional(),
+  input: z.string().min(1).refine((value) => value.trim().length > 0, "Example input cannot be blank").optional(),
   referenceOutput: z.string().nullable().optional(),
   rubric: z.string().nullable().optional(),
   label: z.enum(["pass", "fail", "unlabeled"]).optional(),

@@ -13,25 +13,39 @@ process.env.BLINDSPOT_AUTH_ENABLED = "0";
 process.env.NODE_ENV = "test";
 const nativeFetch = globalThis.fetch;
 let calls: Request[] = []; let mode = "chat"; let body: any;
+let finishReason = "stop";
 const answer = (content: string) => ({ id: "chatcmpl-fixture", object: "chat.completion", created: 1, model: "gpt-4o-mini",
-  choices: [{ index:0,message:{role:"assistant",content},finish_reason:"stop" }],
+  choices: [{ index:0,message:{role:"assistant",content},finish_reason:finishReason }],
   usage:{prompt_tokens:20,completion_tokens:4,prompt_tokens_details:{cached_tokens:5}} });
 globalThis.fetch = async (input, init) => {
   const request = new Request(input, init); calls.push(request); body = request.method === "POST" ? await request.clone().json() : undefined;
   assert.equal(new URL(request.url).hostname,"api.openai.com"); assert.equal(init?.redirect,"error");
   if (mode === "catalog") return Response.json({data:[{id:"gpt-4o-mini"},{id:"gpt-4o"},{id:"unpriced"}]});
   if (mode === "failure") return Response.json({error:{message:"private error must not escape"}},{status:429});
-  return Response.json(answer(mode === "object" ? '{"score":0.9}' : mode === "invalid" ? 'not JSON' : 'fixture answer'));
+  return Response.json(answer(mode === "object" ? '{"score":0.9}' : mode === "invalid" ? 'not JSON' : mode === "empty" ? '  ' : 'fixture answer'));
 };
 let checks = 0;
 try {
   const result = await runChat({modelRef:"openai:gpt-4o-mini",apiKey:"fixture",messages:[{role:"user",content:"fixture prompt"}],maxTokens:64,temperature:0});
   assert.equal(calls.length,1);assert.equal(result.promptTokens,20);assert.equal(result.completionTokens,4);
   assert.equal(body.max_tokens,64);assert.equal(body.temperature,0);assert.equal(body.stream,undefined);
+  assert.equal(result.finishReason,"stop");
   assert.ok(Math.abs(result.costCents! - 0.0005025)<1e-10);checks++;
+  for (const reason of ["length", "content_filter"]) {
+    calls=[]; finishReason=reason;
+    const incomplete=await runChat({modelRef:"openai:gpt-4o-mini",apiKey:"fixture",messages:[{role:"user",content:"fixture prompt"}],maxTokens:64});
+    assert.equal(incomplete.finishReason,reason==="content_filter"?"content-filter":reason);assert.equal(calls.length,1);checks++;
+  }
+  calls=[];finishReason="stop";mode="empty";
+  await assert.rejects(runChat({modelRef:"openai:gpt-4o-mini",apiKey:"fixture",messages:[{role:"user",content:"fixture"}]}),/no text/);assert.equal(calls.length,1);checks++;
   calls=[];mode="object";
   const structured=await runStructured({kind:"judge",modelRef:"openai:gpt-4o-mini",apiKey:"fixture",prompt:"grade synthetic",schema:z.object({score:z.number()}),maxTokens:128,mockValue:()=>({score:0.9})});
   assert.equal(structured.object.score,0.9);assert.equal(calls.length,1);assert.equal(body.response_format.type,"json_schema");checks++;
+  for (const reason of ["length", "content_filter"]) {
+    calls=[];finishReason=reason;
+    await assert.rejects(runStructured({kind:"judge",modelRef:"openai:gpt-4o-mini",apiKey:"fixture",prompt:"grade",schema:z.object({score:z.number()}),maxTokens:128,mockValue:()=>({score:0.9})}),/incomplete structured output|no automatic retry/);assert.equal(calls.length,1);checks++;
+  }
+  finishReason="stop";
   calls=[];mode="invalid";
   await assert.rejects(runStructured({kind:"judge",modelRef:"openai:gpt-4o-mini",apiKey:"fixture",prompt:"grade",schema:z.object({score:z.number()}),maxTokens:128,mockValue:()=>({score:0.9})}),/no automatic retry/);assert.equal(calls.length,1);checks++;
   calls=[];mode="failure";

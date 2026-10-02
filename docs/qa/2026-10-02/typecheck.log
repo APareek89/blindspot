@@ -1,0 +1,28 @@
+• turbo 2.10.5
+
+   • Packages in scope: @blindspot/core, @blindspot/dashboard, @blindspot/db, @blindspot/gateway, @blindspot/providers, @blindspot/sdk, @blindspot/shared, @blindspot/worker
+   • Running typecheck in 8 packages
+   • Remote caching disabled
+
+@blindspot/sdk:typecheck: cache hit, replaying logs faca122cfb8f655d
+@blindspot/shared:typecheck: cache hit, replaying logs fba21fa51aeab05c
+@blindspot/dashboard:typecheck: cache miss, executing af4db5113ed4a5b2
+@blindspot/db:typecheck: cache hit, replaying logs 43d1b796f9e205b7
+@blindspot/sdk:typecheck: $ tsc --noEmit
+@blindspot/shared:typecheck: $ tsc --noEmit
+@blindspot/db:typecheck: $ tsc --noEmit
+@blindspot/providers:typecheck: cache hit, replaying logs 7deab2f3456e643d
+@blindspot/providers:typecheck: $ tsc --noEmit
+@blindspot/sdk:build: cache hit, replaying logs 8cddc22ca16dd3f8
+@blindspot/sdk:build: $ tsc -p tsconfig.build.json
+@blindspot/core:typecheck: cache miss, executing 289bc193c61f4c15
+@blindspot/gateway:typecheck: cache miss, executing dd9e217d56a7ae8a
+@blindspot/worker:typecheck: cache miss, executing ed8fdec4c8b6b8a9
+@blindspot/dashboard:typecheck: $ tsc --noEmit
+@blindspot/worker:typecheck: $ tsc --noEmit
+@blindspot/gateway:typecheck: $ tsc --noEmit
+@blindspot/core:typecheck: $ tsc --noEmit
+
+ Tasks:    9 successful, 9 total
+Cached:    5 cached, 9 total
+  Time:    6.063s

@@ -1,0 +1,310 @@
+TAP version 13
+# Subtest: upload rejects empty JSON array
+ok 1 - upload rejects empty JSON array
+  ---
+  duration_ms: 0.604792
+  type: 'test'
+  ...
+# Subtest: upload rejects empty JSONL
+ok 2 - upload rejects empty JSONL
+  ---
+  duration_ms: 0.114875
+  type: 'test'
+  ...
+# Subtest: upload rejects header-only CSV
+ok 3 - upload rejects header-only CSV
+  ---
+  duration_ms: 1.186458
+  type: 'test'
+  ...
+# Subtest: upload rejects JSON object without examples
+ok 4 - upload rejects JSON object without examples
+  ---
+  duration_ms: 0.0405
+  type: 'test'
+  ...
+# Subtest: upload rejects null JSON
+ok 5 - upload rejects null JSON
+  ---
+  duration_ms: 0.04975
+  type: 'test'
+  ...
+# Subtest: upload rejects non-array examples
+ok 6 - upload rejects non-array examples
+  ---
+  duration_ms: 0.029791
+  type: 'test'
+  ...
+# Subtest: upload rejects bad JSON syntax
+ok 7 - upload rejects bad JSON syntax
+  ---
+  duration_ms: 0.087417
+  type: 'test'
+  ...
+# Subtest: upload rejects bad JSONL line
+ok 8 - upload rejects bad JSONL line
+  ---
+  duration_ms: 0.056667
+  type: 'test'
+  ...
+# Subtest: upload rejects blank input
+ok 9 - upload rejects blank input
+  ---
+  duration_ms: 0.743167
+  type: 'test'
+  ...
+# Subtest: upload rejects missing input
+ok 10 - upload rejects missing input
+  ---
+  duration_ms: 0.423417
+  type: 'test'
+  ...
+# Subtest: upload rejects numeric input
+ok 11 - upload rejects numeric input
+  ---
+  duration_ms: 0.077584
+  type: 'test'
+  ...
+# Subtest: upload rejects array input
+ok 12 - upload rejects array input
+  ---
+  duration_ms: 0.063084
+  type: 'test'
+  ...
+# Subtest: upload rejects invalid label
+ok 13 - upload rejects invalid label
+  ---
+  duration_ms: 0.115417
+  type: 'test'
+  ...
+# Subtest: upload rejects duplicate CSV headings
+ok 14 - upload rejects duplicate CSV headings
+  ---
+  duration_ms: 0.104084
+  type: 'test'
+  ...
+# Subtest: upload rejects CSV field-count mismatch
+ok 15 - upload rejects CSV field-count mismatch
+  ---
+  duration_ms: 0.237708
+  type: 'test'
+  ...
+# Subtest: upload rejects non-text payload without TypeError leakage
+ok 16 - upload rejects non-text payload without TypeError leakage
+  ---
+  duration_ms: 0.092125
+  type: 'test'
+  ...
+# Subtest: upload rejects unknown format
+ok 17 - upload rejects unknown format
+  ---
+  duration_ms: 0.030917
+  type: 'test'
+  ...
+# Subtest: UTF-8 bytes enforce upload limit
+ok 18 - UTF-8 bytes enforce upload limit
+  ---
+  duration_ms: 0.1835
+  type: 'test'
+  ...
+# Subtest: row count enforces upload limit
+ok 19 - row count enforces upload limit
+  ---
+  duration_ms: 0.100916
+  type: 'test'
+  ...
+# Subtest: csv accepts BOM and preserves Unicode
+ok 20 - csv accepts BOM and preserves Unicode
+  ---
+  duration_ms: 0.320292
+  type: 'test'
+  ...
+# Subtest: json accepts BOM and preserves Unicode
+ok 21 - json accepts BOM and preserves Unicode
+  ---
+  duration_ms: 0.241916
+  type: 'test'
+  ...
+# Subtest: jsonl accepts BOM and preserves Unicode
+ok 22 - jsonl accepts BOM and preserves Unicode
+  ---
+  duration_ms: 0.050625
+  type: 'test'
+  ...
+# Subtest: input indentation retained for code evaluations
+ok 23 - input indentation retained for code evaluations
+  ---
+  duration_ms: 0.039
+  type: 'test'
+  ...
+# Subtest: patch cannot erase input with whitespace
+ok 24 - patch cannot erase input with whitespace
+  ---
+  duration_ms: 0.049417
+  type: 'test'
+  ...
+# Subtest: generated example rejects whitespace-only rubric
+ok 25 - generated example rejects whitespace-only rubric
+  ---
+  duration_ms: 0.090791
+  type: 'test'
+  ...
+# Subtest: generation count rejects 0
+ok 26 - generation count rejects 0
+  ---
+  duration_ms: 0.118209
+  type: 'test'
+  ...
+# Subtest: generation count rejects 21
+ok 27 - generation count rejects 21
+  ---
+  duration_ms: 0.06625
+  type: 'test'
+  ...
+# Subtest: generation count rejects 1.5
+ok 28 - generation count rejects 1.5
+  ---
+  duration_ms: 0.090959
+  type: 'test'
+  ...
+# Subtest: generation count rejects "2"
+ok 29 - generation count rejects "2"
+  ---
+  duration_ms: 0.114417
+  type: 'test'
+  ...
+# Subtest: generation count rejects null
+ok 30 - generation count rejects null
+  ---
+  duration_ms: 0.027667
+  type: 'test'
+  ...
+# Subtest: live trace consent rejects truthy strings
+ok 31 - live trace consent rejects truthy strings
+  ---
+  duration_ms: 0.038
+  type: 'test'
+  ...
+# Subtest: eval confirmation requires literal true
+ok 32 - eval confirmation requires literal true
+  ---
+  duration_ms: 0.088959
+  type: 'test'
+  ...
+# Subtest: eval budget rejects 0
+ok 33 - eval budget rejects 0
+  ---
+  duration_ms: 0.107667
+  type: 'test'
+  ...
+# Subtest: eval budget rejects -1
+ok 34 - eval budget rejects -1
+  ---
+  duration_ms: 0.029833
+  type: 'test'
+  ...
+# Subtest: eval budget rejects 101
+ok 35 - eval budget rejects 101
+  ---
+  duration_ms: 0.032792
+  type: 'test'
+  ...
+# Subtest: eval budget rejects Infinity
+ok 36 - eval budget rejects Infinity
+  ---
+  duration_ms: 0.028625
+  type: 'test'
+  ...
+# Subtest: eval budget rejects NaN
+ok 37 - eval budget rejects NaN
+  ---
+  duration_ms: 0.024541
+  type: 'test'
+  ...
+# Subtest: eval budget rejects 1
+ok 38 - eval budget rejects 1
+  ---
+  duration_ms: 0.026375
+  type: 'test'
+  ...
+# Subtest: chat refuses empty message list
+ok 39 - chat refuses empty message list
+  ---
+  duration_ms: 0.054417
+  type: 'test'
+  ...
+# Subtest: chat refuses streaming rather than misreporting it
+ok 40 - chat refuses streaming rather than misreporting it
+  ---
+  duration_ms: 0.055542
+  type: 'test'
+  ...
+# Subtest: chat bounds output tokens
+ok 41 - chat bounds output tokens
+  ---
+  duration_ms: 0.107
+  type: 'test'
+  ...
+# Subtest: telemetry cannot ingest an empty batch
+ok 42 - telemetry cannot ingest an empty batch
+  ---
+  duration_ms: 0.036291
+  type: 'test'
+  ...
+# Subtest: context sharing requires explicit consent
+ok 43 - context sharing requires explicit consent
+  ---
+  duration_ms: 0.1065
+  type: 'test'
+  ...
+# Subtest: csv preserves expected reference alias
+ok 44 - csv preserves expected reference alias
+  ---
+  duration_ms: 0.136625
+  type: 'test'
+  ...
+# Subtest: json preserves expected reference alias
+ok 45 - json preserves expected reference alias
+  ---
+  duration_ms: 0.032959
+  type: 'test'
+  ...
+# Subtest: jsonl preserves expected reference alias
+ok 46 - jsonl preserves expected reference alias
+  ---
+  duration_ms: 0.028792
+  type: 'test'
+  ...
+# Subtest: upload rejects unknown output spelling rather than discarding it
+ok 47 - upload rejects unknown output spelling rather than discarding it
+  ---
+  duration_ms: 0.050334
+  type: 'test'
+  ...
+# Subtest: upload rejects conflicting reference aliases
+ok 48 - upload rejects conflicting reference aliases
+  ---
+  duration_ms: 0.045042
+  type: 'test'
+  ...
+# Subtest: upload accepts identical reference aliases
+ok 49 - upload accepts identical reference aliases
+  ---
+  duration_ms: 0.035458
+  type: 'test'
+  ...
+# Subtest: upload rejects primitive row before projection
+ok 50 - upload rejects primitive row before projection
+  ---
+  duration_ms: 0.03375
+  type: 'test'
+  ...
+1..50
+# tests 50
+# suites 0
+# pass 50
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 193.987666

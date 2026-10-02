@@ -1,6 +1,13 @@
 {
-  "_comment": "Power Coding runtime state — commit ranges make scans deterministic across sessions.",
+  "_comment": "Power Coding runtime state \u2014 commit ranges make scans deterministic across sessions.",
   "last_sentinel_commit": "9cdb7d9",
-  "last_fmea_commit": "1add5d2",
-  "declined_changesets": []
+  "last_fmea_commit": "f0e6c235cabf6e7e1f0eef08dbd3851e71801b3f",
+  "declined_changesets": [],
+  "last_fmea_review": {
+    "date": "2026-10-02",
+    "scope": "uncommitted working tree over recorded base",
+    "scenario_count": 112,
+    "evidence": "docs/qa/2026-10-02/fmea.json",
+    "runtime_published": false
+  }
 }

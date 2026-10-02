@@ -1,0 +1,59 @@
+   ▲ Next.js 15.5.25
+
+   Creating an optimized production build ...
+ ✓ Compiled successfully in 5.5s
+   Linting and checking validity of types ...
+   Collecting page data ...
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+[dashboard] BLINDSPOT_GATEWAY_URL is not set — defaulting to http://localhost:8787 in production.
+   Generating static pages (0/11) ...
+   Generating static pages (2/11)
+   Generating static pages (5/11)
+   Generating static pages (8/11)
+ ✓ Generating static pages (11/11)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                 Size  First Load JS
+┌ ƒ /                                    1.11 kB         110 kB
+├ ○ /_not-found                            988 B         103 kB
+├ ƒ /api/auth/[...nextauth]                140 B         102 kB
+├ ƒ /api/healthz                           140 B         102 kB
+├ ƒ /api/session                           140 B         102 kB
+├ ƒ /api/signup                            140 B         102 kB
+├ ƒ /approvals                           3.54 kB         112 kB
+├ ƒ /connect                               543 B         110 kB
+├ ƒ /drift                               1.86 kB         111 kB
+├ ƒ /feedback                            1.39 kB         110 kB
+├ ƒ /golden-sets                           170 B         106 kB
+├ ƒ /golden-sets/[route]                 7.49 kB         116 kB
+├ ○ /icon.svg                                0 B            0 B
+├ ○ /login                                 123 B         110 kB
+├ ƒ /login/session                         140 B         102 kB
+├ ƒ /logout                                140 B         102 kB
+├ ƒ /monitor                               170 B         106 kB
+├ ƒ /routes                                170 B         106 kB
+├ ƒ /routes/[name]                       6.04 kB         115 kB
+├ ƒ /routes/[name]/evals                   170 B         106 kB
+├ ƒ /settings                            3.61 kB         113 kB
+├ ○ /signup                                123 B         110 kB
+├ ƒ /signup/preview                        140 B         102 kB
+├ ƒ /signup/session                        140 B         102 kB
+└ ƒ /workflows                             174 B         109 kB
++ First Load JS shared by all             102 kB
+  ├ chunks/458-a9a1de0212bea8be.js       46.1 kB
+  ├ chunks/99f90274-8aa137da56d200b6.js  54.2 kB
+  └ other shared chunks (total)          1.92 kB
+
+
+ƒ Middleware                               33 kB
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

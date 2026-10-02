@@ -18,6 +18,7 @@ import {
   normalizeModelRef,
   parseModelRef,
   runChat,
+  ProviderDispatchError,
   type RunResult,
 } from "@blindspot/providers";
 import {
@@ -358,9 +359,12 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
   }
   if (examples.length === 0) throw new Error("golden set has no active examples");
 
-  const judgeModel = normalizeModelRef(
-    job.judgeModel ?? process.env.JUDGE_MODEL ?? DEFAULT_JUDGE_MODEL,
-  );
+  // The estimate authorizes a particular judge. Changing server configuration after
+  // review cannot silently change the model or price used by this paid plan.
+  const judgeModel = authorizedPlan.judgeModel;
+  if (job.judgeModel && normalizeModelRef(job.judgeModel) !== judgeModel) {
+    throw new Error("judge model does not match the authorized plan");
+  }
   const executionMode = job.executionMode ?? "model_only";
   const runtime =
     injectedRuntime ??
@@ -399,6 +403,7 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
   let scoreSum = 0;
   let latencySum = 0;
   let actualCostCents = 0;
+  let costUncertain = false;
   let scored = 0;
   let failed = 0;
   let usedLegacyOverall = false;
@@ -411,8 +416,12 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
       }
       let candidate: RunResult | null = null;
       let judge: JudgeResult | null = null;
+      let failedDispatchCost = 0;
       try {
         candidate = await runtime.runCandidate({ modelRef: job.modelRef, input: example.input });
+        if (!candidate.text.trim() || (candidate.finishReason && candidate.finishReason !== "stop")) {
+          throw new Error("Candidate output is empty or incomplete; no judge was requested");
+        }
         judge = await runtime.judge({
           modelRef: judgeModel,
           input: example.input,
@@ -422,7 +431,6 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
         });
         const candidateCost = candidate.costCents ?? 0;
         const judgeCost = judge.costCents ?? 0;
-        actualCostCents += candidateCost + judgeCost;
         const score =
           judge.verdict.perCriterion.length > 0
             ? judge.verdict.perCriterion.reduce((sum, criterion) => sum + criterion.score, 0) /
@@ -453,9 +461,11 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
         latencySum += candidate.latencyMs;
         scored += 1;
       } catch (error) {
-        const candidateCost = candidate?.costCents ?? 0;
-        const judgeCost = judge?.costCents ?? 0;
-        actualCostCents += candidateCost + judgeCost;
+        const dispatchFailure = error instanceof ProviderDispatchError ? error : null;
+        if (dispatchFailure?.dispatched && dispatchFailure.costCents === null) costUncertain = true;
+        failedDispatchCost = dispatchFailure?.costCents ?? 0;
+        const candidateCost = candidate?.costCents ?? (dispatchFailure ? dispatchFailure.costCents : 0);
+        const judgeCost = judge?.costCents ?? (candidate && dispatchFailure ? dispatchFailure.costCents : 0);
         failed += 1;
         await db.insert(evalExampleResults).values({
           evalRunId: run.id,
@@ -470,6 +480,12 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
           judgeCostCents: judgeCost,
           error: safeError(error),
         });
+        // An unknown bill cannot be treated as zero and used to fund more calls.
+        // Keep its usage reservation and stop this plan; a retry needs a new plan.
+        if (dispatchFailure?.dispatched && dispatchFailure.costCents === null) throw error;
+      } finally {
+        // Count returned usage once even if evidence persistence itself fails.
+        actualCostCents += (candidate?.costCents ?? 0) + (judge?.costCents ?? 0) + failedDispatchCost;
       }
       if (actualCostCents > maxCostCents) {
         throw new Error("Actual provider usage exceeded the authorized budget");
@@ -507,7 +523,7 @@ export async function runEval(job: EvalJob, injectedRuntime?: EvalRuntime): Prom
         status: "failed",
         examplesScored: scored,
         examplesFailed: failed,
-        actualCostCents,
+        actualCostCents: costUncertain ? null : actualCostCents,
       })
       .where(eq(evalRuns.id, run.id));
     throw error;

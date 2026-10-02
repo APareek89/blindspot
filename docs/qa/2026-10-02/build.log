@@ -1,0 +1,65 @@
+• turbo 2.10.5
+
+   • Packages in scope: @blindspot/core, @blindspot/dashboard, @blindspot/db, @blindspot/gateway, @blindspot/providers, @blindspot/sdk, @blindspot/shared, @blindspot/worker
+   • Running build in 8 packages
+   • Remote caching disabled
+
+@blindspot/sdk:build: cache hit, replaying logs 8cddc22ca16dd3f8
+@blindspot/sdk:build: $ tsc -p tsconfig.build.json
+@blindspot/dashboard:build: cache miss, executing 69672eae707be8c5
+@blindspot/dashboard:build: $ next build
+@blindspot/dashboard:build:    ▲ Next.js 15.5.25
+@blindspot/dashboard:build:
+@blindspot/dashboard:build:    Creating an optimized production build ...
+@blindspot/dashboard:build:  ✓ Compiled successfully in 2.9s
+@blindspot/dashboard:build:    Linting and checking validity of types ...
+@blindspot/dashboard:build:    Collecting page data ...
+@blindspot/dashboard:build:    Generating static pages (0/11) ...
+@blindspot/dashboard:build:    Generating static pages (2/11)
+@blindspot/dashboard:build:    Generating static pages (5/11)
+@blindspot/dashboard:build:    Generating static pages (8/11)
+@blindspot/dashboard:build:  ✓ Generating static pages (11/11)
+@blindspot/dashboard:build:    Finalizing page optimization ...
+@blindspot/dashboard:build:    Collecting build traces ...
+@blindspot/dashboard:build:
+@blindspot/dashboard:build: Route (app)                                 Size  First Load JS
+@blindspot/dashboard:build: ┌ ƒ /                                    1.11 kB         110 kB
+@blindspot/dashboard:build: ├ ○ /_not-found                            988 B         103 kB
+@blindspot/dashboard:build: ├ ƒ /api/auth/[...nextauth]                140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /api/healthz                           140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /api/session                           140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /api/signup                            140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /approvals                           3.54 kB         112 kB
+@blindspot/dashboard:build: ├ ƒ /connect                               543 B         110 kB
+@blindspot/dashboard:build: ├ ƒ /drift                               1.86 kB         111 kB
+@blindspot/dashboard:build: ├ ƒ /feedback                            1.39 kB         110 kB
+@blindspot/dashboard:build: ├ ƒ /golden-sets                           170 B         106 kB
+@blindspot/dashboard:build: ├ ƒ /golden-sets/[route]                  7.2 kB         116 kB
+@blindspot/dashboard:build: ├ ○ /icon.svg                                0 B            0 B
+@blindspot/dashboard:build: ├ ○ /login                                 123 B         110 kB
+@blindspot/dashboard:build: ├ ƒ /login/session                         140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /logout                                140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /monitor                               170 B         106 kB
+@blindspot/dashboard:build: ├ ƒ /routes                                170 B         106 kB
+@blindspot/dashboard:build: ├ ƒ /routes/[name]                       6.04 kB         115 kB
+@blindspot/dashboard:build: ├ ƒ /routes/[name]/evals                   170 B         106 kB
+@blindspot/dashboard:build: ├ ƒ /settings                            3.61 kB         113 kB
+@blindspot/dashboard:build: ├ ○ /signup                                123 B         110 kB
+@blindspot/dashboard:build: ├ ƒ /signup/preview                        140 B         102 kB
+@blindspot/dashboard:build: ├ ƒ /signup/session                        140 B         102 kB
+@blindspot/dashboard:build: └ ƒ /workflows                             174 B         109 kB
+@blindspot/dashboard:build: + First Load JS shared by all             102 kB
+@blindspot/dashboard:build:   ├ chunks/458-a9a1de0212bea8be.js       46.1 kB
+@blindspot/dashboard:build:   ├ chunks/99f90274-8aa137da56d200b6.js  54.2 kB
+@blindspot/dashboard:build:   └ other shared chunks (total)          1.92 kB
+@blindspot/dashboard:build:
+@blindspot/dashboard:build:
+@blindspot/dashboard:build: ƒ Middleware                             32.9 kB
+@blindspot/dashboard:build:
+@blindspot/dashboard:build: ○  (Static)   prerendered as static content
+@blindspot/dashboard:build: ƒ  (Dynamic)  server-rendered on demand
+@blindspot/dashboard:build:
+
+ Tasks:    2 successful, 2 total
+Cached:    1 cached, 2 total
+  Time:    23.939s

@@ -17,13 +17,14 @@ flowchart TD
   EXEC{"Authorized execution mode?<br/>FUNCTION"}:::dec
   DIRECT["Model-only candidate call<br/>AGENT · selected model<br/>out: screening output"]:::agent
   REPLAY["Protected application replay<br/>FUNCTION · temporary model override<br/>out: actual target-node output after real app context"]:::fn
-  JUDGE["Score visible criteria<br/>AGENT · JUDGE_MODEL<br/>out: per-criterion scores + reasoning"]:::agent
+  JUDGE["Score visible criteria<br/>AGENT · reviewed plan judgeModel<br/>out: per-criterion scores + reasoning"]:::agent
+  COMPLETE{"Complete candidate and known spend?<br/>FUNCTION"}:::dec
   MEAN["Equal-weight criterion mean<br/>FUNCTION · transparent score formula"]:::fn
   EVID["Persist evidence immediately<br/>DATA · input/reference/output, issues, usage, costs and errors"]:::data
   DONE{"All selected examples finished within the authorization?<br/>FUNCTION"}:::dec
   SCREEN["Show model-only shortlist and issues<br/>DATA · cannot recommend a production switch"]:::term
   REC["Workflow-replay evidence may enter policy<br/>DATA · Recommendation remains approval-gated"]:::data
-  WARN["Keep partial evidence/issues; no Recommendation<br/>DATA"]:::term
+  WARN["Keep partial evidence/issues; unknown total remains null; no Recommendation<br/>DATA"]:::term
 
   PICK --> ELIG --> LOAD --> PRICE --> FULL
   FULL -- "yes" --> DRAFT
@@ -33,8 +34,10 @@ flowchart TD
   REVIEW -- "confirm" --> FRESH
   FRESH -- "no" --> REFRESH
   FRESH -- "yes" --> LOCK --> LOOP --> EXEC
-  EXEC -- "model-only" --> DIRECT --> JUDGE
-  EXEC -- "workflow replay" --> REPLAY --> JUDGE
+  EXEC -- "model-only" --> DIRECT --> COMPLETE
+  EXEC -- "workflow replay" --> REPLAY --> COMPLETE
+  COMPLETE -- "yes" --> JUDGE
+  COMPLETE -- "no; retain known usage or unknown reservation" --> WARN
   JUDGE --> MEAN --> EVID --> DONE
   DONE -- "no" --> WARN
   DONE -- "yes, model-only" --> SCREEN

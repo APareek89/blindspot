@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "operator": "root CUA; synthetic ordinary account",
+  "build_id": "6CYJcwrMiW8KvXWTY85ug",
+  "checks": [
+    "expected alias retained after publish version2",
+    "full original Context/Question input retained after Edit and reload",
+    "metadata Promote disabled and missing-input explanation visible",
+    "JSONL schema example visible",
+    "desktop1280 document1280",
+    "mobile390 document390; wide table scroll remains local"
+  ],
+  "provider_calls": 0,
+  "scope": "No paid judge/generation; no automatic delayed-file-read browser test claimed",
+  "screenshots": [
+    {
+      "path": "screenshots/blindspot-golden-mobile.png",
+      "sha256": "c4c3ee3d4baf4a4395b9c9c29fec68cf64d5dca2b1902de160c7ddacf2e7a21b"
+    },
+    {
+      "path": "screenshots/blindspot-golden-published.png",
+      "sha256": "4b26a2f871bef59c45a78eeaa50b254e7c67610ba43a9a9e97cdc0de89324be5"
+    }
+  ]
+}
